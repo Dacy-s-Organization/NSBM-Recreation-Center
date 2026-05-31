@@ -1,5 +1,21 @@
 # Deploy to Netlify
 
+## Current site (NSBM Recreation Center team)
+
+- **Project:** [nsbm-recreation-center](https://app.netlify.com/projects/nsbm-recreation-center)
+- **URL:** https://nsbm-recreation-center.netlify.app (live after first successful build)
+- **Site ID:** `d6d8c099-ee63-404b-975b-0390da7aed76`
+- **Env vars:** already configured on Netlify
+
+### Recommended: connect GitHub (fixes local upload errors)
+
+If `netlify deploy` fails with **“Error uploading blobs to deploy store”**, link the repo so Netlify builds in the cloud:
+
+1. https://app.netlify.com/projects/nsbm-recreation-center/link
+2. GitHub → `dacy472/NSBM-Recreation-Center` → branch `main` → Deploy
+
+---
+
 ## One-time: connect Netlify MCP / CLI
 
 The Netlify MCP server needs authentication on your Mac.
