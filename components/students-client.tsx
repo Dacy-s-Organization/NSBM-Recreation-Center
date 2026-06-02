@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { addStudent } from "@/app/actions/students";
+import { addStudent, updateStudent } from "@/app/actions/students";
 import type { House, Student } from "@/lib/types/database";
 import { HouseBadge } from "@/components/house-badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ export function StudentsClient({
 }) {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -45,6 +46,15 @@ export function StudentsClient({
     });
   }
 
+  function handleUpdate(formData: FormData) {
+    setError(null);
+    startTransition(async () => {
+      const result = await updateStudent(formData);
+      if (result.error) setError(result.error);
+      else setEditingId(null);
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -57,7 +67,13 @@ export function StudentsClient({
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <Button type="button" onClick={() => setShowForm(!showForm)}>
+        <Button
+          type="button"
+          onClick={() => {
+            setShowForm(!showForm);
+            setEditingId(null);
+          }}
+        >
           {showForm ? "Cancel" : "Add student"}
         </Button>
       </div>
@@ -105,27 +121,90 @@ export function StudentsClient({
                 <th className="px-4 py-3 font-medium text-zinc-600">Student ID</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Name</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">House</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-zinc-500">
+                  <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
                     {query ? "No students match your search." : "No students yet. Add one or import from CSV."}
                   </td>
                 </tr>
               ) : (
                 filtered.map((s) => (
                   <tr key={s.id} className="border-b border-zinc-100 last:border-0">
-                    <td className="px-4 py-3 font-mono text-zinc-900">{s.student_id}</td>
-                    <td className="px-4 py-3 text-zinc-900">{s.full_name}</td>
-                    <td className="px-4 py-3">
-                      {s.houses?.name ? (
-                        <HouseBadge name={s.houses.name} />
-                      ) : (
-                        "—"
-                      )}
-                    </td>
+                    {editingId === s.id ? (
+                      <td colSpan={4} className="px-4 py-3">
+                        <form
+                          action={handleUpdate}
+                          className="grid gap-3 sm:grid-cols-3 sm:items-end"
+                        >
+                          <input type="hidden" name="id" value={s.id} />
+                          <div>
+                            <Label>Student ID</Label>
+                            <Input name="student_id" defaultValue={s.student_id} required />
+                          </div>
+                          <div>
+                            <Label>Full name</Label>
+                            <Input name="full_name" defaultValue={s.full_name} required />
+                          </div>
+                          <div>
+                            <Label>House</Label>
+                            <Select name="house_id" required defaultValue={s.house_id}>
+                              {houses.map((h) => (
+                                <option key={h.id} value={h.id}>
+                                  {h.name}
+                                </option>
+                              ))}
+                            </Select>
+                          </div>
+                          <div className="flex flex-wrap gap-2 sm:col-span-3">
+                            <Button type="submit" disabled={pending}>
+                              Save
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => {
+                                setEditingId(null);
+                                setError(null);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            {error && (
+                              <p className="w-full text-sm text-red-600">{error}</p>
+                            )}
+                          </div>
+                        </form>
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3 font-mono text-zinc-900">{s.student_id}</td>
+                        <td className="px-4 py-3 text-zinc-900">{s.full_name}</td>
+                        <td className="px-4 py-3">
+                          {s.houses?.name ? (
+                            <HouseBadge name={s.houses.name} />
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingId(s.id);
+                              setShowForm(false);
+                              setError(null);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))
               )}

@@ -47,6 +47,54 @@ export async function addSportRecord(formData: FormData) {
   return { success: true };
 }
 
+export async function updateSportRecord(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  const studentIdText = String(formData.get("student_id") ?? "").trim();
+  const trackId = String(formData.get("track_id") ?? "").trim();
+  const valueRaw = String(formData.get("value") ?? "").trim();
+  const yearRaw = String(formData.get("year") ?? "").trim();
+
+  const value = parseFloat(valueRaw);
+  const year = parseInt(yearRaw, 10);
+
+  if (!id || !studentIdText || !trackId || Number.isNaN(value) || value < 0) {
+    return { error: "Please provide a valid student ID, track, and value." };
+  }
+  if (Number.isNaN(year) || year < 1900 || year > 2100) {
+    return { error: "Please provide a valid year." };
+  }
+
+  const supabase = await createClient();
+
+  const { data: student, error: studentError } = await supabase
+    .from("students")
+    .select("id")
+    .eq("student_id", studentIdText)
+    .maybeSingle();
+
+  if (studentError || !student) {
+    return { error: "Student not found. Check the ID." };
+  }
+
+  const { error } = await supabase
+    .from("sport_records")
+    .update({
+      student_id: student.id,
+      track_id: trackId,
+      year,
+      value,
+    })
+    .eq("id", id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/records");
+  revalidatePath("/");
+  return { success: true };
+}
+
 export async function lookupStudentByStudentId(studentId: string) {
   const supabase = await createClient();
   const { data } = await supabase

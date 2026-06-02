@@ -30,3 +30,36 @@ export async function addStudent(formData: FormData) {
   revalidatePath("/");
   return { success: true };
 }
+
+export async function updateStudent(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  const studentId = String(formData.get("student_id") ?? "").trim();
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  const houseId = String(formData.get("house_id") ?? "").trim();
+
+  if (!id || !studentId || !fullName || !houseId) {
+    return { error: "All fields are required." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("students")
+    .update({
+      student_id: studentId,
+      full_name: fullName,
+      house_id: houseId,
+    })
+    .eq("id", id);
+
+  if (error) {
+    if (error.code === "23505") {
+      return { error: "A student with this ID already exists." };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/students");
+  revalidatePath("/records");
+  revalidatePath("/");
+  return { success: true };
+}
