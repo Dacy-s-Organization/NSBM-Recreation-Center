@@ -15,8 +15,17 @@ type ImportType = "students" | "records" | "inventory";
 const templates: Record<ImportType, { filename: string; content: string; columns: string[] }> = {
   students: {
     filename: "students_template.csv",
-    content: "student_id,full_name,house_name\n2024001,John Doe,Ruby Adventurers",
-    columns: ["student_id", "full_name", "house_name"],
+    content:
+      "student_id,full_name,house_name,faculty,intake,degree_programme,gender,nic,mobile,email\n2024001,John Doe,Ruby Adventurers,FOB,2026.1,Foundation Programme,Male,000000000V,0700000000,john@example.com",
+    columns: [
+      "student_id",
+      "full_name",
+      "house_name",
+      "faculty",
+      "intake",
+      "degree_programme",
+      "gender",
+    ],
   },
   records: {
     filename: "records_template.csv",
@@ -47,13 +56,19 @@ function downloadTemplate(type: ImportType) {
   URL.revokeObjectURL(url);
 }
 
+const requiredColumns: Record<ImportType, string[]> = {
+  students: ["student_id", "full_name", "house_name"],
+  records: ["student_id", "track_name", "value", "year"],
+  inventory: ["item_name", "quantity"],
+};
+
 function validateRow(
   type: ImportType,
   row: Record<string, string>,
   line: number
 ): PreviewRow {
-  const cols = templates[type].columns;
-  const missing = cols.filter((c) => !String(row[c] ?? "").trim());
+  const required = requiredColumns[type];
+  const missing = required.filter((c) => !String(row[c] ?? "").trim());
   if (missing.length > 0) {
     return {
       ...row,
@@ -127,7 +142,14 @@ function ImportSection({
           valid.map((r) => ({
             student_id: String(r.student_id),
             full_name: String(r.full_name),
-            house_name: String(r.house_name),
+            house_name: String(r.house_name ?? ""),
+            faculty: String(r.faculty ?? ""),
+            intake: String(r.intake ?? ""),
+            degree_programme: String(r.degree_programme ?? ""),
+            gender: String(r.gender ?? ""),
+            nic: String(r.nic ?? ""),
+            mobile: String(r.mobile ?? ""),
+            email: String(r.email ?? ""),
           }))
         );
       } else if (type === "records") {
@@ -252,7 +274,7 @@ export function ImportClient() {
       <ImportSection
         type="students"
         title="Import students"
-        description="Columns: student_id, full_name, house_name. House names must match exactly (e.g. Ruby Adventurers)."
+        description="Required: student_id, full_name, house_name. Optional: faculty, intake, degree_programme, gender, nic, mobile, email."
       />
       <ImportSection
         type="records"

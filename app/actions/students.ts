@@ -7,9 +7,12 @@ export async function addStudent(formData: FormData) {
   const studentId = String(formData.get("student_id") ?? "").trim();
   const fullName = String(formData.get("full_name") ?? "").trim();
   const houseId = String(formData.get("house_id") ?? "").trim();
+  const faculty = String(formData.get("faculty") ?? "").trim() || null;
+  const intake = String(formData.get("intake") ?? "").trim() || null;
+  const gender = String(formData.get("gender") ?? "").trim() || null;
 
   if (!studentId || !fullName || !houseId) {
-    return { error: "All fields are required." };
+    return { error: "Student ID, name, and house are required." };
   }
 
   const supabase = await createClient();
@@ -17,6 +20,9 @@ export async function addStudent(formData: FormData) {
     student_id: studentId,
     full_name: fullName,
     house_id: houseId,
+    faculty,
+    intake,
+    gender,
   });
 
   if (error) {
@@ -36,9 +42,12 @@ export async function updateStudent(formData: FormData) {
   const studentId = String(formData.get("student_id") ?? "").trim();
   const fullName = String(formData.get("full_name") ?? "").trim();
   const houseId = String(formData.get("house_id") ?? "").trim();
+  const faculty = String(formData.get("faculty") ?? "").trim() || null;
+  const intake = String(formData.get("intake") ?? "").trim() || null;
+  const gender = String(formData.get("gender") ?? "").trim() || null;
 
   if (!id || !studentId || !fullName || !houseId) {
-    return { error: "All fields are required." };
+    return { error: "Student ID, name, and house are required." };
   }
 
   const supabase = await createClient();
@@ -48,6 +57,9 @@ export async function updateStudent(formData: FormData) {
       student_id: studentId,
       full_name: fullName,
       house_id: houseId,
+      faculty,
+      intake,
+      gender,
     })
     .eq("id", id);
 
@@ -59,7 +71,7 @@ export async function updateStudent(formData: FormData) {
   }
 
   revalidatePath("/students");
-  revalidatePath("/records");
+  revalidatePath("/achievements");
   revalidatePath("/");
   return { success: true };
 }

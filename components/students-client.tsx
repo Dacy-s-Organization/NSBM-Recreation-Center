@@ -18,20 +18,45 @@ export function StudentsClient({
   houses: House[];
 }) {
   const [query, setQuery] = useState("");
+  const [facultyFilter, setFacultyFilter] = useState("");
+  const [intakeFilter, setIntakeFilter] = useState("");
+  const [houseFilter, setHouseFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const faculties = useMemo(() => {
+    const set = new Set(students.map((s) => s.faculty).filter(Boolean) as string[]);
+    return [...set].sort();
+  }, [students]);
+
+  const intakes = useMemo(() => {
+    const set = new Set(students.map((s) => s.intake).filter(Boolean) as string[]);
+    return [...set].sort((a, b) => b.localeCompare(a));
+  }, [students]);
+
   const filtered = useMemo(() => {
+    let list = students;
     const q = query.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter(
-      (s) =>
-        s.student_id.toLowerCase().includes(q) ||
-        s.full_name.toLowerCase().includes(q)
-    );
-  }, [students, query]);
+    if (q) {
+      list = list.filter(
+        (s) =>
+          s.student_id.toLowerCase().includes(q) ||
+          s.full_name.toLowerCase().includes(q)
+      );
+    }
+    if (facultyFilter) {
+      list = list.filter((s) => s.faculty === facultyFilter);
+    }
+    if (intakeFilter) {
+      list = list.filter((s) => s.intake === intakeFilter);
+    }
+    if (houseFilter) {
+      list = list.filter((s) => s.house_id === houseFilter);
+    }
+    return list;
+  }, [students, query, facultyFilter, intakeFilter, houseFilter]);
 
   function handleAdd(formData: FormData) {
     setError(null);
@@ -55,20 +80,81 @@ export function StudentsClient({
     });
   }
 
+  const hasActiveFilters = facultyFilter || intakeFilter || houseFilter;
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end gap-4">
         <div className="min-w-[200px] flex-1 max-w-md">
-          <Label htmlFor="search">Search by student ID or name</Label>
+          <Label htmlFor="search">Search</Label>
           <Input
             id="search"
-            placeholder="e.g. 2024001"
+            placeholder="Student ID or name"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+        <div>
+          <Label htmlFor="faculty-filter">Faculty</Label>
+          <Select
+            id="faculty-filter"
+            value={facultyFilter}
+            onChange={(e) => setFacultyFilter(e.target.value)}
+          >
+            <option value="">All faculties</option>
+            {faculties.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="intake-filter">Intake</Label>
+          <Select
+            id="intake-filter"
+            value={intakeFilter}
+            onChange={(e) => setIntakeFilter(e.target.value)}
+          >
+            <option value="">All intakes</option>
+            {intakes.map((i) => (
+              <option key={i} value={i}>
+                {i}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="house-filter">House</Label>
+          <Select
+            id="house-filter"
+            value={houseFilter}
+            onChange={(e) => setHouseFilter(e.target.value)}
+          >
+            <option value="">All houses</option>
+            {houses.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        {hasActiveFilters && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setFacultyFilter("");
+              setIntakeFilter("");
+              setHouseFilter("");
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
         <Button
           type="button"
+          className="ml-auto"
           onClick={() => {
             setShowForm(!showForm);
             setEditingId(null);
@@ -103,6 +189,22 @@ export function StudentsClient({
                 ))}
               </Select>
             </div>
+            <div>
+              <Label htmlFor="faculty">Faculty</Label>
+              <Input id="faculty" name="faculty" placeholder="e.g. FOB" />
+            </div>
+            <div>
+              <Label htmlFor="intake">Intake</Label>
+              <Input id="intake" name="intake" placeholder="e.g. 2026.1" />
+            </div>
+            <div>
+              <Label htmlFor="gender">Gender</Label>
+              <Select id="gender" name="gender" defaultValue="">
+                <option value="">—</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </Select>
+            </div>
             <div className="sm:col-span-3 flex gap-2">
               <Button type="submit" disabled={pending}>
                 {pending ? "Saving…" : "Save student"}
@@ -120,6 +222,8 @@ export function StudentsClient({
               <tr>
                 <th className="px-4 py-3 font-medium text-zinc-600">Student ID</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Name</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Faculty</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Intake</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">House</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Actions</th>
               </tr>
@@ -127,15 +231,17 @@ export function StudentsClient({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
-                    {query ? "No students match your search." : "No students yet. Add one or import from CSV."}
+                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
+                    {query || hasActiveFilters
+                      ? "No students match your search."
+                      : "No students yet. Add one or import from CSV."}
                   </td>
                 </tr>
               ) : (
                 filtered.map((s) => (
                   <tr key={s.id} className="border-b border-zinc-100 last:border-0">
                     {editingId === s.id ? (
-                      <td colSpan={4} className="px-4 py-3">
+                      <td colSpan={6} className="px-4 py-3">
                         <form
                           action={handleUpdate}
                           className="grid gap-3 sm:grid-cols-3 sm:items-end"
@@ -157,6 +263,22 @@ export function StudentsClient({
                                   {h.name}
                                 </option>
                               ))}
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Faculty</Label>
+                            <Input name="faculty" defaultValue={s.faculty ?? ""} />
+                          </div>
+                          <div>
+                            <Label>Intake</Label>
+                            <Input name="intake" defaultValue={s.intake ?? ""} />
+                          </div>
+                          <div>
+                            <Label>Gender</Label>
+                            <Select name="gender" defaultValue={s.gender ?? ""}>
+                              <option value="">—</option>
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
                             </Select>
                           </div>
                           <div className="flex flex-wrap gap-2 sm:col-span-3">
@@ -183,6 +305,8 @@ export function StudentsClient({
                       <>
                         <td className="px-4 py-3 font-mono text-zinc-900">{s.student_id}</td>
                         <td className="px-4 py-3 text-zinc-900">{s.full_name}</td>
+                        <td className="px-4 py-3 text-zinc-700">{s.faculty || "—"}</td>
+                        <td className="px-4 py-3 text-zinc-700">{s.intake || "—"}</td>
                         <td className="px-4 py-3">
                           {s.houses?.name ? (
                             <HouseBadge name={s.houses.name} />

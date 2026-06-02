@@ -9,8 +9,21 @@ type ImportResult = {
   errors: string[];
 };
 
+type StudentRow = {
+  student_id: string;
+  full_name: string;
+  house_name: string;
+  faculty?: string;
+  intake?: string;
+  degree_programme?: string;
+  gender?: string;
+  nic?: string;
+  mobile?: string;
+  email?: string;
+};
+
 export async function importStudents(
-  rows: { student_id: string; full_name: string; house_name: string }[]
+  rows: StudentRow[]
 ): Promise<ImportResult> {
   const supabase = await createClient();
   const result: ImportResult = { success: 0, skipped: 0, errors: [] };
@@ -21,7 +34,7 @@ export async function importStudents(
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const line = i + 2;
-    const houseId = houseMap.get(row.house_name.trim().toLowerCase());
+    const houseId = houseMap.get((row.house_name ?? "").trim().toLowerCase());
 
     if (!row.student_id?.trim() || !row.full_name?.trim()) {
       result.errors.push(`Row ${line}: missing student_id or full_name`);
@@ -36,6 +49,13 @@ export async function importStudents(
       student_id: row.student_id.trim(),
       full_name: row.full_name.trim(),
       house_id: houseId,
+      faculty: row.faculty?.trim() || null,
+      intake: row.intake?.trim() || null,
+      degree_programme: row.degree_programme?.trim() || null,
+      gender: row.gender?.trim() || null,
+      nic: row.nic?.trim() || null,
+      mobile: row.mobile?.trim() || null,
+      email: row.email?.trim() || null,
     });
 
     if (error) {

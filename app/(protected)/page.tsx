@@ -21,13 +21,13 @@ export default async function DashboardPage() {
 
   const stats = [
     { label: "Students", value: studentCount ?? 0, href: "/students" },
-    { label: `Records (${year})`, value: recordCount ?? 0, href: "/records" },
+    { label: `Records (${year})`, value: recordCount ?? 0, href: "/achievements" },
     { label: "Inventory items", value: inventoryCount ?? 0, href: "/inventory" },
   ];
 
   const quickLinks = [
     { href: "/students", title: "Manage students", desc: "Search by ID and assign houses" },
-    { href: "/records", title: "Sport records", desc: "View and add track results by year" },
+    { href: "/achievements", title: "Achievements", desc: "Athletic records and sports achievements" },
     { href: "/inventory", title: "Equipment inventory", desc: "Track quantities of gear" },
     { href: "/import", title: "Import data", desc: "Bulk upload from CSV spreadsheets" },
   ];

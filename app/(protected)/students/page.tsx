@@ -8,7 +8,9 @@ export default async function StudentsPage() {
   const [{ data: students }, { data: houses }] = await Promise.all([
     supabase
       .from("students")
-      .select("id, student_id, full_name, house_id, created_at, houses(name)")
+      .select(
+        "id, student_id, full_name, house_id, faculty, intake, degree_programme, gender, nic, mobile, email, created_at, houses(name)"
+      )
       .order("student_id"),
     supabase.from("houses").select("id, name").order("name"),
   ]);
@@ -18,7 +20,7 @@ export default async function StudentsPage() {
       <div>
         <h2 className="text-2xl font-semibold text-zinc-900">Students</h2>
         <p className="mt-1 text-zinc-600">
-          Search by student ID and assign students to houses.
+          Search, filter, and manage students by faculty, intake, and house.
         </p>
       </div>
       <StudentsClient

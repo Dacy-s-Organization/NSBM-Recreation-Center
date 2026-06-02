@@ -8,6 +8,13 @@ export type Student = {
   student_id: string;
   full_name: string;
   house_id: string;
+  faculty: string | null;
+  intake: string | null;
+  degree_programme: string | null;
+  gender: string | null;
+  nic: string | null;
+  mobile: string | null;
+  email: string | null;
   created_at: string;
   houses?: House | null;
 };
@@ -35,4 +42,20 @@ export type InventoryItem = {
   name: string;
   quantity: number;
   updated_at: string;
+};
+
+export type SportsAchievementWinner = {
+  student_id: string;
+  students?: Pick<Student, "student_id" | "full_name"> | null;
+};
+
+export type SportsAchievement = {
+  id: string;
+  meet_year: number;
+  sport: string;
+  achievement_type: string;
+  team_name: string | null;
+  notes: string | null;
+  created_at: string;
+  sports_achievement_winners?: SportsAchievementWinner[];
 };
