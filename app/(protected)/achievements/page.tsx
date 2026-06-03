@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { RecordsClient } from "@/components/records-client";
 import { AchievementsClient } from "@/components/achievements-client";
-import type { SportRecord, SportsAchievement } from "@/lib/types/database";
+import type { House, SportRecord, SportsAchievement } from "@/lib/types/database";
 
 export default async function AchievementsPage() {
   const supabase = await createClient();
@@ -11,6 +11,7 @@ export default async function AchievementsPage() {
     { data: records },
     { data: tracks },
     { data: achievements },
+    { data: houses },
   ] = await Promise.all([
     supabase
       .from("sport_records")
@@ -31,6 +32,7 @@ export default async function AchievementsPage() {
          sports_achievement_winners(student_id, students(student_id, full_name))`
       )
       .order("meet_year", { ascending: false }),
+    supabase.from("houses").select("id, name").order("name"),
   ]);
 
   const years = [
@@ -65,6 +67,7 @@ export default async function AchievementsPage() {
         </h3>
         <AchievementsClient
           achievements={(achievements ?? []) as unknown as SportsAchievement[]}
+          houses={(houses ?? []) as House[]}
           defaultYear={defaultYear}
         />
       </section>

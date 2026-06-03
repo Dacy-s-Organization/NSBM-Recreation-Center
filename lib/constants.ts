@@ -26,3 +26,16 @@ export const DEFAULT_HOUSE_STYLE = {
   text: "text-zinc-800",
   border: "border-zinc-200",
 };
+
+export const ACHIEVEMENT_TYPES = ["Champion Team", "Best Player"] as const;
+export type AchievementType = (typeof ACHIEVEMENT_TYPES)[number];
+
+export const ACHIEVEMENT_TYPE_CHAMPION: AchievementType = "Champion Team";
+export const ACHIEVEMENT_TYPE_BEST_PLAYER: AchievementType = "Best Player";
+
+export function formatTrackUnitLabel(unit: string): string {
+  const u = unit.trim().toLowerCase();
+  if (u === "s") return "seconds";
+  if (u === "m") return "meters";
+  return unit.trim() || "value";
+}

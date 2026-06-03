@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { addStudent, updateStudent } from "@/app/actions/students";
+import { addStudent, deleteStudent, updateStudent } from "@/app/actions/students";
 import type { House, Student } from "@/lib/types/database";
 import { HouseBadge } from "@/components/house-badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +77,22 @@ export function StudentsClient({
       const result = await updateStudent(formData);
       if (result.error) setError(result.error);
       else setEditingId(null);
+    });
+  }
+
+  function handleDelete(id: string, studentId: string) {
+    if (
+      !window.confirm(
+        `Delete student ${studentId}? Their sport records and achievement links will also be removed.`
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteStudent(id);
+      if (result.error) setError(result.error);
+      else if (editingId === id) setEditingId(null);
     });
   }
 
@@ -315,17 +331,27 @@ export function StudentsClient({
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => {
-                              setEditingId(s.id);
-                              setShowForm(false);
-                              setError(null);
-                            }}
-                          >
-                            Edit
-                          </Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingId(s.id);
+                                setShowForm(false);
+                                setError(null);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="danger"
+                              onClick={() => handleDelete(s.id, s.student_id)}
+                              disabled={pending}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </td>
                       </>
                     )}

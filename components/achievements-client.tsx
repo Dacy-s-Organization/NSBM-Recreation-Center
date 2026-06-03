@@ -1,19 +1,159 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { addAchievement, updateAchievement } from "@/app/actions/achievements";
-import type { SportsAchievement } from "@/lib/types/database";
+import {
+  addAchievement,
+  deleteAchievement,
+  updateAchievement,
+} from "@/app/actions/achievements";
+import {
+  ACHIEVEMENT_TYPES,
+  ACHIEVEMENT_TYPE_BEST_PLAYER,
+  type AchievementType,
+} from "@/lib/constants";
+import type { House, SportsAchievement } from "@/lib/types/database";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 
+function houseNameForAchievement(
+  achievement: SportsAchievement | undefined,
+  houses: House[]
+): string {
+  if (!achievement?.team_name) return "";
+  const match = houses.find((h) => h.name === achievement.team_name);
+  return match?.name ?? achievement.team_name;
+}
+
+function AchievementForm({
+  achievement,
+  houses,
+  defaultYear,
+  pending,
+  error,
+  onSubmit,
+  submitLabel,
+  onCancel,
+}: {
+  achievement?: SportsAchievement;
+  houses: House[];
+  defaultYear: number;
+  pending: boolean;
+  error: string | null;
+  onSubmit: (formData: FormData) => void;
+  submitLabel: string;
+  onCancel?: () => void;
+}) {
+  const isEdit = Boolean(achievement);
+  const initialType = (achievement?.achievement_type as AchievementType) ?? "";
+  const [achievementType, setAchievementType] = useState(initialType);
+  const existingWinnerId =
+    achievement?.sports_achievement_winners?.[0]?.students?.student_id ?? "";
+
+  const showBestPlayerField = achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER;
+
+  return (
+    <form action={onSubmit} className="grid gap-4 sm:grid-cols-2">
+      {isEdit && <input type="hidden" name="id" value={achievement!.id} />}
+      <div>
+        <Label>Sport</Label>
+        <Input
+          name="sport"
+          required
+          defaultValue={achievement?.sport ?? ""}
+          placeholder="e.g. Basketball"
+        />
+      </div>
+      <div>
+        <Label>Achievement type</Label>
+        <Select
+          name="achievement_type"
+          required
+          value={achievementType}
+          onChange={(e) => setAchievementType(e.target.value as AchievementType)}
+        >
+          <option value="" disabled>
+            Select type
+          </option>
+          {ACHIEVEMENT_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div>
+        <Label>Year</Label>
+        <Input
+          name="meet_year"
+          type="number"
+          required
+          defaultValue={achievement?.meet_year ?? defaultYear}
+        />
+      </div>
+      <div>
+        <Label>House (team)</Label>
+        <Select
+          name="team_name"
+          required
+          defaultValue={houseNameForAchievement(achievement, houses)}
+        >
+          <option value="" disabled>
+            Select house
+          </option>
+          {houses.map((h) => (
+            <option key={h.id} value={h.name}>
+              {h.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+      {showBestPlayerField && (
+        <div className="sm:col-span-2">
+          <Label>Best Player student ID</Label>
+          <Input
+            name="winner_student_id"
+            required
+            defaultValue={existingWinnerId}
+            placeholder="e.g. 2024001"
+          />
+          <p className="mt-1 text-xs text-zinc-500">
+            Enter one student ID for this house&apos;s Best Player award.
+          </p>
+        </div>
+      )}
+      <div className="sm:col-span-2">
+        <Label>Notes (optional)</Label>
+        <Input
+          name="notes"
+          defaultValue={achievement?.notes ?? ""}
+          placeholder="Any extra info"
+        />
+      </div>
+      <div className="flex flex-wrap gap-2 sm:col-span-2">
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving…" : submitLabel}
+        </Button>
+        {onCancel && (
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
+        {error && <p className="w-full text-sm text-red-600">{error}</p>}
+      </div>
+    </form>
+  );
+}
+
 export function AchievementsClient({
   achievements,
+  houses,
   defaultYear,
 }: {
   achievements: SportsAchievement[];
+  houses: House[];
   defaultYear: number;
 }) {
   const [yearFilter, setYearFilter] = useState(defaultYear);
@@ -57,99 +197,25 @@ export function AchievementsClient({
     });
   }
 
-  function AchievementForm({
-    achievement,
-    onSubmit,
-    submitLabel,
-  }: {
-    achievement?: SportsAchievement;
-    onSubmit: (formData: FormData) => void;
-    submitLabel: string;
-  }) {
-    const isEdit = Boolean(achievement);
-    const existingWinnerIds =
-      achievement?.sports_achievement_winners
-        ?.map((w) => w.students?.student_id)
-        .filter(Boolean)
-        .join(", ") ?? "";
+  function handleDelete(id: string, sport: string) {
+    if (!window.confirm(`Delete sports achievement for ${sport}?`)) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteAchievement(id);
+      if (result.error) setError(result.error);
+      else if (editingId === id) setEditingId(null);
+    });
+  }
 
-    return (
-      <form action={onSubmit} className="grid gap-4 sm:grid-cols-2">
-        {isEdit && <input type="hidden" name="id" value={achievement!.id} />}
-        <div>
-          <Label>Sport</Label>
-          <Input
-            name="sport"
-            required
-            defaultValue={achievement?.sport ?? ""}
-            placeholder="e.g. Basketball"
-          />
-        </div>
-        <div>
-          <Label>Achievement type</Label>
-          <Input
-            name="achievement_type"
-            required
-            defaultValue={achievement?.achievement_type ?? ""}
-            placeholder="e.g. Champion Team, Best Player"
-          />
-        </div>
-        <div>
-          <Label>Year</Label>
-          <Input
-            name="meet_year"
-            type="number"
-            required
-            defaultValue={achievement?.meet_year ?? defaultYear}
-          />
-        </div>
-        <div>
-          <Label>Team name (optional)</Label>
-          <Input
-            name="team_name"
-            defaultValue={achievement?.team_name ?? ""}
-            placeholder="e.g. Sapphire Heroes"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <Label>Winner student IDs (comma-separated)</Label>
-          <Input
-            name="winner_student_ids"
-            defaultValue={existingWinnerIds}
-            placeholder="e.g. 2024001, 2024015, 2024032"
-          />
-          <p className="mt-1 text-xs text-zinc-500">
-            Enter student IDs separated by commas. Leave empty if not applicable.
-          </p>
-        </div>
-        <div className="sm:col-span-2">
-          <Label>Notes (optional)</Label>
-          <Input
-            name="notes"
-            defaultValue={achievement?.notes ?? ""}
-            placeholder="Any extra info"
-          />
-        </div>
-        <div className="flex flex-wrap gap-2 sm:col-span-2">
-          <Button type="submit" disabled={pending}>
-            {pending ? "Saving…" : submitLabel}
-          </Button>
-          {isEdit && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setEditingId(null);
-                setError(null);
-              }}
-            >
-              Cancel
-            </Button>
-          )}
-          {error && <p className="w-full text-sm text-red-600">{error}</p>}
-        </div>
-      </form>
-    );
+  function formatWinners(a: SportsAchievement): string {
+    if (a.achievement_type !== ACHIEVEMENT_TYPE_BEST_PLAYER) {
+      return "—";
+    }
+    const winners = a.sports_achievement_winners;
+    if (!winners?.length) return "—";
+    return winners
+      .map((w) => w.students?.full_name ?? w.students?.student_id ?? "?")
+      .join(", ");
   }
 
   return (
@@ -182,11 +248,23 @@ export function AchievementsClient({
         </Button>
       </div>
 
+      {error && !showForm && editingId === null && (
+        <p className="text-sm text-red-600">{error}</p>
+      )}
+
       {showForm && (
         <Card>
           <h3 className="font-medium text-zinc-900">New sports achievement</h3>
           <div className="mt-4">
-            <AchievementForm onSubmit={handleAdd} submitLabel="Save achievement" />
+            <AchievementForm
+              key="new-achievement"
+              houses={houses}
+              defaultYear={defaultYear}
+              pending={pending}
+              error={error}
+              onSubmit={handleAdd}
+              submitLabel="Save achievement"
+            />
           </div>
         </Card>
       )}
@@ -223,9 +301,18 @@ export function AchievementsClient({
                           Edit achievement
                         </p>
                         <AchievementForm
+                          key={a.id}
                           achievement={a}
+                          houses={houses}
+                          defaultYear={defaultYear}
+                          pending={pending}
+                          error={error}
                           onSubmit={handleUpdate}
                           submitLabel="Save changes"
+                          onCancel={() => {
+                            setEditingId(null);
+                            setError(null);
+                          }}
                         />
                       </td>
                     ) : (
@@ -238,33 +325,33 @@ export function AchievementsClient({
                           {a.team_name || "—"}
                         </td>
                         <td className="px-4 py-3 text-zinc-700">
-                          {a.sports_achievement_winners &&
-                          a.sports_achievement_winners.length > 0
-                            ? a.sports_achievement_winners
-                                .map(
-                                  (w) =>
-                                    w.students?.full_name ??
-                                    w.students?.student_id ??
-                                    "?"
-                                )
-                                .join(", ")
-                            : "—"}
+                          {formatWinners(a)}
                         </td>
                         <td className="px-4 py-3 text-zinc-500">
                           {a.notes || "—"}
                         </td>
                         <td className="px-4 py-3">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => {
-                              setEditingId(a.id);
-                              setShowForm(false);
-                              setError(null);
-                            }}
-                          >
-                            Edit
-                          </Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingId(a.id);
+                                setShowForm(false);
+                                setError(null);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="danger"
+                              onClick={() => handleDelete(a.id, a.sport)}
+                              disabled={pending}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </td>
                       </>
                     )}

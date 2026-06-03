@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addInventoryItem, updateInventoryItem } from "@/app/actions/inventory";
+import {
+  addInventoryItem,
+  deleteInventoryItem,
+  updateInventoryItem,
+} from "@/app/actions/inventory";
 import type { InventoryItem } from "@/lib/types/database";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +36,16 @@ export function InventoryClient({ items }: { items: InventoryItem[] }) {
       const result = await updateInventoryItem(formData);
       if (result.error) setError(result.error);
       else setEditingId(null);
+    });
+  }
+
+  function handleDelete(id: string, name: string) {
+    if (!window.confirm(`Delete inventory item "${name}"?`)) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteInventoryItem(id);
+      if (result.error) setError(result.error);
+      else if (editingId === id) setEditingId(null);
     });
   }
 
@@ -129,13 +143,23 @@ export function InventoryClient({ items }: { items: InventoryItem[] }) {
                           {new Date(item.updated_at).toLocaleString()}
                         </td>
                         <td className="px-4 py-3">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => setEditingId(item.id)}
-                          >
-                            Edit
-                          </Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => setEditingId(item.id)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="danger"
+                              onClick={() => handleDelete(item.id, item.name)}
+                              disabled={pending}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </td>
                       </>
                     )}

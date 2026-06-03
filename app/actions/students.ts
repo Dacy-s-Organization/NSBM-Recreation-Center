@@ -75,3 +75,19 @@ export async function updateStudent(formData: FormData) {
   revalidatePath("/");
   return { success: true };
 }
+
+export async function deleteStudent(id: string) {
+  if (!id?.trim()) {
+    return { error: "Invalid student." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("students").delete().eq("id", id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/students");
+  revalidatePath("/achievements");
+  revalidatePath("/");
+  return { success: true };
+}

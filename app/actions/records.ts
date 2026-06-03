@@ -42,7 +42,7 @@ export async function addSportRecord(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/records");
+  revalidatePath("/achievements");
   revalidatePath("/");
   return { success: true };
 }
@@ -90,7 +90,22 @@ export async function updateSportRecord(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/records");
+  revalidatePath("/achievements");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function deleteSportRecord(id: string) {
+  if (!id?.trim()) {
+    return { error: "Invalid record." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("sport_records").delete().eq("id", id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/achievements");
   revalidatePath("/");
   return { success: true };
 }

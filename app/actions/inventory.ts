@@ -56,3 +56,18 @@ export async function updateInventoryItem(formData: FormData) {
   revalidatePath("/inventory");
   return { success: true };
 }
+
+export async function deleteInventoryItem(id: string) {
+  if (!id?.trim()) {
+    return { error: "Invalid item." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("inventory_items").delete().eq("id", id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/inventory");
+  revalidatePath("/");
+  return { success: true };
+}

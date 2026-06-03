@@ -3,10 +3,12 @@
 import { useMemo, useState, useTransition, useEffect } from "react";
 import {
   addSportRecord,
+  deleteSportRecord,
   lookupStudentByStudentId,
   updateSportRecord,
 } from "@/app/actions/records";
 import type { SportRecord, SportTrack } from "@/lib/types/database";
+import { formatTrackUnitLabel } from "@/lib/constants";
 import { formatRecordValue } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +36,7 @@ export function RecordsClient({
 }) {
   const [year, setYear] = useState(defaultYear);
   const [trackId, setTrackId] = useState("");
+  const [formTrackId, setFormTrackId] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [studentIdInput, setStudentIdInput] = useState("");
@@ -79,6 +82,7 @@ export function RecordsClient({
       else {
         setShowForm(false);
         setStudentIdInput("");
+        setFormTrackId("");
         setLookup(null);
       }
     });
@@ -92,6 +96,7 @@ export function RecordsClient({
       else {
         setEditingId(null);
         setStudentIdInput("");
+        setFormTrackId("");
         setLookup(null);
       }
     });
@@ -102,15 +107,32 @@ export function RecordsClient({
     setShowForm(false);
     setError(null);
     setStudentIdInput(record.students?.student_id ?? "");
+    setFormTrackId(record.track_id);
     setLookup(null);
   }
 
   function cancelEdit() {
     setEditingId(null);
     setStudentIdInput("");
+    setFormTrackId("");
     setLookup(null);
     setError(null);
   }
+
+  function handleDelete(id: string) {
+    if (!window.confirm("Delete this sport record?")) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteSportRecord(id);
+      if (result.error) setError(result.error);
+      else if (editingId === id) cancelEdit();
+    });
+  }
+
+  const selectedFormTrack = useMemo(
+    () => tracks.find((t) => t.id === formTrackId),
+    [tracks, formTrackId]
+  );
 
   const yearOptions =
     years.length > 0 ? years : [defaultYear, defaultYear - 1, defaultYear - 2];
@@ -147,6 +169,15 @@ export function RecordsClient({
     submitLabel: string;
   }) {
     const isEdit = Boolean(record);
+    const unitLabel = selectedFormTrack
+      ? formatTrackUnitLabel(selectedFormTrack.unit)
+      : "value";
+    const valueStep =
+      selectedFormTrack?.unit?.toLowerCase() === "s" ||
+      selectedFormTrack?.unit?.toLowerCase() === "m"
+        ? "0.01"
+        : "any";
+
     return (
       <form action={onSubmit} className="grid gap-4 sm:grid-cols-2">
         {isEdit && <input type="hidden" name="id" value={record!.id} />}
@@ -169,7 +200,8 @@ export function RecordsClient({
             id={isEdit ? `track_id-${record!.id}` : "track_id"}
             name="track_id"
             required
-            defaultValue={record?.track_id ?? ""}
+            value={formTrackId}
+            onChange={(e) => setFormTrackId(e.target.value)}
           >
             {!isEdit && (
               <option value="" disabled>
@@ -184,16 +216,21 @@ export function RecordsClient({
           </Select>
         </div>
         <div>
-          <Label htmlFor={isEdit ? `value-${record!.id}` : "value"}>Record value</Label>
+          <Label htmlFor={isEdit ? `value-${record!.id}` : "value"}>
+            Record value ({unitLabel})
+          </Label>
           <Input
             id={isEdit ? `value-${record!.id}` : "value"}
             name="value"
             type="number"
-            step="any"
+            step={valueStep}
             min="0"
             required
             defaultValue={record?.value ?? undefined}
           />
+          {selectedFormTrack?.lower_is_better && (
+            <p className="mt-1 text-xs text-zinc-500">Lower is better for this track.</p>
+          )}
         </div>
         <div>
           <Label htmlFor={isEdit ? `year-${record!.id}` : "year"}>Year</Label>
@@ -258,6 +295,7 @@ export function RecordsClient({
             setShowForm(!showForm);
             setEditingId(null);
             setStudentIdInput("");
+            setFormTrackId("");
             setLookup(null);
             setError(null);
           }}
@@ -321,13 +359,23 @@ export function RecordsClient({
                           {new Date(r.recorded_at).toLocaleDateString()}
                         </td>
                         <td className="px-4 py-3">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => startEdit(r)}
-                          >
-                            Edit
-                          </Button>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => startEdit(r)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="danger"
+                              onClick={() => handleDelete(r.id)}
+                              disabled={pending}
+                            >
+                              Delete
+                            </Button>
+                          </div>
                         </td>
                       </>
                     )}
