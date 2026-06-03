@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Rec Center Manager",
+  title: "NSBM Recreation Center",
   description: "University recreation center management for students, records, and inventory",
 };
 

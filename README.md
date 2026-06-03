@@ -157,6 +157,48 @@ Use `lower_is_better = true` for timed events (seconds).
 - Tailwind CSS
 - Supabase (Postgres, Auth, RLS)
 
+## Desktop app (Electron online mode)
+
+The desktop build is a native shell that opens the live app URL:
+`https://nsbm-recreation-center.netlify.app`
+
+### Prerequisites
+
+- Node.js 20+
+- macOS: Xcode Command Line Tools (for `.dmg` builds)
+- Windows: NSIS tooling is bundled by `electron-builder`
+
+### Commands
+
+```bash
+# Install dependencies
+npm install
+
+# Dev mode (run this app in another terminal first: npm run dev)
+npm run electron:dev
+
+# Create unpacked app folders
+npm run electron:pack
+
+# Create installers for current OS
+npm run electron:dist
+
+# Build Windows installer from Windows
+npm run electron:dist -- --win
+
+# Build macOS DMG from macOS
+npm run electron:dist -- --mac
+```
+
+Artifacts are generated in `dist-electron/`.
+
+### Notes
+
+- This is an **online-mode** desktop app: internet is required.
+- Data is shared across computers through Supabase, so updates sync everywhere.
+- If you change your production URL later, update `DEFAULT_URL` in `electron/main.cjs`.
+- App icon source: `electron/icons/icon.png` (from NSBM Green University Town logo). Rebuild installers after changing the icon.
+
 ## Project structure
 
 ```

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -28,11 +29,21 @@ export function AppNav() {
   return (
     <header className="border-b border-zinc-200 bg-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-            Recreation Center
-          </p>
-          <h1 className="text-lg font-semibold text-zinc-900">Management</h1>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/logo.png"
+            alt="NSBM Green University Town"
+            width={48}
+            height={48}
+            className="h-12 w-12 shrink-0 rounded-lg object-contain"
+            priority
+          />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              Recreation Center
+            </p>
+            <h1 className="text-lg font-semibold text-zinc-900">Management</h1>
+          </div>
         </div>
         <nav className="flex flex-wrap items-center gap-1">
           {links.map((link) => (

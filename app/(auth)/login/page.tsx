@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -39,7 +40,17 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-full flex-1 items-center justify-center bg-zinc-50 px-4 py-12">
       <Card className="w-full max-w-md">
-        <h1 className="text-2xl font-semibold text-zinc-900">Staff sign in</h1>
+        <div className="flex flex-col items-center text-center">
+          <Image
+            src="/logo.png"
+            alt="NSBM Green University Town"
+            width={80}
+            height={80}
+            className="h-20 w-20 object-contain"
+            priority
+          />
+        </div>
+        <h1 className="mt-4 text-2xl font-semibold text-zinc-900">Staff sign in</h1>
         <p className="mt-1 text-sm text-zinc-600">
           Recreation center management. Contact your admin for an account.
         </p>

@@ -1,12 +1,16 @@
 {
   "name": "rec-center-manager",
   "version": "0.1.0",
+  "main": "electron/main.cjs",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:dev": "cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
+    "electron:pack": "electron-builder --dir",
+    "electron:dist": "electron-builder"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -23,10 +27,54 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
+    "electron": "^42.3.1",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "netlify-cli": "^26.1.0",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.nsbm.reccenter",
+    "productName": "NSBM Recreation Center",
+    "icon": "electron/icons/icon.png",
+    "artifactName": "${productName}-${version}-${os}.${ext}",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
