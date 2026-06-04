@@ -10,7 +10,7 @@ export default async function StudentsPage() {
     supabase
       .from("students")
       .select(
-        "id, student_id, full_name, house_id, faculty, intake, degree_programme, gender, nic, mobile, email, created_at, houses(name)"
+        "id, student_id, full_name, house_id, serial_no, faculty, intake, degree_programme, university, title, gender, nic, mobile, email, created_at, houses(name)"
       )
       .order("full_name"),
     supabase.from("houses").select("id, name").order("name"),

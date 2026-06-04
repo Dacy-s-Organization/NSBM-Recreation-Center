@@ -3,27 +3,38 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-export async function addStudent(formData: FormData) {
-  const studentId = String(formData.get("student_id") ?? "").trim();
-  const fullName = String(formData.get("full_name") ?? "").trim();
-  const houseId = String(formData.get("house_id") ?? "").trim();
-  const faculty = String(formData.get("faculty") ?? "").trim() || null;
-  const intake = String(formData.get("intake") ?? "").trim() || null;
-  const gender = String(formData.get("gender") ?? "").trim() || null;
+function parseStudentForm(formData: FormData) {
+  const serialRaw = String(formData.get("serial_no") ?? "").trim();
+  const serialParsed = serialRaw ? parseInt(serialRaw, 10) : null;
 
-  if (!fullName || !houseId) {
-    return { error: "Name and house are required." };
+  return {
+    student_id: String(formData.get("student_id") ?? "").trim() || null,
+    full_name: String(formData.get("full_name") ?? "").trim(),
+    house_id: String(formData.get("house_id") ?? "").trim() || null,
+    serial_no:
+      serialParsed !== null && !Number.isNaN(serialParsed) ? serialParsed : null,
+    faculty: String(formData.get("faculty") ?? "").trim() || null,
+    intake: String(formData.get("intake") ?? "").trim() || null,
+    degree_programme:
+      String(formData.get("degree_programme") ?? "").trim() || null,
+    university: String(formData.get("university") ?? "").trim() || null,
+    title: String(formData.get("title") ?? "").trim() || null,
+    gender: String(formData.get("gender") ?? "").trim() || null,
+    nic: String(formData.get("nic") ?? "").trim() || null,
+    mobile: String(formData.get("mobile") ?? "").trim() || null,
+    email: String(formData.get("email") ?? "").trim() || null,
+  };
+}
+
+export async function addStudent(formData: FormData) {
+  const data = parseStudentForm(formData);
+
+  if (!data.full_name) {
+    return { error: "Name is required." };
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("students").insert({
-    student_id: studentId || null,
-    full_name: fullName,
-    house_id: houseId,
-    faculty,
-    intake,
-    gender,
-  });
+  const { error } = await supabase.from("students").insert(data);
 
   if (error) {
     if (error.code === "23505") {
@@ -33,35 +44,21 @@ export async function addStudent(formData: FormData) {
   }
 
   revalidatePath("/students");
+  revalidatePath("/achievements");
   revalidatePath("/");
   return { success: true };
 }
 
 export async function updateStudent(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
-  const studentId = String(formData.get("student_id") ?? "").trim();
-  const fullName = String(formData.get("full_name") ?? "").trim();
-  const houseId = String(formData.get("house_id") ?? "").trim();
-  const faculty = String(formData.get("faculty") ?? "").trim() || null;
-  const intake = String(formData.get("intake") ?? "").trim() || null;
-  const gender = String(formData.get("gender") ?? "").trim() || null;
+  const data = parseStudentForm(formData);
 
-  if (!id || !fullName || !houseId) {
-    return { error: "Name and house are required." };
+  if (!id || !data.full_name) {
+    return { error: "Name is required." };
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("students")
-    .update({
-      student_id: studentId || null,
-      full_name: fullName,
-      house_id: houseId,
-      faculty,
-      intake,
-      gender,
-    })
-    .eq("id", id);
+  const { error } = await supabase.from("students").update(data).eq("id", id);
 
   if (error) {
     if (error.code === "23505") {

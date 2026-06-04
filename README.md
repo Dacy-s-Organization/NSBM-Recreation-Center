@@ -104,9 +104,11 @@ Use **Import CSV** on each page (top-right of the section title). Download a tem
 
 ### students.csv (Students page)
 
-Required: `full_name`, `house_name`. Optional: `student_id` (leave empty if your file has no ID column), `faculty`, `intake`, `degree_programme`, `gender`, `nic`, `mobile`, `email`.
+**NSBM Foundation export** (recommended): `Serial No`, `Intake`, `Faculty`, `Student No`, `Degree Programme`, `University`, `Title`, `Name with Initials`, `Gender`, `NIC/Passport`, `Mobile No`, `E-Mail`. `Student No` is stored as `student_id`. House is not in this file — assign houses in the app after import.
 
-House names must match exactly: `Ruby Adventurers`, `Citrine Warriors`, `Emerald Fighters`, `Sapphire Heroes`.
+**Legacy format**: `student_id`, `full_name`, optional `house_name` and other columns.
+
+House names (when used) must match: `Ruby Adventurers`, `Citrine Warriors`, `Emerald Fighters`, `Sapphire Heroes`.
 
 ### records.csv (Achievements → Athletic Records)
 

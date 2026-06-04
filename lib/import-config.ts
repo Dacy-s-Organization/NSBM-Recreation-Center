@@ -5,6 +5,7 @@
  */
 
 import { ACHIEVEMENT_TYPES, ACHIEVEMENT_TYPE_BEST_PLAYER } from "@/lib/constants";
+import { normalizeStudentCsvRow } from "@/lib/student-csv";
 
 export type ImportType = "students" | "records" | "inventory" | "achievements";
 
@@ -16,7 +17,7 @@ export type ImportPreviewRow = Record<string, string | number | boolean> & {
 
 export const IMPORT_DESCRIPTIONS: Record<ImportType, string> = {
   students:
-    "Required: full_name, house_name. Optional: student_id (leave empty if not in your file), faculty, intake, degree_programme, gender, nic, mobile, email.",
+    "Supports NSBM Foundation CSV (Serial No, Intake, Faculty, Student No, …) or legacy columns. House is optional until assigned. Student No maps to student_id.",
   records:
     "Columns: student_id, track_name, value, year. Students must exist before importing records.",
   inventory:
@@ -30,20 +31,23 @@ export const IMPORT_TEMPLATES: Record<
   { filename: string; content: string; columns: string[] }
 > = {
   students: {
-    filename: "students_template.csv",
+    filename: "students_nsbm_template.csv",
     content:
-      "student_id,full_name,house_name,faculty,intake,degree_programme,gender,nic,mobile,email\n,John Doe,Ruby Adventurers,FOB,2026.1,Foundation Programme,Male,000000000V,0700000000,john@example.com\n2024002,Jane Smith,Citrine Warriors,FOB,2026.1,,Female,,0700000000,",
+      "Serial No,Intake,Faculty,Student No,Degree Programme,University,Title,Name with Initials,Gender,NIC/Passport,Mobile No,E-Mail\n574,2026.1,FOB,39706,Foundation Programme for Bachelor`s Degree - FOB,NSBM,Ms.,Sansala S H  R,Female,R-E008588,0700000000,student@example.com",
     columns: [
-      "student_id",
-      "full_name",
-      "house_name",
-      "faculty",
+      "serial_no",
       "intake",
+      "faculty",
+      "student_id",
       "degree_programme",
+      "university",
+      "title",
+      "full_name",
       "gender",
       "nic",
       "mobile",
       "email",
+      "house_name",
     ],
   },
   records: {
@@ -72,7 +76,7 @@ export const IMPORT_TEMPLATES: Record<
 };
 
 const REQUIRED_COLUMNS: Record<ImportType, string[]> = {
-  students: ["full_name", "house_name"],
+  students: [],
   records: ["student_id", "track_name", "value", "year"],
   inventory: ["item_name", "quantity"],
   achievements: ["meet_year", "sport", "achievement_type", "team_name"],
@@ -94,6 +98,20 @@ export function validateImportRow(
   row: Record<string, string>,
   line: number
 ): ImportPreviewRow {
+  if (type === "students") {
+    const normalized = normalizeStudentCsvRow(row);
+    const flat = { ...normalized } as Record<string, string>;
+    if (!flat.full_name?.trim() && !flat.student_id?.trim()) {
+      return {
+        ...flat,
+        _line: line,
+        _valid: false,
+        _error: "Missing Student No or name",
+      };
+    }
+    return { ...flat, _line: line, _valid: true };
+  }
+
   const required = REQUIRED_COLUMNS[type];
   const missing = required.filter((c) => !String(row[c] ?? "").trim());
   if (missing.length > 0) {

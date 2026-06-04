@@ -1,3 +1,2 @@
-student_id,full_name,house_name,faculty,intake,degree_programme,gender,nic,mobile,email
-,John Doe,Ruby Adventurers,FOB,2026.1,Foundation Programme,Male,000000000V,0700000000,john@example.com
-2024002,Jane Smith,Citrine Warriors,FOB,2026.1,,Female,,0700000000,jane@example.com
+Serial No,Intake,Faculty,Student No,Degree Programme,University,Title,Name with Initials,Gender,NIC/Passport,Mobile No,E-Mail
+574,2026.1,FOB,39706,Foundation Programme for Bachelor`s Degree - FOB,NSBM,Ms.,Sample Student,Female,R-E008588,0700000000,student@example.com

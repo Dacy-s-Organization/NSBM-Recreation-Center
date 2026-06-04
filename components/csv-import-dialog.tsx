@@ -67,12 +67,15 @@ export function CsvImportDialog({
       if (type === "students") {
         importResult = await importStudents(
           valid.map((r) => ({
-            student_id: String(r.student_id),
+            serial_no: String(r.serial_no ?? ""),
+            student_id: String(r.student_id ?? ""),
             full_name: String(r.full_name),
             house_name: String(r.house_name ?? ""),
             faculty: String(r.faculty ?? ""),
             intake: String(r.intake ?? ""),
             degree_programme: String(r.degree_programme ?? ""),
+            university: String(r.university ?? ""),
+            title: String(r.title ?? ""),
             gender: String(r.gender ?? ""),
             nic: String(r.nic ?? ""),
             mobile: String(r.mobile ?? ""),

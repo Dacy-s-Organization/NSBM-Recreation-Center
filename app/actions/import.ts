@@ -15,17 +15,41 @@ type ImportResult = {
 };
 
 type StudentRow = {
+  serial_no?: string;
   student_id?: string;
   full_name: string;
-  house_name: string;
+  house_name?: string;
   faculty?: string;
   intake?: string;
   degree_programme?: string;
+  university?: string;
+  title?: string;
   gender?: string;
   nic?: string;
   mobile?: string;
   email?: string;
 };
+
+function studentInsertPayload(row: StudentRow, houseId: string | null) {
+  const serialRaw = row.serial_no?.trim();
+  const serialNo = serialRaw ? parseInt(serialRaw, 10) : null;
+
+  return {
+    student_id: row.student_id?.trim() || null,
+    full_name: row.full_name.trim(),
+    house_id: houseId,
+    serial_no: serialNo !== null && !Number.isNaN(serialNo) ? serialNo : null,
+    faculty: row.faculty?.trim() || null,
+    intake: row.intake?.trim() || null,
+    degree_programme: row.degree_programme?.trim() || null,
+    university: row.university?.trim() || null,
+    title: row.title?.trim() || null,
+    gender: row.gender?.trim() || null,
+    nic: row.nic?.trim() || null,
+    mobile: row.mobile?.trim() || null,
+    email: row.email?.trim() || null,
+  };
+}
 
 export async function importStudents(
   rows: StudentRow[]
@@ -39,40 +63,43 @@ export async function importStudents(
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const line = i + 2;
-    const houseId = houseMap.get((row.house_name ?? "").trim().toLowerCase());
+    const houseName = (row.house_name ?? "").trim();
+    const houseId = houseName
+      ? houseMap.get(houseName.toLowerCase()) ?? null
+      : null;
 
     if (!row.full_name?.trim()) {
-      result.errors.push(`Row ${line}: missing full_name`);
+      result.errors.push(`Row ${line}: missing name or Student No`);
       continue;
     }
-    if (!houseId) {
+    if (houseName && !houseId) {
       result.errors.push(`Row ${line}: unknown house "${row.house_name}"`);
       continue;
     }
 
-    const externalId = row.student_id?.trim() || null;
+    const payload = studentInsertPayload(row, houseId);
+    const externalId = payload.student_id;
 
-    const { error } = await supabase.from("students").insert({
-      student_id: externalId,
-      full_name: row.full_name.trim(),
-      house_id: houseId,
-      faculty: row.faculty?.trim() || null,
-      intake: row.intake?.trim() || null,
-      degree_programme: row.degree_programme?.trim() || null,
-      gender: row.gender?.trim() || null,
-      nic: row.nic?.trim() || null,
-      mobile: row.mobile?.trim() || null,
-      email: row.email?.trim() || null,
-    });
-
-    if (error) {
-      if (error.code === "23505") {
-        result.skipped++;
-      } else {
+    if (externalId) {
+      const { error } = await supabase.from("students").upsert(payload, {
+        onConflict: "student_id",
+      });
+      if (error) {
         result.errors.push(`Row ${line}: ${error.message}`);
+      } else {
+        result.success++;
       }
     } else {
-      result.success++;
+      const { error } = await supabase.from("students").insert(payload);
+      if (error) {
+        if (error.code === "23505") {
+          result.skipped++;
+        } else {
+          result.errors.push(`Row ${line}: ${error.message}`);
+        }
+      } else {
+        result.success++;
+      }
     }
   }
 

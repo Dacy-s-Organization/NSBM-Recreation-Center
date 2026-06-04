@@ -43,7 +43,9 @@ export function StudentsClient({
       list = list.filter(
         (s) =>
           (s.student_id?.toLowerCase().includes(q) ?? false) ||
-          s.full_name.toLowerCase().includes(q)
+          s.full_name.toLowerCase().includes(q) ||
+          (s.email?.toLowerCase().includes(q) ?? false) ||
+          (s.nic?.toLowerCase().includes(q) ?? false)
       );
     }
     if (facultyFilter) {
@@ -105,7 +107,7 @@ export function StudentsClient({
           <Label htmlFor="search">Search</Label>
           <Input
             id="search"
-            placeholder="Student ID or name"
+            placeholder="Student No, name, email, or NIC"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -193,11 +195,9 @@ export function StudentsClient({
               <Input id="full_name" name="full_name" required />
             </div>
             <div>
-              <Label htmlFor="house_id">House</Label>
-              <Select id="house_id" name="house_id" required defaultValue="">
-                <option value="" disabled>
-                  Select house
-                </option>
+              <Label htmlFor="house_id">House (optional)</Label>
+              <Select id="house_id" name="house_id" defaultValue="">
+                <option value="">No house yet</option>
                 {houses.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.name}
@@ -236,9 +236,10 @@ export function StudentsClient({
           <table className="w-full text-left text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50">
               <tr>
-                <th className="px-4 py-3 font-medium text-zinc-600">Student ID</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Student No</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Name</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Faculty</th>
+                <th className="px-4 py-3 font-medium text-zinc-600">Programme</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Intake</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">House</th>
                 <th className="px-4 py-3 font-medium text-zinc-600">Actions</th>
@@ -247,7 +248,7 @@ export function StudentsClient({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">
                     {query || hasActiveFilters
                       ? "No students match your search."
                       : "No students yet. Add one or import from CSV."}
@@ -257,7 +258,7 @@ export function StudentsClient({
                 filtered.map((s) => (
                   <tr key={s.id} className="border-b border-zinc-100 last:border-0">
                     {editingId === s.id ? (
-                      <td colSpan={6} className="px-4 py-3">
+                      <td colSpan={7} className="px-4 py-3">
                         <form
                           action={handleUpdate}
                           className="grid gap-3 sm:grid-cols-3 sm:items-end"
@@ -276,8 +277,12 @@ export function StudentsClient({
                             <Input name="full_name" defaultValue={s.full_name} required />
                           </div>
                           <div>
-                            <Label>House</Label>
-                            <Select name="house_id" required defaultValue={s.house_id}>
+                            <Label>House (optional)</Label>
+                            <Select
+                              name="house_id"
+                              defaultValue={s.house_id ?? ""}
+                            >
+                              <option value="">No house yet</option>
                               {houses.map((h) => (
                                 <option key={h.id} value={h.id}>
                                   {h.name}
@@ -328,6 +333,9 @@ export function StudentsClient({
                         </td>
                         <td className="px-4 py-3 text-zinc-900">{s.full_name}</td>
                         <td className="px-4 py-3 text-zinc-700">{s.faculty || "—"}</td>
+                        <td className="px-4 py-3 text-zinc-700 max-w-[200px] truncate" title={s.degree_programme ?? undefined}>
+                          {s.degree_programme || "—"}
+                        </td>
                         <td className="px-4 py-3 text-zinc-700">{s.intake || "—"}</td>
                         <td className="px-4 py-3">
                           {s.houses?.name ? (

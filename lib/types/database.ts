@@ -7,10 +7,13 @@ export type Student = {
   id: string;
   student_id: string | null;
   full_name: string;
-  house_id: string;
+  house_id: string | null;
+  serial_no: number | null;
   faculty: string | null;
   intake: string | null;
   degree_programme: string | null;
+  university: string | null;
+  title: string | null;
   gender: string | null;
   nic: string | null;
   mobile: string | null;
