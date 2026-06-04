@@ -2,44 +2,53 @@ import { createClient } from "@/lib/supabase/server";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { RecordsClient } from "@/components/records-client";
 import { AchievementsClient } from "@/components/achievements-client";
+import { getHouses, getSportTracks } from "@/lib/data/reference";
 import type { House, SportRecord, SportsAchievement } from "@/lib/types/database";
 
-export default async function AchievementsPage() {
-  const supabase = await createClient();
-  const defaultYear = new Date().getFullYear();
+const RECORDS_LIMIT = 500;
 
-  const [
-    { data: records },
-    { data: tracks },
-    { data: achievements },
-    { data: houses },
-  ] = await Promise.all([
-    supabase
-      .from("sport_records")
-      .select(
-        `id, student_id, track_id, year, value, recorded_at,
+export default async function AchievementsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
+  const params = await searchParams;
+  const defaultYear = new Date().getFullYear();
+  const selectedYear = parseInt(params.year ?? String(defaultYear), 10) || defaultYear;
+
+  const supabase = await createClient();
+  const [tracks, houses, { data: records }, { data: achievements }] =
+    await Promise.all([
+      getSportTracks(),
+      getHouses(),
+      supabase
+        .from("sport_records")
+        .select(
+          `id, student_id, track_id, year, value, recorded_at,
          students(student_id, full_name),
          sport_tracks(name, unit, lower_is_better)`
-      )
-      .order("recorded_at", { ascending: false }),
-    supabase
-      .from("sport_tracks")
-      .select("id, name, unit, lower_is_better")
-      .order("name"),
-    supabase
-      .from("sports_achievements")
-      .select(
-        `id, meet_year, sport, achievement_type, team_name, notes, created_at,
+        )
+        .eq("year", selectedYear)
+        .order("recorded_at", { ascending: false })
+        .limit(RECORDS_LIMIT),
+      supabase
+        .from("sports_achievements")
+        .select(
+          `id, meet_year, sport, achievement_type, team_name, notes, created_at,
          sports_achievement_winners(student_id, students(student_id, full_name))`
-      )
-      .order("meet_year", { ascending: false }),
-    supabase.from("houses").select("id, name").order("name"),
-  ]);
+        )
+        .eq("meet_year", selectedYear)
+        .order("created_at", { ascending: false }),
+    ]);
 
   const years = [
-    ...new Set((records ?? []).map((r) => r.year as number)),
+    selectedYear,
+    selectedYear - 1,
+    selectedYear - 2,
     defaultYear,
-  ].sort((a, b) => b - a);
+  ]
+    .filter((y, i, arr) => arr.indexOf(y) === i)
+    .sort((a, b) => b - a);
 
   return (
     <div className="space-y-10">
@@ -57,9 +66,10 @@ export default async function AchievementsPage() {
         </div>
         <RecordsClient
           records={(records ?? []) as unknown as SportRecord[]}
-          tracks={tracks ?? []}
+          tracks={tracks}
           years={years}
-          defaultYear={defaultYear}
+          defaultYear={selectedYear}
+          selectedYear={selectedYear}
         />
       </section>
 
@@ -72,8 +82,10 @@ export default async function AchievementsPage() {
         </div>
         <AchievementsClient
           achievements={(achievements ?? []) as unknown as SportsAchievement[]}
-          houses={(houses ?? []) as House[]}
-          defaultYear={defaultYear}
+          houses={houses as House[]}
+          defaultYear={selectedYear}
+          selectedYear={selectedYear}
+          years={years}
         />
       </section>
     </div>

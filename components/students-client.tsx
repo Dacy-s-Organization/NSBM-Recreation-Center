@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { addStudent, deleteStudent, updateStudent } from "@/app/actions/students";
 import type { House, Student } from "@/lib/types/database";
@@ -13,9 +14,17 @@ import { Card } from "@/components/ui/card";
 export function StudentsClient({
   students,
   houses,
+  page,
+  totalPages,
+  totalCount,
+  pageSize,
 }: {
   students: Student[];
   houses: House[];
+  page: number;
+  totalPages: number;
+  totalCount: number;
+  pageSize: number;
 }) {
   const [query, setQuery] = useState("");
   const [facultyFilter, setFacultyFilter] = useState("");
@@ -377,9 +386,40 @@ export function StudentsClient({
             </tbody>
           </table>
         </div>
-        <p className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500">
-          Showing {filtered.length} of {students.length} students
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500">
+          <p>
+            Showing {filtered.length} on this page · {totalCount} total students
+            {totalPages > 1 && ` (page ${page} of ${totalPages})`}
+          </p>
+          {totalPages > 1 && (
+            <div className="flex gap-2">
+              {page > 1 ? (
+                <Link
+                  href={`/students?page=${page - 1}`}
+                  className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                >
+                  Previous
+                </Link>
+              ) : (
+                <span className="rounded-lg border border-zinc-100 px-3 py-1.5 text-sm text-zinc-400">
+                  Previous
+                </span>
+              )}
+              {page < totalPages ? (
+                <Link
+                  href={`/students?page=${page + 1}`}
+                  className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                >
+                  Next
+                </Link>
+              ) : (
+                <span className="rounded-lg border border-zinc-100 px-3 py-1.5 text-sm text-zinc-400">
+                  Next
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </Card>
     </div>
   );

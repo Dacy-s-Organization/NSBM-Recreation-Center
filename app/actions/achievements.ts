@@ -85,8 +85,7 @@ export async function addAchievement(formData: FormData) {
     if (winnerError) return { error: winnerError.message };
   }
 
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidatePath("/achievements", "page");
   return { success: true };
 }
 
@@ -142,8 +141,7 @@ export async function updateAchievement(formData: FormData) {
     if (winnerError) return { error: winnerError.message };
   }
 
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidatePath("/achievements", "page");
   return { success: true };
 }
 
@@ -157,7 +155,6 @@ export async function deleteAchievement(id: string) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidatePath("/achievements", "page");
   return { success: true };
 }

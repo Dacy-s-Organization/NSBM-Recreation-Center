@@ -43,9 +43,7 @@ export async function addStudent(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/students");
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidatePath("/students", "page");
   return { success: true };
 }
 
@@ -67,9 +65,7 @@ export async function updateStudent(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/students");
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidatePath("/students", "page");
   return { success: true };
 }
 
@@ -83,8 +79,6 @@ export async function deleteStudent(id: string) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/students");
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidatePath("/students", "page");
   return { success: true };
 }

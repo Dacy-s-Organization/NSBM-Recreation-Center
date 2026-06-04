@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   addSportRecord,
   deleteSportRecord,
@@ -28,13 +29,16 @@ export function RecordsClient({
   tracks,
   years,
   defaultYear,
+  selectedYear,
 }: {
   records: SportRecord[];
   tracks: SportTrack[];
   years: number[];
   defaultYear: number;
+  selectedYear: number;
 }) {
-  const [year, setYear] = useState(defaultYear);
+  const router = useRouter();
+  const [year, setYear] = useState(selectedYear);
   const [trackId, setTrackId] = useState("");
   const [formTrackId, setFormTrackId] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -46,6 +50,10 @@ export function RecordsClient({
   const [pending, startTransition] = useTransition();
 
   const lookupActive = showForm || editingId !== null;
+
+  useEffect(() => {
+    setYear(selectedYear);
+  }, [selectedYear]);
 
   useEffect(() => {
     if (!lookupActive || !studentIdInput.trim()) {
@@ -62,7 +70,7 @@ export function RecordsClient({
   }, [studentIdInput, lookupActive]);
 
   const filtered = useMemo(() => {
-    let list = records.filter((r) => r.year === year);
+    let list = records;
     if (trackId) list = list.filter((r) => r.track_id === trackId);
     return [...list].sort((a, b) => {
       const trackA = a.sport_tracks?.name ?? "";
@@ -72,7 +80,7 @@ export function RecordsClient({
       if (lowerBetter) return Number(a.value) - Number(b.value);
       return Number(b.value) - Number(a.value);
     });
-  }, [records, year, trackId]);
+  }, [records, trackId]);
 
   function handleAdd(formData: FormData) {
     setError(null);
@@ -264,7 +272,11 @@ export function RecordsClient({
           <Select
             id="year-filter"
             value={year}
-            onChange={(e) => setYear(parseInt(e.target.value, 10))}
+            onChange={(e) => {
+              const y = parseInt(e.target.value, 10);
+              setYear(y);
+              router.push(`/achievements?year=${y}`);
+            }}
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>

@@ -7,6 +7,7 @@ import {
   ACHIEVEMENT_TYPE_BEST_PLAYER,
   type AchievementType,
 } from "@/lib/constants";
+import { chunkArray, IMPORT_BATCH_SIZE } from "@/lib/batch-chunks";
 
 type ImportResult = {
   success: number;
@@ -51,6 +52,18 @@ function studentInsertPayload(row: StudentRow, houseId: string | null) {
   };
 }
 
+function revalidateStudents() {
+  revalidatePath("/students", "page");
+}
+
+function revalidateAchievements() {
+  revalidatePath("/achievements", "page");
+}
+
+function revalidateInventory() {
+  revalidatePath("/inventory", "page");
+}
+
 export async function importStudents(
   rows: StudentRow[]
 ): Promise<ImportResult> {
@@ -59,6 +72,9 @@ export async function importStudents(
 
   const { data: houses } = await supabase.from("houses").select("id, name");
   const houseMap = new Map(houses?.map((h) => [h.name.toLowerCase(), h.id]) ?? []);
+
+  const withId: ReturnType<typeof studentInsertPayload>[] = [];
+  const withoutId: ReturnType<typeof studentInsertPayload>[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -78,34 +94,38 @@ export async function importStudents(
     }
 
     const payload = studentInsertPayload(row, houseId);
-    const externalId = payload.student_id;
-
-    if (externalId) {
-      const { error } = await supabase.from("students").upsert(payload, {
-        onConflict: "student_id",
-      });
-      if (error) {
-        result.errors.push(`Row ${line}: ${error.message}`);
-      } else {
-        result.success++;
-      }
+    if (payload.student_id) {
+      withId.push(payload);
     } else {
-      const { error } = await supabase.from("students").insert(payload);
-      if (error) {
-        if (error.code === "23505") {
-          result.skipped++;
-        } else {
-          result.errors.push(`Row ${line}: ${error.message}`);
-        }
-      } else {
-        result.success++;
-      }
+      withoutId.push(payload);
     }
   }
 
-  revalidatePath("/students");
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  for (const batch of chunkArray(withId, IMPORT_BATCH_SIZE)) {
+    const { error } = await supabase.from("students").upsert(batch, {
+      onConflict: "student_id",
+    });
+    if (error) {
+      result.errors.push(`Batch upsert: ${error.message}`);
+    } else {
+      result.success += batch.length;
+    }
+  }
+
+  for (const batch of chunkArray(withoutId, IMPORT_BATCH_SIZE)) {
+    const { error } = await supabase.from("students").insert(batch);
+    if (error) {
+      if (error.code === "23505") {
+        result.skipped += batch.length;
+      } else {
+        result.errors.push(`Batch insert: ${error.message}`);
+      }
+    } else {
+      result.success += batch.length;
+    }
+  }
+
+  revalidateStudents();
   return result;
 }
 
@@ -126,6 +146,13 @@ export async function importRecords(
       .map((s) => [s.student_id as string, s.id]) ?? []
   );
   const trackMap = new Map(tracks?.map((t) => [t.name.toLowerCase(), t.id]) ?? []);
+
+  const toInsert: {
+    student_id: string;
+    track_id: string;
+    year: number;
+    value: number;
+  }[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -152,22 +179,24 @@ export async function importRecords(
       continue;
     }
 
-    const { error } = await supabase.from("sport_records").insert({
+    toInsert.push({
       student_id: studentUuid,
       track_id: trackId,
       year,
       value,
     });
+  }
 
+  for (const batch of chunkArray(toInsert, IMPORT_BATCH_SIZE)) {
+    const { error } = await supabase.from("sport_records").insert(batch);
     if (error) {
-      result.errors.push(`Row ${line}: ${error.message}`);
+      result.errors.push(`Batch insert: ${error.message}`);
     } else {
-      result.success++;
+      result.success += batch.length;
     }
   }
 
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidateAchievements();
   return result;
 }
 
@@ -203,6 +232,19 @@ export async function importAchievements(
       .map((s) => [s.student_id as string, s.id]) ?? []
   );
 
+  type Prepared = {
+    achievement: {
+      meet_year: number;
+      sport: string;
+      achievement_type: AchievementType;
+      team_name: string;
+      notes: string | null;
+    };
+    winnerStudentUuid: string | null;
+  };
+
+  const prepared: Prepared[] = [];
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const line = i + 2;
@@ -218,54 +260,65 @@ export async function importAchievements(
       continue;
     }
 
-    let studentUuid: string | null = null;
+    let winnerStudentUuid: string | null = null;
     if (achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER) {
       if (!winnerStudentId) {
         result.errors.push(`Row ${line}: winner_student_id required for Best Player`);
         continue;
       }
-      studentUuid = studentMap.get(winnerStudentId) ?? null;
-      if (!studentUuid) {
+      winnerStudentUuid = studentMap.get(winnerStudentId) ?? null;
+      if (!winnerStudentUuid) {
         result.errors.push(`Row ${line}: student "${winnerStudentId}" not found`);
         continue;
       }
     }
 
-    const { data: achievement, error } = await supabase
-      .from("sports_achievements")
-      .insert({
+    prepared.push({
+      achievement: {
         meet_year: meetYear,
         sport,
         achievement_type: achievementType,
         team_name: teamName,
         notes,
-      })
-      .select("id")
-      .single();
+      },
+      winnerStudentUuid,
+    });
+  }
+
+  for (const batch of chunkArray(prepared, IMPORT_BATCH_SIZE)) {
+    const { data: inserted, error } = await supabase
+      .from("sports_achievements")
+      .insert(batch.map((p) => p.achievement))
+      .select("id");
 
     if (error) {
-      result.errors.push(`Row ${line}: ${error.message}`);
+      result.errors.push(`Batch insert: ${error.message}`);
       continue;
     }
 
-    if (studentUuid) {
-      const { error: winnerError } = await supabase
-        .from("sports_achievement_winners")
-        .insert({
-          achievement_id: achievement.id,
-          student_id: studentUuid,
-        });
-      if (winnerError) {
-        result.errors.push(`Row ${line}: ${winnerError.message}`);
-        continue;
+    const winners: { achievement_id: string; student_id: string }[] = [];
+    inserted?.forEach((ach, idx) => {
+      const winnerId = batch[idx]?.winnerStudentUuid;
+      if (winnerId) {
+        winners.push({ achievement_id: ach.id, student_id: winnerId });
+      }
+    });
+
+    if (winners.length > 0) {
+      for (const winnerBatch of chunkArray(winners, IMPORT_BATCH_SIZE)) {
+        const { error: winnerError } = await supabase
+          .from("sports_achievement_winners")
+          .insert(winnerBatch);
+        if (winnerError) {
+          result.errors.push(`Winners batch: ${winnerError.message}`);
+        }
       }
     }
 
-    result.success++;
+    result.success += batch.length;
   }
 
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidateAchievements();
   return result;
 }
 
@@ -279,6 +332,9 @@ export async function importInventory(
   const existingMap = new Map(
     existing?.map((e) => [e.name.toLowerCase(), e.id]) ?? []
   );
+
+  const toInsert: { name: string; quantity: number }[] = [];
+  const toUpdate: { id: string; quantity: number }[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -296,33 +352,48 @@ export async function importInventory(
     }
 
     const existingId = existingMap.get(name.toLowerCase());
-
     if (existingId) {
-      const { error } = await supabase
-        .from("inventory_items")
-        .update({ quantity, updated_at: new Date().toISOString() })
-        .eq("id", existingId);
-      if (error) {
-        result.errors.push(`Row ${line}: ${error.message}`);
-      } else {
-        result.success++;
-      }
+      toUpdate.push({ id: existingId, quantity });
     } else {
-      const { data, error } = await supabase
-        .from("inventory_items")
-        .insert({ name, quantity })
-        .select("id, name")
-        .single();
+      toInsert.push({ name, quantity });
+      existingMap.set(name.toLowerCase(), `pending-${name}`);
+    }
+  }
+
+  for (const batch of chunkArray(toInsert, IMPORT_BATCH_SIZE)) {
+    const { data, error } = await supabase
+      .from("inventory_items")
+      .insert(batch)
+      .select("id, name");
+    if (error) {
+      result.errors.push(`Batch insert: ${error.message}`);
+    } else {
+      data?.forEach((item) =>
+        existingMap.set(item.name.toLowerCase(), item.id)
+      );
+      result.success += batch.length;
+    }
+  }
+
+  const updateChunks = chunkArray(toUpdate, 20);
+  for (const batch of updateChunks) {
+    const results = await Promise.all(
+      batch.map((item) =>
+        supabase
+          .from("inventory_items")
+          .update({ quantity: item.quantity, updated_at: new Date().toISOString() })
+          .eq("id", item.id)
+      )
+    );
+    for (const { error } of results) {
       if (error) {
-        result.errors.push(`Row ${line}: ${error.message}`);
+        result.errors.push(`Update: ${error.message}`);
       } else {
-        existingMap.set(data.name.toLowerCase(), data.id);
         result.success++;
       }
     }
   }
 
-  revalidatePath("/inventory");
-  revalidatePath("/");
+  revalidateInventory();
   return result;
 }

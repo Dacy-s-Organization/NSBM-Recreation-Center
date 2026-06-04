@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import {
   importStudents,
@@ -29,6 +30,7 @@ export function CsvImportDialog({
   const [preview, setPreview] = useState<ImportPreviewRow[]>([]);
   const [result, setResult] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   function close() {
     setOpen(false);
@@ -127,6 +129,9 @@ export function CsvImportDialog({
 
       setResult(msg);
       setPreview([]);
+      if (importResult.success > 0) {
+        router.refresh();
+      }
     });
   }
 

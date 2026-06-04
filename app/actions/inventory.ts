@@ -25,8 +25,7 @@ export async function addInventoryItem(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/inventory");
-  revalidatePath("/");
+  revalidatePath("/inventory", "page");
   return { success: true };
 }
 
@@ -53,7 +52,7 @@ export async function updateInventoryItem(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/inventory");
+  revalidatePath("/inventory", "page");
   return { success: true };
 }
 
@@ -67,7 +66,6 @@ export async function deleteInventoryItem(id: string) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/inventory");
-  revalidatePath("/");
+  revalidatePath("/inventory", "page");
   return { success: true };
 }

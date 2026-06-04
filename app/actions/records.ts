@@ -42,8 +42,7 @@ export async function addSportRecord(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidatePath("/achievements", "page");
   return { success: true };
 }
 
@@ -90,8 +89,7 @@ export async function updateSportRecord(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidatePath("/achievements", "page");
   return { success: true };
 }
 
@@ -105,8 +103,7 @@ export async function deleteSportRecord(id: string) {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/achievements");
-  revalidatePath("/");
+  revalidatePath("/achievements", "page");
   return { success: true };
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   addAchievement,
   deleteAchievement,
@@ -151,27 +152,27 @@ export function AchievementsClient({
   achievements,
   houses,
   defaultYear,
+  selectedYear,
+  years,
 }: {
   achievements: SportsAchievement[];
   houses: House[];
   defaultYear: number;
+  selectedYear: number;
+  years: number[];
 }) {
-  const [yearFilter, setYearFilter] = useState(defaultYear);
+  const router = useRouter();
+  const [yearFilter, setYearFilter] = useState(selectedYear);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const years = useMemo(() => {
-    const set = new Set(achievements.map((a) => a.meet_year));
-    set.add(defaultYear);
-    return [...set].sort((a, b) => b - a);
-  }, [achievements, defaultYear]);
+  useEffect(() => {
+    setYearFilter(selectedYear);
+  }, [selectedYear]);
 
-  const filtered = useMemo(
-    () => achievements.filter((a) => a.meet_year === yearFilter),
-    [achievements, yearFilter]
-  );
+  const filtered = achievements;
 
   function handleAdd(formData: FormData) {
     setError(null);
@@ -226,7 +227,11 @@ export function AchievementsClient({
           <Select
             id="ach-year-filter"
             value={yearFilter}
-            onChange={(e) => setYearFilter(parseInt(e.target.value, 10))}
+            onChange={(e) => {
+              const y = parseInt(e.target.value, 10);
+              setYearFilter(y);
+              router.push(`/achievements?year=${y}`);
+            }}
           >
             {years.map((y) => (
               <option key={y} value={y}>
