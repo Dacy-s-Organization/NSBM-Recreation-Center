@@ -100,18 +100,15 @@ Open [http://localhost:3000](http://localhost:3000) and sign in with a staff acc
 
 ## CSV import formats
 
-Download templates from the **Import** page, or use the samples in `public/samples/`.
+Use **Import CSV** on each page (top-right of the section title). Download a template from the dialog, or use samples in `public/samples/`.
 
-### students.csv
+### students.csv (Students page)
 
-```csv
-student_id,full_name,house_name
-2024001,John Doe,Ruby Adventurers
-```
+Required: `student_id`, `full_name`, `house_name`. Optional: `faculty`, `intake`, `degree_programme`, `gender`, `nic`, `mobile`, `email`.
 
 House names must match exactly: `Ruby Adventurers`, `Citrine Warriors`, `Emerald Fighters`, `Sapphire Heroes`.
 
-### records.csv
+### records.csv (Achievements → Athletic Records)
 
 ```csv
 student_id,track_name,value,year
@@ -120,7 +117,13 @@ student_id,track_name,value,year
 
 Students must exist before importing records. Track names must match seeded tracks (e.g. `Long Jump`, `100m Run`).
 
-### inventory.csv
+### achievements.csv (Achievements → Sports Achievements)
+
+Required: `meet_year`, `sport`, `achievement_type`, `team_name` (house name). Optional: `winner_student_id`, `notes`.
+
+`achievement_type` must be `Champion Team` or `Best Player`. Best Player rows require `winner_student_id`.
+
+### inventory.csv (Inventory page)
 
 ```csv
 item_name,quantity
@@ -204,7 +207,7 @@ Artifacts are generated in `dist-electron/`.
 ```
 app/
   (auth)/login/          Staff sign-in
-  (protected)/           Dashboard, students, records, inventory, import
+  (protected)/           Dashboard, students, achievements, inventory
   auth/callback/         OAuth / magic link callback
 lib/supabase/            Supabase clients + middleware
 supabase/migrations/     Database schema + seeds

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { InventoryClient } from "@/components/inventory-client";
 import type { InventoryItem } from "@/lib/types/database";
 
@@ -11,11 +12,14 @@ export default async function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-zinc-900">Inventory</h2>
-        <p className="mt-1 text-zinc-600">
-          Track equipment quantities. Add new items or edit existing counts.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold text-zinc-900">Inventory</h2>
+          <p className="mt-1 text-zinc-600">
+            Track equipment quantities. Add new items or edit existing counts.
+          </p>
+        </div>
+        <CsvImportDialog type="inventory" />
       </div>
       <InventoryClient items={(items ?? []) as InventoryItem[]} />
     </div>

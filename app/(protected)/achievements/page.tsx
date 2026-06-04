@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { RecordsClient } from "@/components/records-client";
 import { AchievementsClient } from "@/components/achievements-client";
 import type { House, SportRecord, SportsAchievement } from "@/lib/types/database";
@@ -50,9 +51,10 @@ export default async function AchievementsPage() {
       </div>
 
       <section>
-        <h3 className="mb-4 text-lg font-semibold text-zinc-800">
-          Athletic Records
-        </h3>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+          <h3 className="text-lg font-semibold text-zinc-800">Athletic Records</h3>
+          <CsvImportDialog type="records" />
+        </div>
         <RecordsClient
           records={(records ?? []) as unknown as SportRecord[]}
           tracks={tracks ?? []}
@@ -62,9 +64,12 @@ export default async function AchievementsPage() {
       </section>
 
       <section>
-        <h3 className="mb-4 text-lg font-semibold text-zinc-800">
-          Sports Achievements
-        </h3>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+          <h3 className="text-lg font-semibold text-zinc-800">
+            Sports Achievements
+          </h3>
+          <CsvImportDialog type="achievements" />
+        </div>
         <AchievementsClient
           achievements={(achievements ?? []) as unknown as SportsAchievement[]}
           houses={(houses ?? []) as House[]}

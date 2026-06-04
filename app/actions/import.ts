@@ -2,6 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import {
+  ACHIEVEMENT_TYPES,
+  ACHIEVEMENT_TYPE_BEST_PLAYER,
+  type AchievementType,
+} from "@/lib/constants";
 
 type ImportResult = {
   success: number;
@@ -70,6 +75,7 @@ export async function importStudents(
   }
 
   revalidatePath("/students");
+  revalidatePath("/achievements");
   revalidatePath("/");
   return result;
 }
@@ -127,7 +133,103 @@ export async function importRecords(
     }
   }
 
-  revalidatePath("/records");
+  revalidatePath("/achievements");
+  revalidatePath("/");
+  return result;
+}
+
+type AchievementImportRow = {
+  meet_year: string;
+  sport: string;
+  achievement_type: string;
+  team_name: string;
+  winner_student_id?: string;
+  notes?: string;
+};
+
+function parseAchievementType(raw: string): AchievementType | null {
+  const t = raw.trim();
+  if ((ACHIEVEMENT_TYPES as readonly string[]).includes(t)) {
+    return t as AchievementType;
+  }
+  return null;
+}
+
+export async function importAchievements(
+  rows: AchievementImportRow[]
+): Promise<ImportResult> {
+  const supabase = await createClient();
+  const result: ImportResult = { success: 0, skipped: 0, errors: [] };
+
+  const { data: students } = await supabase
+    .from("students")
+    .select("id, student_id");
+  const studentMap = new Map(
+    students?.map((s) => [s.student_id, s.id]) ?? []
+  );
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const line = i + 2;
+    const meetYear = parseInt(row.meet_year, 10);
+    const sport = row.sport?.trim() ?? "";
+    const achievementType = parseAchievementType(row.achievement_type ?? "");
+    const teamName = row.team_name?.trim() ?? "";
+    const notes = row.notes?.trim() || null;
+    const winnerStudentId = row.winner_student_id?.trim() ?? "";
+
+    if (Number.isNaN(meetYear) || !sport || !achievementType || !teamName) {
+      result.errors.push(`Row ${line}: invalid or incomplete row`);
+      continue;
+    }
+
+    let studentUuid: string | null = null;
+    if (achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER) {
+      if (!winnerStudentId) {
+        result.errors.push(`Row ${line}: winner_student_id required for Best Player`);
+        continue;
+      }
+      studentUuid = studentMap.get(winnerStudentId) ?? null;
+      if (!studentUuid) {
+        result.errors.push(`Row ${line}: student "${winnerStudentId}" not found`);
+        continue;
+      }
+    }
+
+    const { data: achievement, error } = await supabase
+      .from("sports_achievements")
+      .insert({
+        meet_year: meetYear,
+        sport,
+        achievement_type: achievementType,
+        team_name: teamName,
+        notes,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      result.errors.push(`Row ${line}: ${error.message}`);
+      continue;
+    }
+
+    if (studentUuid) {
+      const { error: winnerError } = await supabase
+        .from("sports_achievement_winners")
+        .insert({
+          achievement_id: achievement.id,
+          student_id: studentUuid,
+        });
+      if (winnerError) {
+        result.errors.push(`Row ${line}: ${winnerError.message}`);
+        continue;
+      }
+    }
+
+    result.success++;
+  }
+
+  revalidatePath("/achievements");
   revalidatePath("/");
   return result;
 }

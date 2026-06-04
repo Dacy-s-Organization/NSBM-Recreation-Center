@@ -12,7 +12,6 @@ const links = [
   { href: "/students", label: "Students" },
   { href: "/achievements", label: "Achievements" },
   { href: "/inventory", label: "Inventory" },
-  { href: "/import", label: "Import" },
 ];
 
 export function AppNav() {

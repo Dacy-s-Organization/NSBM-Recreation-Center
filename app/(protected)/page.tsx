@@ -29,7 +29,6 @@ export default async function DashboardPage() {
     { href: "/students", title: "Manage students", desc: "Search by ID and assign houses" },
     { href: "/achievements", title: "Achievements", desc: "Athletic records and sports achievements" },
     { href: "/inventory", title: "Equipment inventory", desc: "Track quantities of gear" },
-    { href: "/import", title: "Import data", desc: "Bulk upload from CSV spreadsheets" },
   ];
 
   return (
