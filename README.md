@@ -104,7 +104,7 @@ Use **Import CSV** on each page (top-right of the section title). Download a tem
 
 ### students.csv (Students page)
 
-Required: `student_id`, `full_name`, `house_name`. Optional: `faculty`, `intake`, `degree_programme`, `gender`, `nic`, `mobile`, `email`.
+Required: `full_name`, `house_name`. Optional: `student_id` (leave empty if your file has no ID column), `faculty`, `intake`, `degree_programme`, `gender`, `nic`, `mobile`, `email`.
 
 House names must match exactly: `Ruby Adventurers`, `Citrine Warriors`, `Emerald Fighters`, `Sapphire Heroes`.
 

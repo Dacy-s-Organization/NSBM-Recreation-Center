@@ -42,7 +42,7 @@ export function StudentsClient({
     if (q) {
       list = list.filter(
         (s) =>
-          s.student_id.toLowerCase().includes(q) ||
+          (s.student_id?.toLowerCase().includes(q) ?? false) ||
           s.full_name.toLowerCase().includes(q)
       );
     }
@@ -185,8 +185,8 @@ export function StudentsClient({
           <h3 className="font-medium text-zinc-900">New student</h3>
           <form id="add-student-form" action={handleAdd} className="mt-4 grid gap-4 sm:grid-cols-3">
             <div>
-              <Label htmlFor="student_id">Student ID</Label>
-              <Input id="student_id" name="student_id" required />
+              <Label htmlFor="student_id">Student ID (optional)</Label>
+              <Input id="student_id" name="student_id" placeholder="Leave blank if unknown" />
             </div>
             <div>
               <Label htmlFor="full_name">Full name</Label>
@@ -264,8 +264,12 @@ export function StudentsClient({
                         >
                           <input type="hidden" name="id" value={s.id} />
                           <div>
-                            <Label>Student ID</Label>
-                            <Input name="student_id" defaultValue={s.student_id} required />
+                            <Label>Student ID (optional)</Label>
+                            <Input
+                              name="student_id"
+                              defaultValue={s.student_id ?? ""}
+                              placeholder="Leave blank if unknown"
+                            />
                           </div>
                           <div>
                             <Label>Full name</Label>
@@ -319,7 +323,9 @@ export function StudentsClient({
                       </td>
                     ) : (
                       <>
-                        <td className="px-4 py-3 font-mono text-zinc-900">{s.student_id}</td>
+                        <td className="px-4 py-3 font-mono text-zinc-900">
+                          {s.student_id ?? "—"}
+                        </td>
                         <td className="px-4 py-3 text-zinc-900">{s.full_name}</td>
                         <td className="px-4 py-3 text-zinc-700">{s.faculty || "—"}</td>
                         <td className="px-4 py-3 text-zinc-700">{s.intake || "—"}</td>
@@ -346,7 +352,9 @@ export function StudentsClient({
                             <Button
                               type="button"
                               variant="danger"
-                              onClick={() => handleDelete(s.id, s.student_id)}
+                              onClick={() =>
+                                handleDelete(s.id, s.student_id ?? s.full_name)
+                              }
                               disabled={pending}
                             >
                               Delete

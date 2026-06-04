@@ -12,7 +12,7 @@ export default async function StudentsPage() {
       .select(
         "id, student_id, full_name, house_id, faculty, intake, degree_programme, gender, nic, mobile, email, created_at, houses(name)"
       )
-      .order("student_id"),
+      .order("full_name"),
     supabase.from("houses").select("id, name").order("name"),
   ]);
 

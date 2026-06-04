@@ -349,7 +349,9 @@ export function RecordsClient({
                       </td>
                     ) : (
                       <>
-                        <td className="px-4 py-3 font-mono">{r.students?.student_id}</td>
+                        <td className="px-4 py-3 font-mono">
+                          {r.students?.student_id ?? "—"}
+                        </td>
                         <td className="px-4 py-3">{r.students?.full_name}</td>
                         <td className="px-4 py-3">{r.sport_tracks?.name}</td>
                         <td className="px-4 py-3 font-medium">

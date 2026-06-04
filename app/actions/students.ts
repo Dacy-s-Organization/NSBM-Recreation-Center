@@ -11,13 +11,13 @@ export async function addStudent(formData: FormData) {
   const intake = String(formData.get("intake") ?? "").trim() || null;
   const gender = String(formData.get("gender") ?? "").trim() || null;
 
-  if (!studentId || !fullName || !houseId) {
-    return { error: "Student ID, name, and house are required." };
+  if (!fullName || !houseId) {
+    return { error: "Name and house are required." };
   }
 
   const supabase = await createClient();
   const { error } = await supabase.from("students").insert({
-    student_id: studentId,
+    student_id: studentId || null,
     full_name: fullName,
     house_id: houseId,
     faculty,
@@ -46,15 +46,15 @@ export async function updateStudent(formData: FormData) {
   const intake = String(formData.get("intake") ?? "").trim() || null;
   const gender = String(formData.get("gender") ?? "").trim() || null;
 
-  if (!id || !studentId || !fullName || !houseId) {
-    return { error: "Student ID, name, and house are required." };
+  if (!id || !fullName || !houseId) {
+    return { error: "Name and house are required." };
   }
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("students")
     .update({
-      student_id: studentId,
+      student_id: studentId || null,
       full_name: fullName,
       house_id: houseId,
       faculty,

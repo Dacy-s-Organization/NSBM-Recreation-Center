@@ -15,7 +15,7 @@ type ImportResult = {
 };
 
 type StudentRow = {
-  student_id: string;
+  student_id?: string;
   full_name: string;
   house_name: string;
   faculty?: string;
@@ -41,8 +41,8 @@ export async function importStudents(
     const line = i + 2;
     const houseId = houseMap.get((row.house_name ?? "").trim().toLowerCase());
 
-    if (!row.student_id?.trim() || !row.full_name?.trim()) {
-      result.errors.push(`Row ${line}: missing student_id or full_name`);
+    if (!row.full_name?.trim()) {
+      result.errors.push(`Row ${line}: missing full_name`);
       continue;
     }
     if (!houseId) {
@@ -50,8 +50,10 @@ export async function importStudents(
       continue;
     }
 
+    const externalId = row.student_id?.trim() || null;
+
     const { error } = await supabase.from("students").insert({
-      student_id: row.student_id.trim(),
+      student_id: externalId,
       full_name: row.full_name.trim(),
       house_id: houseId,
       faculty: row.faculty?.trim() || null,
@@ -91,7 +93,11 @@ export async function importRecords(
     supabase.from("sport_tracks").select("id, name"),
   ]);
 
-  const studentMap = new Map(students?.map((s) => [s.student_id, s.id]) ?? []);
+  const studentMap = new Map(
+    students
+      ?.filter((s) => s.student_id)
+      .map((s) => [s.student_id as string, s.id]) ?? []
+  );
   const trackMap = new Map(tracks?.map((t) => [t.name.toLowerCase(), t.id]) ?? []);
 
   for (let i = 0; i < rows.length; i++) {
@@ -165,7 +171,9 @@ export async function importAchievements(
     .from("students")
     .select("id, student_id");
   const studentMap = new Map(
-    students?.map((s) => [s.student_id, s.id]) ?? []
+    students
+      ?.filter((s) => s.student_id)
+      .map((s) => [s.student_id as string, s.id]) ?? []
   );
 
   for (let i = 0; i < rows.length; i++) {

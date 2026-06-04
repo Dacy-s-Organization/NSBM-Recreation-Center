@@ -5,7 +5,7 @@ export type House = {
 
 export type Student = {
   id: string;
-  student_id: string;
+  student_id: string | null;
   full_name: string;
   house_id: string;
   faculty: string | null;

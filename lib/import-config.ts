@@ -16,7 +16,7 @@ export type ImportPreviewRow = Record<string, string | number | boolean> & {
 
 export const IMPORT_DESCRIPTIONS: Record<ImportType, string> = {
   students:
-    "Required: student_id, full_name, house_name. Optional: faculty, intake, degree_programme, gender, nic, mobile, email.",
+    "Required: full_name, house_name. Optional: student_id (leave empty if not in your file), faculty, intake, degree_programme, gender, nic, mobile, email.",
   records:
     "Columns: student_id, track_name, value, year. Students must exist before importing records.",
   inventory:
@@ -32,7 +32,7 @@ export const IMPORT_TEMPLATES: Record<
   students: {
     filename: "students_template.csv",
     content:
-      "student_id,full_name,house_name,faculty,intake,degree_programme,gender,nic,mobile,email\n2024001,John Doe,Ruby Adventurers,FOB,2026.1,Foundation Programme,Male,000000000V,0700000000,john@example.com",
+      "student_id,full_name,house_name,faculty,intake,degree_programme,gender,nic,mobile,email\n,John Doe,Ruby Adventurers,FOB,2026.1,Foundation Programme,Male,000000000V,0700000000,john@example.com\n2024002,Jane Smith,Citrine Warriors,FOB,2026.1,,Female,,0700000000,",
     columns: [
       "student_id",
       "full_name",
@@ -72,7 +72,7 @@ export const IMPORT_TEMPLATES: Record<
 };
 
 const REQUIRED_COLUMNS: Record<ImportType, string[]> = {
-  students: ["student_id", "full_name", "house_name"],
+  students: ["full_name", "house_name"],
   records: ["student_id", "track_name", "value", "year"],
   inventory: ["item_name", "quantity"],
   achievements: ["meet_year", "sport", "achievement_type", "team_name"],
