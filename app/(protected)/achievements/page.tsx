@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
+import { TracksManager } from "@/components/tracks-manager";
 import { RecordsClient } from "@/components/records-client";
 import { AchievementsClient } from "@/components/achievements-client";
 import { getHouses, getSportTracks } from "@/lib/data/reference";
-import type { House, SportRecord, SportsAchievement } from "@/lib/types/database";
+import type { House, SportRecord, SportTrack, SportsAchievement } from "@/lib/types/database";
 
 const RECORDS_LIMIT = 500;
 
@@ -62,11 +63,14 @@ export default async function AchievementsPage({
       <section>
         <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
           <h3 className="text-lg font-semibold text-zinc-800">Athletic Records</h3>
-          <CsvImportDialog type="records" />
+          <div className="flex flex-wrap gap-2">
+            <TracksManager tracks={tracks as SportTrack[]} />
+            <CsvImportDialog type="records" />
+          </div>
         </div>
         <RecordsClient
           records={(records ?? []) as unknown as SportRecord[]}
-          tracks={tracks}
+          tracks={tracks as SportTrack[]}
           years={years}
           defaultYear={selectedYear}
           selectedYear={selectedYear}

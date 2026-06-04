@@ -147,7 +147,9 @@ Existing items (by name, case-insensitive) are updated; new names are inserted.
 
 ## Adding sport tracks
 
-Default tracks are seeded in the migration. To add more, insert into `sport_tracks` in Supabase SQL Editor:
+Default tracks are seeded in the migration. Add more from **Achievements → Athletic Records → Manage tracks** (name, unit `s` or `m`, lower-is-better for runs).
+
+Or insert via Supabase SQL Editor:
 
 ```sql
 INSERT INTO sport_tracks (name, unit, lower_is_better)
