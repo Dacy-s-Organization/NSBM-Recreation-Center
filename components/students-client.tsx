@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { addStudent, deleteStudent, updateStudent } from "@/app/actions/students";
 import type { House, Student } from "@/lib/types/database";
+import {
+  STUDENT_TABLE_COLUMNS,
+  STUDENT_TABLE_COLUMN_COUNT,
+} from "@/lib/student-columns";
+import { StudentFieldsForm } from "@/components/student-fields-form";
 import { HouseBadge } from "@/components/house-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,13 +16,27 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 
+function cellValue(s: Student, key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]) {
+  switch (key) {
+    case "serial_no":
+      return s.serial_no ?? "—";
+    case "student_id":
+      return s.student_id ?? "—";
+    case "degree_programme":
+      return s.degree_programme || "—";
+    case "house":
+      return s.houses?.name ? <HouseBadge name={s.houses.name} /> : "—";
+    default:
+      return (s[key] as string | null) || "—";
+  }
+}
+
 export function StudentsClient({
   students,
   houses,
   page,
   totalPages,
   totalCount,
-  pageSize,
 }: {
   students: Student[];
   houses: House[];
@@ -54,18 +73,14 @@ export function StudentsClient({
           (s.student_id?.toLowerCase().includes(q) ?? false) ||
           s.full_name.toLowerCase().includes(q) ||
           (s.email?.toLowerCase().includes(q) ?? false) ||
-          (s.nic?.toLowerCase().includes(q) ?? false)
+          (s.nic?.toLowerCase().includes(q) ?? false) ||
+          (s.mobile?.toLowerCase().includes(q) ?? false) ||
+          (s.faculty?.toLowerCase().includes(q) ?? false)
       );
     }
-    if (facultyFilter) {
-      list = list.filter((s) => s.faculty === facultyFilter);
-    }
-    if (intakeFilter) {
-      list = list.filter((s) => s.intake === intakeFilter);
-    }
-    if (houseFilter) {
-      list = list.filter((s) => s.house_id === houseFilter);
-    }
+    if (facultyFilter) list = list.filter((s) => s.faculty === facultyFilter);
+    if (intakeFilter) list = list.filter((s) => s.intake === intakeFilter);
+    if (houseFilter) list = list.filter((s) => s.house_id === houseFilter);
     return list;
   }, [students, query, facultyFilter, intakeFilter, houseFilter]);
 
@@ -73,9 +88,8 @@ export function StudentsClient({
     setError(null);
     startTransition(async () => {
       const result = await addStudent(formData);
-      if (result.error) {
-        setError(result.error);
-      } else {
+      if (result.error) setError(result.error);
+      else {
         setShowForm(false);
         (document.getElementById("add-student-form") as HTMLFormElement)?.reset();
       }
@@ -91,10 +105,10 @@ export function StudentsClient({
     });
   }
 
-  function handleDelete(id: string, studentId: string) {
+  function handleDelete(id: string, label: string) {
     if (
       !window.confirm(
-        `Delete student ${studentId}? Their sport records and achievement links will also be removed.`
+        `Delete student ${label}? Their sport records and achievement links will also be removed.`
       )
     ) {
       return;
@@ -116,7 +130,7 @@ export function StudentsClient({
           <Label htmlFor="search">Search</Label>
           <Input
             id="search"
-            placeholder="Student No, name, email, or NIC"
+            placeholder="Student No, name, email, NIC, mobile…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -194,43 +208,13 @@ export function StudentsClient({
       {showForm && (
         <Card>
           <h3 className="font-medium text-zinc-900">New student</h3>
-          <form id="add-student-form" action={handleAdd} className="mt-4 grid gap-4 sm:grid-cols-3">
-            <div>
-              <Label htmlFor="student_id">Student ID (optional)</Label>
-              <Input id="student_id" name="student_id" placeholder="Leave blank if unknown" />
-            </div>
-            <div>
-              <Label htmlFor="full_name">Full name</Label>
-              <Input id="full_name" name="full_name" required />
-            </div>
-            <div>
-              <Label htmlFor="house_id">House (optional)</Label>
-              <Select id="house_id" name="house_id" defaultValue="">
-                <option value="">No house yet</option>
-                {houses.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="faculty">Faculty</Label>
-              <Input id="faculty" name="faculty" placeholder="e.g. FOB" />
-            </div>
-            <div>
-              <Label htmlFor="intake">Intake</Label>
-              <Input id="intake" name="intake" placeholder="e.g. 2026.1" />
-            </div>
-            <div>
-              <Label htmlFor="gender">Gender</Label>
-              <Select id="gender" name="gender" defaultValue="">
-                <option value="">—</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </Select>
-            </div>
-            <div className="sm:col-span-3 flex gap-2">
+          <form
+            id="add-student-form"
+            action={handleAdd}
+            className="mt-4 grid gap-4 sm:grid-cols-3"
+          >
+            <StudentFieldsForm houses={houses} />
+            <div className="flex gap-2 sm:col-span-3">
               <Button type="submit" disabled={pending}>
                 {pending ? "Saving…" : "Save student"}
               </Button>
@@ -242,22 +226,29 @@ export function StudentsClient({
 
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="min-w-[1400px] w-full text-left text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50">
               <tr>
-                <th className="px-4 py-3 font-medium text-zinc-600">Student No</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Name</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Faculty</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Programme</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Intake</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">House</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Actions</th>
+                {STUDENT_TABLE_COLUMNS.map((col) => (
+                  <th
+                    key={col.key}
+                    className="whitespace-nowrap px-3 py-3 font-medium text-zinc-600"
+                  >
+                    {col.label}
+                  </th>
+                ))}
+                <th className="sticky right-0 bg-zinc-50 px-3 py-3 font-medium text-zinc-600">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">
+                  <td
+                    colSpan={STUDENT_TABLE_COLUMN_COUNT}
+                    className="px-4 py-8 text-center text-zinc-500"
+                  >
                     {query || hasActiveFilters
                       ? "No students match your search."
                       : "No students yet. Add one or import from CSV."}
@@ -267,54 +258,13 @@ export function StudentsClient({
                 filtered.map((s) => (
                   <tr key={s.id} className="border-b border-zinc-100 last:border-0">
                     {editingId === s.id ? (
-                      <td colSpan={7} className="px-4 py-3">
+                      <td colSpan={STUDENT_TABLE_COLUMN_COUNT} className="px-4 py-3">
                         <form
                           action={handleUpdate}
                           className="grid gap-3 sm:grid-cols-3 sm:items-end"
                         >
                           <input type="hidden" name="id" value={s.id} />
-                          <div>
-                            <Label>Student ID (optional)</Label>
-                            <Input
-                              name="student_id"
-                              defaultValue={s.student_id ?? ""}
-                              placeholder="Leave blank if unknown"
-                            />
-                          </div>
-                          <div>
-                            <Label>Full name</Label>
-                            <Input name="full_name" defaultValue={s.full_name} required />
-                          </div>
-                          <div>
-                            <Label>House (optional)</Label>
-                            <Select
-                              name="house_id"
-                              defaultValue={s.house_id ?? ""}
-                            >
-                              <option value="">No house yet</option>
-                              {houses.map((h) => (
-                                <option key={h.id} value={h.id}>
-                                  {h.name}
-                                </option>
-                              ))}
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>Faculty</Label>
-                            <Input name="faculty" defaultValue={s.faculty ?? ""} />
-                          </div>
-                          <div>
-                            <Label>Intake</Label>
-                            <Input name="intake" defaultValue={s.intake ?? ""} />
-                          </div>
-                          <div>
-                            <Label>Gender</Label>
-                            <Select name="gender" defaultValue={s.gender ?? ""}>
-                              <option value="">—</option>
-                              <option value="Male">Male</option>
-                              <option value="Female">Female</option>
-                            </Select>
-                          </div>
+                          <StudentFieldsForm student={s} houses={houses} />
                           <div className="flex flex-wrap gap-2 sm:col-span-3">
                             <Button type="submit" disabled={pending}>
                               Save
@@ -337,23 +287,26 @@ export function StudentsClient({
                       </td>
                     ) : (
                       <>
-                        <td className="px-4 py-3 font-mono text-zinc-900">
-                          {s.student_id ?? "—"}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-900">{s.full_name}</td>
-                        <td className="px-4 py-3 text-zinc-700">{s.faculty || "—"}</td>
-                        <td className="px-4 py-3 text-zinc-700 max-w-[200px] truncate" title={s.degree_programme ?? undefined}>
-                          {s.degree_programme || "—"}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-700">{s.intake || "—"}</td>
-                        <td className="px-4 py-3">
-                          {s.houses?.name ? (
-                            <HouseBadge name={s.houses.name} />
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
+                        {STUDENT_TABLE_COLUMNS.map((col) => (
+                          <td
+                            key={col.key}
+                            className={`whitespace-nowrap px-3 py-2 text-zinc-700 ${
+                              col.key === "student_id" ? "font-mono text-zinc-900" : ""
+                            } ${col.key === "degree_programme" ? "max-w-[220px] truncate" : ""} ${
+                              col.key === "email" ? "max-w-[180px] truncate" : ""
+                            }`}
+                            title={
+                              col.key === "degree_programme"
+                                ? s.degree_programme ?? undefined
+                                : col.key === "email"
+                                  ? s.email ?? undefined
+                                  : undefined
+                            }
+                          >
+                            {cellValue(s, col.key)}
+                          </td>
+                        ))}
+                        <td className="sticky right-0 bg-white px-3 py-2">
                           <div className="flex flex-wrap gap-2">
                             <Button
                               type="button"
@@ -370,7 +323,10 @@ export function StudentsClient({
                               type="button"
                               variant="danger"
                               onClick={() =>
-                                handleDelete(s.id, s.student_id ?? s.full_name)
+                                handleDelete(
+                                  s.id,
+                                  s.student_id ?? s.full_name
+                                )
                               }
                               disabled={pending}
                             >

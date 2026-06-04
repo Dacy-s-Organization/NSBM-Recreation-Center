@@ -138,6 +138,9 @@ export function CsvImportDialog({
   const validCount = preview.filter((r) => r._valid).length;
   const invalidCount = preview.length - validCount;
   const template = IMPORT_TEMPLATES[type];
+  const previewLabels =
+    template.columnLabels ??
+    template.columns.map((c) => c.replace(/_/g, " "));
 
   return (
     <>
@@ -204,9 +207,9 @@ export function CsvImportDialog({
                   <thead>
                     <tr className="border-b border-zinc-100">
                       <th className="px-2 py-2">Line</th>
-                      {template.columns.map((c) => (
-                        <th key={c} className="px-2 py-2 capitalize">
-                          {c.replace(/_/g, " ")}
+                      {previewLabels.map((label, i) => (
+                        <th key={template.columns[i] ?? i} className="whitespace-nowrap px-2 py-2">
+                          {label}
                         </th>
                       ))}
                       <th className="px-2 py-2">Status</th>

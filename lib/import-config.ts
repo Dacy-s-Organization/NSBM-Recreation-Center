@@ -6,6 +6,7 @@
 
 import { ACHIEVEMENT_TYPES, ACHIEVEMENT_TYPE_BEST_PLAYER } from "@/lib/constants";
 import { normalizeStudentCsvRow } from "@/lib/student-csv";
+import { STUDENT_TABLE_COLUMNS } from "@/lib/student-columns";
 
 export type ImportType = "students" | "records" | "inventory" | "achievements";
 
@@ -26,28 +27,25 @@ export const IMPORT_DESCRIPTIONS: Record<ImportType, string> = {
     "Required: meet_year, sport, achievement_type, team_name (house). Best Player requires winner_student_id. Types: Champion Team, Best Player.",
 };
 
-export const IMPORT_TEMPLATES: Record<
-  ImportType,
-  { filename: string; content: string; columns: string[] }
-> = {
+type ImportTemplate = {
+  filename: string;
+  content: string;
+  columns: string[];
+  columnLabels?: string[];
+};
+
+export const IMPORT_TEMPLATES: Record<ImportType, ImportTemplate> = {
   students: {
     filename: "students_nsbm_template.csv",
     content:
       "Serial No,Intake,Faculty,Student No,Degree Programme,University,Title,Name with Initials,Gender,NIC/Passport,Mobile No,E-Mail\n574,2026.1,FOB,39706,Foundation Programme for Bachelor`s Degree - FOB,NSBM,Ms.,Sansala S H  R,Female,R-E008588,0700000000,student@example.com",
     columns: [
-      "serial_no",
-      "intake",
-      "faculty",
-      "student_id",
-      "degree_programme",
-      "university",
-      "title",
-      "full_name",
-      "gender",
-      "nic",
-      "mobile",
-      "email",
+      ...STUDENT_TABLE_COLUMNS.map((c) => c.key),
       "house_name",
+    ],
+    columnLabels: [
+      ...STUDENT_TABLE_COLUMNS.map((c) => c.label),
+      "House",
     ],
   },
   records: {

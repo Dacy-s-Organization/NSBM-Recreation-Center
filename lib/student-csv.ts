@@ -50,12 +50,10 @@ export function normalizePhone(value: string): string {
   return value.replace(/[,\s]/g, "").trim();
 }
 
+/** Name with Initials only — Title stays in its own column (matches NSBM export). */
 export function buildStudentFullName(row: CanonicalStudentCsvRow): string {
   const name = row.full_name?.trim() ?? "";
-  const title = row.title?.trim() ?? "";
-  if (name) {
-    return title ? `${title} ${name}`.replace(/\s+/g, " ").trim() : name;
-  }
+  if (name) return name;
   const email = row.email?.trim();
   if (email) return email.split("@")[0] ?? email;
   const sid = row.student_id?.trim();
