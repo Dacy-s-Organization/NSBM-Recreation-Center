@@ -5,9 +5,11 @@ import { useMemo, useState, useTransition } from "react";
 import { addStudent, deleteStudent, updateStudent } from "@/app/actions/students";
 import type { House, Student } from "@/lib/types/database";
 import {
+  STUDENT_LONG_TEXT_COLUMN_KEYS,
   STUDENT_TABLE_COLUMNS,
   STUDENT_TABLE_COLUMN_COUNT,
 } from "@/lib/student-columns";
+import { ExpandableCell } from "@/components/expandable-cell";
 import { StudentFieldsForm } from "@/components/student-fields-form";
 import { HouseBadge } from "@/components/house-badge";
 import { Button } from "@/components/ui/button";
@@ -16,19 +18,63 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 
-function cellValue(s: Student, key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]) {
+function cellText(s: Student, key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]) {
   switch (key) {
     case "serial_no":
-      return s.serial_no ?? "—";
+      return s.serial_no != null ? String(s.serial_no) : "—";
     case "student_id":
       return s.student_id ?? "—";
     case "degree_programme":
       return s.degree_programme || "—";
     case "house":
-      return s.houses?.name ? <HouseBadge name={s.houses.name} /> : "—";
+      return s.houses?.name ?? "—";
     default:
       return (s[key] as string | null) || "—";
   }
+}
+
+function renderCell(
+  s: Student,
+  col: (typeof STUDENT_TABLE_COLUMNS)[number]
+) {
+  if (col.key === "house") {
+    return s.houses?.name ? <HouseBadge name={s.houses.name} /> : "—";
+  }
+
+  const text = cellText(s, col.key);
+
+  if (STUDENT_LONG_TEXT_COLUMN_KEYS.has(col.key)) {
+    const maxWidthClass =
+      col.key === "degree_programme"
+        ? "max-w-[260px]"
+        : col.key === "email"
+          ? "max-w-[200px]"
+          : "max-w-[180px]";
+
+    return (
+      <ExpandableCell
+        label={col.label}
+        value={text}
+        maxWidthClass={maxWidthClass}
+      />
+    );
+  }
+
+  return text;
+}
+
+function columnHeaderClass(key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]) {
+  if (key === "degree_programme") return "min-w-[200px]";
+  if (STUDENT_LONG_TEXT_COLUMN_KEYS.has(key)) return "min-w-[140px]";
+  return "";
+}
+
+function columnCellClass(key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]) {
+  const base = "px-3 py-2 text-zinc-700";
+  if (STUDENT_LONG_TEXT_COLUMN_KEYS.has(key)) {
+    return `${base} align-top`;
+  }
+  return `${base} whitespace-nowrap`;
 }
 
 export function StudentsClient({
@@ -232,7 +278,7 @@ export function StudentsClient({
                 {STUDENT_TABLE_COLUMNS.map((col) => (
                   <th
                     key={col.key}
-                    className="whitespace-nowrap px-3 py-3 font-medium text-zinc-600"
+                    className={`whitespace-nowrap px-3 py-3 font-medium text-zinc-600 ${columnHeaderClass(col.key)}`}
                   >
                     {col.label}
                   </th>
@@ -290,20 +336,11 @@ export function StudentsClient({
                         {STUDENT_TABLE_COLUMNS.map((col) => (
                           <td
                             key={col.key}
-                            className={`whitespace-nowrap px-3 py-2 text-zinc-700 ${
+                            className={`${columnCellClass(col.key)} ${
                               col.key === "student_id" ? "font-mono text-zinc-900" : ""
-                            } ${col.key === "degree_programme" ? "max-w-[220px] truncate" : ""} ${
-                              col.key === "email" ? "max-w-[180px] truncate" : ""
                             }`}
-                            title={
-                              col.key === "degree_programme"
-                                ? s.degree_programme ?? undefined
-                                : col.key === "email"
-                                  ? s.email ?? undefined
-                                  : undefined
-                            }
                           >
-                            {cellValue(s, col.key)}
+                            {renderCell(s, col)}
                           </td>
                         ))}
                         <td className="sticky right-0 bg-white px-3 py-2">

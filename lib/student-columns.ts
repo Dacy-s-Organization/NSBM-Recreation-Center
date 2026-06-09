@@ -17,3 +17,8 @@ export const STUDENT_TABLE_COLUMNS = [
 ] as const;
 
 export const STUDENT_TABLE_COLUMN_COUNT = STUDENT_TABLE_COLUMNS.length + 1; // + Actions
+
+/** Columns that wrap and open a click-to-view dialog when text is long */
+export const STUDENT_LONG_TEXT_COLUMN_KEYS = new Set<
+  (typeof STUDENT_TABLE_COLUMNS)[number]["key"]
+>(["degree_programme", "email", "full_name", "nic"]);
