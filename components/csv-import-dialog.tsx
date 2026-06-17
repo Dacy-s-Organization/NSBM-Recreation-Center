@@ -17,6 +17,7 @@ import {
   downloadImportTemplate,
   validateImportRow,
 } from "@/lib/import-config";
+import { refreshAppData } from "@/app/actions/refresh";
 import { Button } from "@/components/ui/button";
 
 export function CsvImportDialog({
@@ -132,6 +133,7 @@ export function CsvImportDialog({
       setResult(msg);
       setPreview([]);
       if (importResult.success > 0) {
+        await refreshAppData();
         router.refresh();
       }
     });

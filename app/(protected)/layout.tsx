@@ -1,5 +1,7 @@
 import { AppNav } from "@/components/app-nav";
 
+export const dynamic = "force-dynamic";
+
 export default function ProtectedLayout({
   children,
 }: {

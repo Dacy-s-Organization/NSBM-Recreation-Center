@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/refresh-button";
 
 const links = [
   { href: "/", label: "Dashboard" },
@@ -60,9 +61,12 @@ export function AppNav() {
             </Link>
           ))}
         </nav>
-        <Button type="button" variant="secondary" onClick={signOut}>
-          Sign out
-        </Button>
+        <div className="flex items-center gap-2">
+          <RefreshButton />
+          <Button type="button" variant="secondary" onClick={signOut}>
+            Sign out
+          </Button>
+        </div>
       </div>
     </header>
   );

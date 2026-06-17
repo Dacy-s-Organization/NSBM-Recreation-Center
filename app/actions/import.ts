@@ -60,15 +60,18 @@ function studentInsertPayload(row: StudentRow, houseId: string | null) {
 }
 
 function revalidateStudents() {
-  revalidatePath("/students", "page");
+  revalidatePath("/students", "layout");
+  revalidatePath("/", "page");
 }
 
 function revalidateAchievements() {
-  revalidatePath("/achievements", "page");
+  revalidatePath("/achievements", "layout");
+  revalidatePath("/", "page");
 }
 
 function revalidateInventory() {
-  revalidatePath("/inventory", "page");
+  revalidatePath("/inventory", "layout");
+  revalidatePath("/", "page");
 }
 
 export async function importStudents(
