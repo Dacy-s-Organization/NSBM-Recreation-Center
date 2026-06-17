@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { BackLink } from "@/components/back-link";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { StudentsClient } from "@/components/students-client";
 import { getFacultyCards, getIntakeCards } from "@/lib/data/students-nav";
@@ -51,7 +52,7 @@ export default async function StudentsPage({
 
     return (
       <div className="space-y-6">
-        <StudentsPageHeader />
+        <StudentsPageHeader faculty={faculty} facultyName={facultyInfo.name} />
         <StudentsClient
           view="intakes"
           facultyCards={[]}
@@ -85,7 +86,11 @@ export default async function StudentsPage({
 
   return (
     <div className="space-y-6">
-      <StudentsPageHeader />
+      <StudentsPageHeader
+        faculty={faculty}
+        facultyName={facultyInfo.name}
+        intake={intake}
+      />
       <StudentsClient
         view="list"
         facultyCards={[]}
@@ -104,14 +109,40 @@ export default async function StudentsPage({
   );
 }
 
-function StudentsPageHeader() {
+function StudentsPageHeader({
+  faculty,
+  facultyName,
+  intake,
+}: {
+  faculty?: string;
+  facultyName?: string;
+  intake?: string;
+}) {
+  const backHref = intake
+    ? `/students?faculty=${encodeURIComponent(faculty ?? "")}`
+    : faculty
+      ? "/students"
+      : null;
+  const backLabel = intake
+    ? `Back to ${facultyName ?? faculty}`
+    : "Back to faculties";
+
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h2 className="text-2xl font-semibold text-zinc-900">Students</h2>
-        <p className="mt-1 text-zinc-600">
-          Browse by faculty and batch, then manage student records.
-        </p>
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        {backHref ? (
+          <BackLink href={backHref} label={backLabel} className="shrink-0" />
+        ) : null}
+        <div className="min-w-0">
+          <h2 className="text-2xl font-semibold text-zinc-900">Students</h2>
+          <p className="mt-1 text-zinc-600">
+            {intake
+              ? `${facultyName ?? faculty} · Batch ${intake}`
+              : faculty
+                ? `Batches for ${facultyName ?? faculty}`
+                : "Browse by faculty and batch, then manage student records."}
+          </p>
+        </div>
       </div>
       <CsvImportDialog type="students" />
     </div>
