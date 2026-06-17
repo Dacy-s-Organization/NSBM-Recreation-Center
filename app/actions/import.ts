@@ -11,9 +11,15 @@ import { chunkArray, IMPORT_BATCH_SIZE } from "@/lib/batch-chunks";
 
 type ImportResult = {
   success: number;
+  inserted: number;
+  updated: number;
   skipped: number;
   errors: string[];
 };
+
+function emptyImportResult(): ImportResult {
+  return { success: 0, inserted: 0, updated: 0, skipped: 0, errors: [] };
+}
 
 type StudentRow = {
   serial_no?: string;
@@ -68,10 +74,25 @@ export async function importStudents(
   rows: StudentRow[]
 ): Promise<ImportResult> {
   const supabase = await createClient();
-  const result: ImportResult = { success: 0, skipped: 0, errors: [] };
+  const result = emptyImportResult();
 
   const { data: houses } = await supabase.from("houses").select("id, name");
   const houseMap = new Map(houses?.map((h) => [h.name.toLowerCase(), h.id]) ?? []);
+
+  const { data: existingRows } = await supabase
+    .from("students")
+    .select("id, student_id, serial_no, house_id");
+
+  const byStudentId = new Map(
+    existingRows
+      ?.filter((s) => s.student_id)
+      .map((s) => [s.student_id as string, s]) ?? []
+  );
+  const bySerialNo = new Map(
+    existingRows
+      ?.filter((s) => s.serial_no != null)
+      .map((s) => [s.serial_no as number, s]) ?? []
+  );
 
   const withId: ReturnType<typeof studentInsertPayload>[] = [];
   const withoutId: ReturnType<typeof studentInsertPayload>[] = [];
@@ -94,6 +115,17 @@ export async function importStudents(
     }
 
     const payload = studentInsertPayload(row, houseId);
+    const existingById = payload.student_id
+      ? byStudentId.get(payload.student_id)
+      : undefined;
+    const existingBySerial =
+      payload.serial_no != null ? bySerialNo.get(payload.serial_no) : undefined;
+    const existing = existingById ?? existingBySerial;
+
+    if (!payload.house_id && existing?.house_id) {
+      payload.house_id = existing.house_id;
+    }
+
     if (payload.student_id) {
       withId.push(payload);
     } else {
@@ -102,26 +134,84 @@ export async function importStudents(
   }
 
   for (const batch of chunkArray(withId, IMPORT_BATCH_SIZE)) {
+    let batchInserted = 0;
+    let batchUpdated = 0;
+    for (const payload of batch) {
+      if (payload.student_id && byStudentId.has(payload.student_id)) {
+        batchUpdated++;
+      } else {
+        batchInserted++;
+      }
+    }
+
     const { error } = await supabase.from("students").upsert(batch, {
       onConflict: "student_id",
+      ignoreDuplicates: false,
     });
     if (error) {
       result.errors.push(`Batch upsert: ${error.message}`);
     } else {
       result.success += batch.length;
+      result.inserted += batchInserted;
+      result.updated += batchUpdated;
+      batch.forEach((payload) => {
+        if (payload.student_id) {
+          byStudentId.set(payload.student_id, {
+            id: byStudentId.get(payload.student_id)?.id ?? "",
+            student_id: payload.student_id,
+            serial_no: payload.serial_no,
+            house_id: payload.house_id,
+          });
+        }
+        if (payload.serial_no != null) {
+          bySerialNo.set(payload.serial_no, {
+            id: bySerialNo.get(payload.serial_no)?.id ?? "",
+            student_id: payload.student_id,
+            serial_no: payload.serial_no,
+            house_id: payload.house_id,
+          });
+        }
+      });
     }
   }
 
-  for (const batch of chunkArray(withoutId, IMPORT_BATCH_SIZE)) {
+  const toInsertNoId: ReturnType<typeof studentInsertPayload>[] = [];
+  const toUpdateNoId: { id: string; payload: ReturnType<typeof studentInsertPayload> }[] =
+    [];
+
+  for (const payload of withoutId) {
+    const existing =
+      payload.serial_no != null ? bySerialNo.get(payload.serial_no) : undefined;
+    if (existing?.id) {
+      toUpdateNoId.push({ id: existing.id, payload });
+    } else {
+      toInsertNoId.push(payload);
+    }
+  }
+
+  for (const batch of chunkArray(toInsertNoId, IMPORT_BATCH_SIZE)) {
     const { error } = await supabase.from("students").insert(batch);
     if (error) {
-      if (error.code === "23505") {
-        result.skipped += batch.length;
-      } else {
-        result.errors.push(`Batch insert: ${error.message}`);
-      }
+      result.errors.push(`Batch insert: ${error.message}`);
     } else {
       result.success += batch.length;
+      result.inserted += batch.length;
+    }
+  }
+
+  for (const batch of chunkArray(toUpdateNoId, 20)) {
+    const results = await Promise.all(
+      batch.map(({ id, payload }) =>
+        supabase.from("students").update(payload).eq("id", id)
+      )
+    );
+    for (const { error } of results) {
+      if (error) {
+        result.errors.push(`Update: ${error.message}`);
+      } else {
+        result.success++;
+        result.updated++;
+      }
     }
   }
 
@@ -133,7 +223,7 @@ export async function importRecords(
   rows: { student_id: string; track_name: string; value: string; year: string }[]
 ): Promise<ImportResult> {
   const supabase = await createClient();
-  const result: ImportResult = { success: 0, skipped: 0, errors: [] };
+  const result = emptyImportResult();
 
   const [{ data: students }, { data: tracks }] = await Promise.all([
     supabase.from("students").select("id, student_id"),
@@ -147,12 +237,26 @@ export async function importRecords(
   );
   const trackMap = new Map(tracks?.map((t) => [t.name.toLowerCase(), t.id]) ?? []);
 
+  const { data: existingRecords } = await supabase
+    .from("sport_records")
+    .select("id, student_id, track_id, year");
+
+  const recordKey = (studentId: string, trackId: string, year: number) =>
+    `${studentId}:${trackId}:${year}`;
+  const existingRecordMap = new Map(
+    existingRecords?.map((r) => [
+      recordKey(r.student_id, r.track_id, r.year),
+      r.id,
+    ]) ?? []
+  );
+
   const toInsert: {
     student_id: string;
     track_id: string;
     year: number;
     value: number;
   }[] = [];
+  const toUpdate: { id: string; value: number }[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -179,12 +283,18 @@ export async function importRecords(
       continue;
     }
 
-    toInsert.push({
-      student_id: studentUuid,
-      track_id: trackId,
-      year,
-      value,
-    });
+    const key = recordKey(studentUuid, trackId, year);
+    const existingId = existingRecordMap.get(key);
+    if (existingId) {
+      toUpdate.push({ id: existingId, value });
+    } else {
+      toInsert.push({
+        student_id: studentUuid,
+        track_id: trackId,
+        year,
+        value,
+      });
+    }
   }
 
   for (const batch of chunkArray(toInsert, IMPORT_BATCH_SIZE)) {
@@ -193,6 +303,23 @@ export async function importRecords(
       result.errors.push(`Batch insert: ${error.message}`);
     } else {
       result.success += batch.length;
+      result.inserted += batch.length;
+    }
+  }
+
+  for (const batch of chunkArray(toUpdate, 20)) {
+    const results = await Promise.all(
+      batch.map((item) =>
+        supabase.from("sport_records").update({ value: item.value }).eq("id", item.id)
+      )
+    );
+    for (const { error } of results) {
+      if (error) {
+        result.errors.push(`Update: ${error.message}`);
+      } else {
+        result.success++;
+        result.updated++;
+      }
     }
   }
 
@@ -221,7 +348,7 @@ export async function importAchievements(
   rows: AchievementImportRow[]
 ): Promise<ImportResult> {
   const supabase = await createClient();
-  const result: ImportResult = { success: 0, skipped: 0, errors: [] };
+  const result = emptyImportResult();
 
   const { data: students } = await supabase
     .from("students")
@@ -316,6 +443,7 @@ export async function importAchievements(
     }
 
     result.success += batch.length;
+    result.inserted += batch.length;
   }
 
   revalidateAchievements();
@@ -326,7 +454,7 @@ export async function importInventory(
   rows: { item_name: string; quantity: string }[]
 ): Promise<ImportResult> {
   const supabase = await createClient();
-  const result: ImportResult = { success: 0, skipped: 0, errors: [] };
+  const result = emptyImportResult();
 
   const { data: existing } = await supabase.from("inventory_items").select("id, name");
   const existingMap = new Map(
@@ -372,6 +500,7 @@ export async function importInventory(
         existingMap.set(item.name.toLowerCase(), item.id)
       );
       result.success += batch.length;
+      result.inserted += batch.length;
     }
   }
 
@@ -390,6 +519,7 @@ export async function importInventory(
         result.errors.push(`Update: ${error.message}`);
       } else {
         result.success++;
+        result.updated++;
       }
     }
   }

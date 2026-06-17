@@ -114,8 +114,10 @@ export function CsvImportDialog({
       }
 
       const msg = [
-        `Imported: ${importResult.success}`,
-        importResult.skipped ? `Skipped (duplicates): ${importResult.skipped}` : null,
+        `Processed: ${importResult.success}`,
+        importResult.inserted ? `New: ${importResult.inserted}` : null,
+        importResult.updated ? `Updated: ${importResult.updated}` : null,
+        importResult.skipped ? `Skipped: ${importResult.skipped}` : null,
         importResult.errors.length
           ? `Errors:\n${importResult.errors.slice(0, 10).join("\n")}${
               importResult.errors.length > 10

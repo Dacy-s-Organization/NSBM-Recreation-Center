@@ -1,4 +1,5 @@
 import type { House, Student } from "@/lib/types/database";
+import { NSBM_FACULTIES } from "@/lib/faculties";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -6,9 +7,11 @@ import { Select } from "@/components/ui/select";
 export function StudentFieldsForm({
   student,
   houses,
+  defaults,
 }: {
   student?: Student;
   houses: House[];
+  defaults?: { faculty?: string; intake?: string };
 }) {
   return (
     <>
@@ -23,11 +26,25 @@ export function StudentFieldsForm({
       </div>
       <div>
         <Label>Intake</Label>
-        <Input name="intake" defaultValue={student?.intake ?? ""} placeholder="e.g. 2026.1" />
+        <Input
+          name="intake"
+          defaultValue={student?.intake ?? defaults?.intake ?? ""}
+          placeholder="e.g. 2026.1"
+        />
       </div>
       <div>
         <Label>Faculty</Label>
-        <Input name="faculty" defaultValue={student?.faculty ?? ""} placeholder="e.g. FOB" />
+        <Select
+          name="faculty"
+          defaultValue={student?.faculty ?? defaults?.faculty ?? ""}
+        >
+          <option value="">Select faculty</option>
+          {NSBM_FACULTIES.map((faculty) => (
+            <option key={faculty.code} value={faculty.code}>
+              {faculty.code} — {faculty.name}
+            </option>
+          ))}
+        </Select>
       </div>
       <div>
         <Label>Student No</Label>

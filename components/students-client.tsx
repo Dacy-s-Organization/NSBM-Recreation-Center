@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { addStudent, deleteStudent, updateStudent } from "@/app/actions/students";
+import type { FacultyCard, IntakeCard } from "@/lib/data/students-nav";
 import type { House, Student } from "@/lib/types/database";
 import {
   STUDENT_LONG_TEXT_COLUMN_KEYS,
@@ -17,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+
+type StudentsView = "faculties" | "intakes" | "list";
 
 function cellText(s: Student, key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]) {
   switch (key) {
@@ -77,13 +80,129 @@ function columnCellClass(key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]) {
   return `${base} whitespace-nowrap`;
 }
 
+function StudentsBreadcrumb({
+  faculty,
+  facultyName,
+  intake,
+}: {
+  faculty?: string;
+  facultyName?: string;
+  intake?: string;
+}) {
+  return (
+    <nav className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
+      <Link href="/students" className="font-medium text-emerald-800 hover:underline">
+        All faculties
+      </Link>
+      {faculty && (
+        <>
+          <span aria-hidden>/</span>
+          {intake ? (
+            <Link
+              href={`/students?faculty=${encodeURIComponent(faculty)}`}
+              className="font-medium text-emerald-800 hover:underline"
+            >
+              {facultyName ?? faculty}
+            </Link>
+          ) : (
+            <span className="font-medium text-zinc-900">{facultyName ?? faculty}</span>
+          )}
+        </>
+      )}
+      {intake && (
+        <>
+          <span aria-hidden>/</span>
+          <span className="font-medium text-zinc-900">Batch {intake}</span>
+        </>
+      )}
+    </nav>
+  );
+}
+
+function FacultyGrid({ cards }: { cards: FacultyCard[] }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {cards.map((faculty) => (
+        <Link
+          key={faculty.code}
+          href={`/students?faculty=${encodeURIComponent(faculty.code)}`}
+          className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="rounded-lg bg-emerald-100 px-3 py-1 text-sm font-bold text-emerald-900">
+              {faculty.code}
+            </span>
+            <span className="text-sm text-zinc-500">
+              {faculty.count} student{faculty.count === 1 ? "" : "s"}
+            </span>
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-zinc-900 group-hover:text-emerald-900">
+            {faculty.name}
+          </h3>
+          <p className="mt-2 text-sm text-zinc-600">{faculty.description}</p>
+          <p className="mt-4 text-sm font-medium text-emerald-700">View batches →</p>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function IntakeGrid({
+  faculty,
+  cards,
+}: {
+  faculty: string;
+  cards: IntakeCard[];
+}) {
+  if (cards.length === 0) {
+    return (
+      <Card className="p-8 text-center text-zinc-500">
+        No batches found for this faculty yet. Import students from CSV or add them manually.
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {cards.map((batch) => (
+        <Link
+          key={batch.intake}
+          href={`/students?faculty=${encodeURIComponent(faculty)}&intake=${encodeURIComponent(batch.intake)}`}
+          className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+        >
+          <p className="text-sm font-medium text-zinc-500">Batch / Intake</p>
+          <h3 className="mt-2 text-2xl font-semibold text-zinc-900 group-hover:text-emerald-900">
+            {batch.intake}
+          </h3>
+          <p className="mt-3 text-sm text-zinc-600">
+            {batch.count} student{batch.count === 1 ? "" : "s"}
+          </p>
+          <p className="mt-4 text-sm font-medium text-emerald-700">View students →</p>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export function StudentsClient({
+  view,
+  facultyCards,
+  intakeCards = [],
+  selectedFaculty,
+  selectedFacultyName,
+  selectedIntake,
   students,
   houses,
   page,
   totalPages,
   totalCount,
 }: {
+  view: StudentsView;
+  facultyCards: FacultyCard[];
+  intakeCards?: IntakeCard[];
+  selectedFaculty?: string;
+  selectedFacultyName?: string;
+  selectedIntake?: string;
   students: Student[];
   houses: House[];
   page: number;
@@ -92,25 +211,24 @@ export function StudentsClient({
   pageSize: number;
 }) {
   const [query, setQuery] = useState("");
-  const [facultyFilter, setFacultyFilter] = useState("");
-  const [intakeFilter, setIntakeFilter] = useState("");
   const [houseFilter, setHouseFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const faculties = useMemo(() => {
-    const set = new Set(students.map((s) => s.faculty).filter(Boolean) as string[]);
-    return [...set].sort();
-  }, [students]);
-
-  const intakes = useMemo(() => {
-    const set = new Set(students.map((s) => s.intake).filter(Boolean) as string[]);
-    return [...set].sort((a, b) => b.localeCompare(a));
-  }, [students]);
+  const listHref = (nextPage: number) => {
+    const params = new URLSearchParams();
+    if (selectedFaculty) params.set("faculty", selectedFaculty);
+    if (selectedIntake) params.set("intake", selectedIntake);
+    if (nextPage > 1) params.set("page", String(nextPage));
+    const qs = params.toString();
+    return qs ? `/students?${qs}` : "/students";
+  };
 
   const filtered = useMemo(() => {
+    if (view !== "list") return students;
+
     let list = students;
     const q = query.trim().toLowerCase();
     if (q) {
@@ -120,18 +238,18 @@ export function StudentsClient({
           s.full_name.toLowerCase().includes(q) ||
           (s.email?.toLowerCase().includes(q) ?? false) ||
           (s.nic?.toLowerCase().includes(q) ?? false) ||
-          (s.mobile?.toLowerCase().includes(q) ?? false) ||
-          (s.faculty?.toLowerCase().includes(q) ?? false)
+          (s.mobile?.toLowerCase().includes(q) ?? false)
       );
     }
-    if (facultyFilter) list = list.filter((s) => s.faculty === facultyFilter);
-    if (intakeFilter) list = list.filter((s) => s.intake === intakeFilter);
     if (houseFilter) list = list.filter((s) => s.house_id === houseFilter);
     return list;
-  }, [students, query, facultyFilter, intakeFilter, houseFilter]);
+  }, [students, query, houseFilter, view]);
 
   function handleAdd(formData: FormData) {
     setError(null);
+    if (selectedFaculty) formData.set("faculty", selectedFaculty);
+    if (selectedIntake) formData.set("intake", selectedIntake);
+
     startTransition(async () => {
       const result = await addStudent(formData);
       if (result.error) setError(result.error);
@@ -167,49 +285,47 @@ export function StudentsClient({
     });
   }
 
-  const hasActiveFilters = facultyFilter || intakeFilter || houseFilter;
+  if (view === "faculties") {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-zinc-600">Select a faculty to view batches and students.</p>
+        <FacultyGrid cards={facultyCards} />
+      </div>
+    );
+  }
+
+  if (view === "intakes" && selectedFaculty) {
+    return (
+      <div className="space-y-4">
+        <StudentsBreadcrumb
+          faculty={selectedFaculty}
+          facultyName={selectedFacultyName}
+        />
+        <p className="text-sm text-zinc-600">
+          Select a batch for <span className="font-medium">{selectedFacultyName}</span>.
+        </p>
+        <IntakeGrid faculty={selectedFaculty} cards={intakeCards} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      <StudentsBreadcrumb
+        faculty={selectedFaculty}
+        facultyName={selectedFacultyName}
+        intake={selectedIntake}
+      />
+
       <div className="flex flex-wrap items-end gap-4">
         <div className="min-w-[200px] flex-1 max-w-md">
-          <Label htmlFor="search">Search</Label>
+          <Label htmlFor="search">Search this batch</Label>
           <Input
             id="search"
             placeholder="Student No, name, email, NIC, mobile…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-        </div>
-        <div>
-          <Label htmlFor="faculty-filter">Faculty</Label>
-          <Select
-            id="faculty-filter"
-            value={facultyFilter}
-            onChange={(e) => setFacultyFilter(e.target.value)}
-          >
-            <option value="">All faculties</option>
-            {faculties.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="intake-filter">Intake</Label>
-          <Select
-            id="intake-filter"
-            value={intakeFilter}
-            onChange={(e) => setIntakeFilter(e.target.value)}
-          >
-            <option value="">All intakes</option>
-            {intakes.map((i) => (
-              <option key={i} value={i}>
-                {i}
-              </option>
-            ))}
-          </Select>
         </div>
         <div>
           <Label htmlFor="house-filter">House</Label>
@@ -226,17 +342,9 @@ export function StudentsClient({
             ))}
           </Select>
         </div>
-        {hasActiveFilters && (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setFacultyFilter("");
-              setIntakeFilter("");
-              setHouseFilter("");
-            }}
-          >
-            Clear filters
+        {houseFilter && (
+          <Button type="button" variant="ghost" onClick={() => setHouseFilter("")}>
+            Clear house filter
           </Button>
         )}
         <Button
@@ -253,13 +361,18 @@ export function StudentsClient({
 
       {showForm && (
         <Card>
-          <h3 className="font-medium text-zinc-900">New student</h3>
+          <h3 className="font-medium text-zinc-900">
+            New student — {selectedFacultyName}, batch {selectedIntake}
+          </h3>
           <form
             id="add-student-form"
             action={handleAdd}
             className="mt-4 grid gap-4 sm:grid-cols-3"
           >
-            <StudentFieldsForm houses={houses} />
+            <StudentFieldsForm
+              houses={houses}
+              defaults={{ faculty: selectedFaculty, intake: selectedIntake }}
+            />
             <div className="flex gap-2 sm:col-span-3">
               <Button type="submit" disabled={pending}>
                 {pending ? "Saving…" : "Save student"}
@@ -295,9 +408,9 @@ export function StudentsClient({
                     colSpan={STUDENT_TABLE_COLUMN_COUNT}
                     className="px-4 py-8 text-center text-zinc-500"
                   >
-                    {query || hasActiveFilters
+                    {query || houseFilter
                       ? "No students match your search."
-                      : "No students yet. Add one or import from CSV."}
+                      : "No students in this batch yet. Add one or import from CSV."}
                   </td>
                 </tr>
               ) : (
@@ -381,14 +494,14 @@ export function StudentsClient({
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500">
           <p>
-            Showing {filtered.length} on this page · {totalCount} total students
+            Showing {filtered.length} on this page · {totalCount} in this batch
             {totalPages > 1 && ` (page ${page} of ${totalPages})`}
           </p>
           {totalPages > 1 && (
             <div className="flex gap-2">
               {page > 1 ? (
                 <Link
-                  href={`/students?page=${page - 1}`}
+                  href={listHref(page - 1)}
                   className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
                 >
                   Previous
@@ -400,7 +513,7 @@ export function StudentsClient({
               )}
               {page < totalPages ? (
                 <Link
-                  href={`/students?page=${page + 1}`}
+                  href={listHref(page + 1)}
                   className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
                 >
                   Next
