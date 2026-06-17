@@ -12,10 +12,10 @@ A staff-only web application for managing university recreation center data: stu
 
 ### Houses
 
-- Ruby Adventurers
-- Citrine Warriors
-- Emerald Fighters
-- Sapphire Heroes
+- Ruby
+- Citrine
+- Emerald
+- Sapphire
 
 ## Prerequisites
 
@@ -108,7 +108,7 @@ Use **Import CSV** on each page (top-right of the section title). Download a tem
 
 **Legacy format**: `student_id`, `full_name`, optional `house_name` and other columns.
 
-House names (when used) must match: `Ruby Adventurers`, `Citrine Warriors`, `Emerald Fighters`, `Sapphire Heroes`.
+House names (when used) must be: `Ruby`, `Citrine`, `Emerald`, or `Sapphire`.
 
 ### records.csv (Achievements → Athletic Records)
 

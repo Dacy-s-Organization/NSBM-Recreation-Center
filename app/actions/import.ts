@@ -8,6 +8,7 @@ import {
   type AchievementType,
 } from "@/lib/constants";
 import { chunkArray, IMPORT_BATCH_SIZE } from "@/lib/batch-chunks";
+import { buildHouseIdMap, lookupHouseId, resolveHouseName } from "@/lib/houses";
 
 type ImportResult = {
   success: number;
@@ -77,7 +78,7 @@ export async function importStudents(
   const result = emptyImportResult();
 
   const { data: houses } = await supabase.from("houses").select("id, name");
-  const houseMap = new Map(houses?.map((h) => [h.name.toLowerCase(), h.id]) ?? []);
+  const houseMap = buildHouseIdMap(houses ?? []);
 
   const { data: existingRows } = await supabase
     .from("students")
@@ -101,9 +102,7 @@ export async function importStudents(
     const row = rows[i];
     const line = i + 2;
     const houseName = (row.house_name ?? "").trim();
-    const houseId = houseName
-      ? houseMap.get(houseName.toLowerCase()) ?? null
-      : null;
+    const houseId = houseName ? lookupHouseId(houseName, houseMap) : null;
 
     if (!row.full_name?.trim()) {
       result.errors.push(`Row ${line}: missing name or Student No`);
@@ -378,12 +377,17 @@ export async function importAchievements(
     const meetYear = parseInt(row.meet_year, 10);
     const sport = row.sport?.trim() ?? "";
     const achievementType = parseAchievementType(row.achievement_type ?? "");
-    const teamName = row.team_name?.trim() ?? "";
+    const teamNameRaw = row.team_name?.trim() ?? "";
+    const teamName = resolveHouseName(teamNameRaw);
     const notes = row.notes?.trim() || null;
     const winnerStudentId = row.winner_student_id?.trim() ?? "";
 
-    if (Number.isNaN(meetYear) || !sport || !achievementType || !teamName) {
+    if (Number.isNaN(meetYear) || !sport || !achievementType || !teamNameRaw) {
       result.errors.push(`Row ${line}: invalid or incomplete row`);
+      continue;
+    }
+    if (!teamName) {
+      result.errors.push(`Row ${line}: unknown house "${row.team_name}"`);
       continue;
     }
 

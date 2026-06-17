@@ -18,7 +18,7 @@ export type ImportPreviewRow = Record<string, string | number | boolean> & {
 
 export const IMPORT_DESCRIPTIONS: Record<ImportType, string> = {
   students:
-    "Supports NSBM Foundation CSV (Serial No, Intake, Faculty, Student No, …) or legacy columns. House is optional until assigned. Student No maps to student_id.",
+    "Supports NSBM Foundation CSV (Serial No, Intake, Faculty, Student No, …) or legacy columns. House is optional until assigned. Use Ruby, Citrine, Emerald, or Sapphire. Student No maps to student_id.",
   records:
     "Columns: student_id, track_name, value, year. Students must exist before importing records.",
   inventory:
@@ -61,7 +61,7 @@ export const IMPORT_TEMPLATES: Record<ImportType, ImportTemplate> = {
   achievements: {
     filename: "achievements_template.csv",
     content:
-      "meet_year,sport,achievement_type,team_name,winner_student_id,notes\n2026,Basketball,Champion Team,Sapphire Heroes,,\n2026,Basketball,Best Player,Ruby Adventurers,2024001,",
+      "meet_year,sport,achievement_type,team_name,winner_student_id,notes\n2026,Basketball,Champion Team,Sapphire,,\n2026,Basketball,Best Player,Ruby,2024001,",
     columns: [
       "meet_year",
       "sport",
