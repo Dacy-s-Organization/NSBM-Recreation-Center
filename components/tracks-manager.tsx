@@ -49,8 +49,8 @@ export function TracksManager({ tracks }: { tracks: SportTrack[] }) {
 
       {open && (
         <Card className="mt-4">
-          <h4 className="font-medium text-zinc-900">Sport tracks</h4>
-          <p className="mt-1 text-sm text-zinc-600">
+          <h4 className="font-medium text-zinc-900 dark:text-white">Sport tracks</h4>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
             Add events for athletic records (e.g. 100m Run, Long Jump). Use seconds
             (s) for timed runs and meters (m) for jumps and throws.
           </p>
@@ -77,11 +77,11 @@ export function TracksManager({ tracks }: { tracks: SportTrack[] }) {
               </Select>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 text-sm text-zinc-700">
+              <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
                 <input
                   type="checkbox"
                   name="lower_is_better"
-                  className="rounded border-zinc-300"
+                  className="rounded border-zinc-300 dark:border-white/20"
                 />
                 Lower is better (faster times)
               </label>
@@ -91,35 +91,35 @@ export function TracksManager({ tracks }: { tracks: SportTrack[] }) {
             </div>
           </form>
 
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
 
-          <div className="mt-6 overflow-x-auto rounded-lg border border-zinc-200">
+          <div className="mt-6 overflow-x-auto rounded-lg border border-zinc-200 dark:border-white/10">
             <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-100 bg-zinc-50">
+              <thead className="border-b border-zinc-100 bg-zinc-50 dark:border-white/10 dark:bg-white/5">
                 <tr>
-                  <th className="px-3 py-2 font-medium text-zinc-600">Track</th>
-                  <th className="px-3 py-2 font-medium text-zinc-600">Unit</th>
-                  <th className="px-3 py-2 font-medium text-zinc-600">
+                  <th className="px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400">Track</th>
+                  <th className="px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400">Unit</th>
+                  <th className="px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400">
                     Lower is better
                   </th>
-                  <th className="px-3 py-2 font-medium text-zinc-600">Actions</th>
+                  <th className="px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {tracks.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-3 py-4 text-zinc-500">
+                    <td colSpan={4} className="px-3 py-4 text-zinc-500 dark:text-zinc-400">
                       No tracks yet.
                     </td>
                   </tr>
                 ) : (
                   tracks.map((t) => (
-                    <tr key={t.id} className="border-b border-zinc-50 last:border-0">
-                      <td className="px-3 py-2 font-medium text-zinc-900">{t.name}</td>
-                      <td className="px-3 py-2 text-zinc-700">
+                    <tr key={t.id} className="border-b border-zinc-50 last:border-0 dark:border-white/10">
+                      <td className="px-3 py-2 font-medium text-zinc-900 dark:text-white">{t.name}</td>
+                      <td className="px-3 py-2 text-zinc-700 dark:text-zinc-300">
                         {formatTrackUnitLabel(t.unit)} ({t.unit})
                       </td>
-                      <td className="px-3 py-2 text-zinc-700">
+                      <td className="px-3 py-2 text-zinc-700 dark:text-zinc-300">
                         {t.lower_is_better ? "Yes" : "No"}
                       </td>
                       <td className="px-3 py-2">

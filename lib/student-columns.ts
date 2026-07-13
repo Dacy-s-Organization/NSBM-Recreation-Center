@@ -4,7 +4,7 @@ export const STUDENT_TABLE_COLUMNS = [
   { key: "serial_no", label: "Serial No" },
   { key: "intake", label: "Intake" },
   { key: "faculty", label: "Faculty" },
-  { key: "student_id", label: "Student No" },
+  { key: "student_id", label: "Student ID" },
   { key: "degree_programme", label: "Degree Programme" },
   { key: "university", label: "University" },
   { key: "title", label: "Title" },
@@ -18,7 +18,12 @@ export const STUDENT_TABLE_COLUMNS = [
 
 export const STUDENT_TABLE_COLUMN_COUNT = STUDENT_TABLE_COLUMNS.length + 1; // + Actions
 
-/** Columns that wrap and open a click-to-view dialog when text is long */
+/** Columns that truncate with click-to-view when text is long (keep single-line in table) */
 export const STUDENT_LONG_TEXT_COLUMN_KEYS = new Set<
   (typeof STUDENT_TABLE_COLUMNS)[number]["key"]
->(["degree_programme", "email", "full_name", "nic"]);
+>(["degree_programme"]);
+
+/** Columns redundant when browsing a specific faculty + batch */
+export const STUDENT_CONTEXT_COLUMN_KEYS = new Set<
+  (typeof STUDENT_TABLE_COLUMNS)[number]["key"]
+>(["intake", "faculty"]);

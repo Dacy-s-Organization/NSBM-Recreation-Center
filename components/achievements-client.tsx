@@ -120,7 +120,7 @@ function AchievementForm({
             defaultValue={existingWinnerId}
             placeholder="e.g. 2024001"
           />
-          <p className="mt-1 text-xs text-zinc-500">
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
             Enter one student ID for this house&apos;s Best Player award.
           </p>
         </div>
@@ -142,7 +142,7 @@ function AchievementForm({
             Cancel
           </Button>
         )}
-        {error && <p className="w-full text-sm text-red-600">{error}</p>}
+        {error && <p className="w-full text-sm text-red-600 dark:text-red-300">{error}</p>}
       </div>
     </form>
   );
@@ -254,12 +254,12 @@ export function AchievementsClient({
       </div>
 
       {error && !showForm && editingId === null && (
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
       )}
 
       {showForm && (
         <Card>
-          <h3 className="font-medium text-zinc-900">New sports achievement</h3>
+          <h3 className="font-medium text-zinc-900 dark:text-white">New sports achievement</h3>
           <div className="mt-4">
             <AchievementForm
               key="new-achievement"
@@ -277,20 +277,20 @@ export function AchievementsClient({
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-50">
+            <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-white/5">
               <tr>
-                <th className="px-4 py-3 font-medium text-zinc-600">Sport</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Achievement</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Team</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Winners</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Notes</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Actions</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Sport</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Achievement</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Team</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Winners</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Notes</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                     No achievements for {yearFilter}.
                   </td>
                 </tr>
@@ -298,11 +298,11 @@ export function AchievementsClient({
                 filtered.map((a) => (
                   <tr
                     key={a.id}
-                    className="border-b border-zinc-100 last:border-0"
+                    className="border-b border-zinc-100 last:border-0 dark:border-white/10"
                   >
                     {editingId === a.id ? (
                       <td colSpan={6} className="px-4 py-3">
-                        <p className="mb-3 font-medium text-zinc-900">
+                        <p className="mb-3 font-medium text-zinc-900 dark:text-white">
                           Edit achievement
                         </p>
                         <AchievementForm
@@ -322,17 +322,17 @@ export function AchievementsClient({
                       </td>
                     ) : (
                       <>
-                        <td className="px-4 py-3 font-medium text-zinc-900">
+                        <td className="px-4 py-3 font-medium text-zinc-900 dark:text-white">
                           {a.sport}
                         </td>
                         <td className="px-4 py-3">{a.achievement_type}</td>
-                        <td className="px-4 py-3 text-zinc-700">
+                        <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">
                           {a.team_name || "—"}
                         </td>
-                        <td className="px-4 py-3 text-zinc-700">
+                        <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">
                           {formatWinners(a)}
                         </td>
-                        <td className="px-4 py-3 text-zinc-500">
+                        <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
                           {a.notes || "—"}
                         </td>
                         <td className="px-4 py-3">
@@ -366,7 +366,7 @@ export function AchievementsClient({
             </tbody>
           </table>
         </div>
-        <p className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500">
+        <p className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
           {filtered.length} achievement(s) for {yearFilter}
         </p>
       </Card>

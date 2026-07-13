@@ -54,15 +54,15 @@ export default async function AchievementsPage({
   return (
     <div className="space-y-10">
       <div>
-        <h2 className="text-2xl font-semibold text-zinc-900">Achievements</h2>
-        <p className="mt-1 text-zinc-600">
+        <h2 className="text-2xl font-semibold text-zinc-900 dark:text-white">Achievements</h2>
+        <p className="mt-1 text-zinc-600 dark:text-zinc-400">
           Athletic records and sports achievements for the recreation center.
         </p>
       </div>
 
       <section>
         <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-          <h3 className="text-lg font-semibold text-zinc-800">Athletic Records</h3>
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Athletic Records</h3>
           <div className="flex flex-wrap gap-2">
             <TracksManager tracks={tracks as SportTrack[]} />
             <CsvImportDialog type="records" />
@@ -79,7 +79,7 @@ export default async function AchievementsPage({
 
       <section>
         <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-          <h3 className="text-lg font-semibold text-zinc-800">
+          <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">
             Sports Achievements
           </h3>
           <CsvImportDialog type="achievements" />

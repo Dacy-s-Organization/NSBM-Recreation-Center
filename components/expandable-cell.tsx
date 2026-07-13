@@ -14,7 +14,7 @@ export function ExpandableCell({
   label,
   value,
   className = "",
-  maxWidthClass = "max-w-[240px]",
+  maxWidthClass = "max-w-[280px]",
 }: ExpandableCellProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -38,7 +38,7 @@ export function ExpandableCell({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`block w-full cursor-pointer rounded px-0.5 py-0.5 text-left text-zinc-700 underline-offset-2 hover:bg-zinc-50 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/40 ${maxWidthClass} whitespace-normal break-words line-clamp-3 ${className}`}
+        className={`block max-w-full cursor-pointer truncate rounded px-0.5 py-0.5 text-left text-zinc-700 underline-offset-2 hover:bg-zinc-50 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:text-zinc-300 dark:hover:bg-white/5 ${maxWidthClass} ${className}`}
         title="Click to view full text"
       >
         {value}
@@ -53,16 +53,16 @@ export function ExpandableCell({
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-4 shadow-lg"
+            className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-4 shadow-lg dark:border-white/10 dark:bg-[var(--app-surface)] dark:shadow-black/40"
             onClick={(e) => e.stopPropagation()}
           >
             <p
               id="expandable-cell-title"
-              className="text-xs font-medium uppercase tracking-wide text-zinc-500"
+              className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400"
             >
               {label}
             </p>
-            <p className="mt-2 whitespace-pre-wrap break-words text-sm text-zinc-900">
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm text-zinc-900 dark:text-white">
               {value}
             </p>
             <div className="mt-4 flex gap-2">

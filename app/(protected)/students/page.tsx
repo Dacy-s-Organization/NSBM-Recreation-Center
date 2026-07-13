@@ -134,8 +134,8 @@ function StudentsPageHeader({
           <BackLink href={backHref} label={backLabel} className="shrink-0" />
         ) : null}
         <div className="min-w-0">
-          <h2 className="text-2xl font-semibold text-zinc-900">Students</h2>
-          <p className="mt-1 text-zinc-600">
+          <h2 className="text-2xl font-semibold text-zinc-900 dark:text-white">Students</h2>
+          <p className="mt-1 text-zinc-600 dark:text-zinc-400">
             {intake
               ? `${facultyName ?? faculty} · Batch ${intake}`
               : faculty

@@ -34,16 +34,22 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-semibold text-zinc-900">Dashboard</h2>
-        <p className="mt-1 text-zinc-600">University recreation center overview</p>
+        <h2 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-white">
+          Dashboard
+        </h2>
+        <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+          University recreation center overview
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         {stats.map((stat) => (
           <Link key={stat.href} href={stat.href}>
-            <Card className="transition hover:border-emerald-300 hover:shadow-md">
-              <p className="text-sm text-zinc-500">{stat.label}</p>
-              <p className="mt-2 text-3xl font-semibold text-zinc-900">{stat.value}</p>
+            <Card className="transition hover:border-emerald-400/60 hover:shadow-md dark:hover:border-emerald-400/40">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">{stat.label}</p>
+              <p className="mt-2 text-3xl font-semibold text-zinc-900 dark:text-white">
+                {stat.value}
+              </p>
             </Card>
           </Link>
         ))}
@@ -52,9 +58,9 @@ export default async function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         {quickLinks.map((link) => (
           <Link key={link.href} href={link.href}>
-            <Card className="transition hover:border-emerald-300">
-              <h3 className="font-medium text-zinc-900">{link.title}</h3>
-              <p className="mt-1 text-sm text-zinc-600">{link.desc}</p>
+            <Card className="transition hover:border-emerald-400/60 dark:hover:border-emerald-400/40">
+              <h3 className="font-medium text-zinc-900 dark:text-white">{link.title}</h3>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{link.desc}</p>
             </Card>
           </Link>
         ))}

@@ -159,13 +159,13 @@ export function CsvImportDialog({
           aria-modal="true"
           aria-labelledby="csv-import-title"
         >
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-lg">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-zinc-200 bg-white p-6 shadow-lg dark:border-white/10 dark:bg-[var(--app-surface)] dark:shadow-black/40">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 id="csv-import-title" className="font-medium text-zinc-900">
+                <h3 id="csv-import-title" className="font-medium text-zinc-900 dark:text-white">
                   {label}
                 </h3>
-                <p className="mt-1 text-sm text-zinc-600">
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
                   {IMPORT_DESCRIPTIONS[type]}
                 </p>
               </div>
@@ -182,7 +182,7 @@ export function CsvImportDialog({
               >
                 Download template
               </Button>
-              <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200">
+              <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:hover:bg-white/10">
                 Upload CSV
                 <input
                   type="file"
@@ -203,13 +203,13 @@ export function CsvImportDialog({
             </div>
 
             {preview.length > 0 && (
-              <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-200">
-                <p className="border-b border-zinc-100 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+              <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-white/10">
+                <p className="border-b border-zinc-100 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
                   Preview: {validCount} valid, {invalidCount} invalid
                 </p>
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-zinc-100">
+                    <tr className="border-b border-zinc-100 dark:border-white/10">
                       <th className="px-2 py-2">Line</th>
                       {previewLabels.map((label, i) => (
                         <th key={template.columns[i] ?? i} className="whitespace-nowrap px-2 py-2">
@@ -223,7 +223,7 @@ export function CsvImportDialog({
                     {preview.slice(0, 20).map((row) => (
                       <tr
                         key={row._line}
-                        className={row._valid ? "" : "bg-red-50"}
+                        className={row._valid ? "" : "bg-red-50 dark:bg-red-950/50"}
                       >
                         <td className="px-2 py-1">{row._line}</td>
                         {template.columns.map((c) => (
@@ -233,9 +233,9 @@ export function CsvImportDialog({
                         ))}
                         <td className="px-2 py-1">
                           {row._valid ? (
-                            <span className="text-emerald-700">OK</span>
+                            <span className="text-emerald-700 dark:text-emerald-400">OK</span>
                           ) : (
-                            <span className="text-red-600">{row._error}</span>
+                            <span className="text-red-600 dark:text-red-300">{row._error}</span>
                           )}
                         </td>
                       </tr>
@@ -243,7 +243,7 @@ export function CsvImportDialog({
                   </tbody>
                 </table>
                 {preview.length > 20 && (
-                  <p className="px-3 py-2 text-xs text-zinc-500">
+                  <p className="px-3 py-2 text-xs text-zinc-500 dark:text-zinc-400">
                     Showing first 20 of {preview.length} rows
                   </p>
                 )}
@@ -251,7 +251,7 @@ export function CsvImportDialog({
             )}
 
             {result && (
-              <pre className="mt-4 whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 text-xs text-zinc-800">
+              <pre className="mt-4 whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 text-xs text-zinc-800 dark:bg-white/5 dark:text-zinc-300">
                 {result}
               </pre>
             )}

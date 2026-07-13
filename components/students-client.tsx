@@ -6,9 +6,9 @@ import { addStudent, deleteStudent, updateStudent } from "@/app/actions/students
 import type { FacultyCard, IntakeCard } from "@/lib/data/students-nav";
 import type { House, Student } from "@/lib/types/database";
 import {
+  STUDENT_CONTEXT_COLUMN_KEYS,
   STUDENT_LONG_TEXT_COLUMN_KEYS,
   STUDENT_TABLE_COLUMNS,
-  STUDENT_TABLE_COLUMN_COUNT,
 } from "@/lib/student-columns";
 import { ExpandableCell } from "@/components/expandable-cell";
 import { StudentFieldsForm } from "@/components/student-fields-form";
@@ -20,8 +20,14 @@ import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 
 type StudentsView = "faculties" | "intakes" | "list";
+type StudentColumn = (typeof STUDENT_TABLE_COLUMNS)[number];
 
-function cellText(s: Student, key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]) {
+function visibleColumns(hideContext: boolean): StudentColumn[] {
+  if (!hideContext) return [...STUDENT_TABLE_COLUMNS];
+  return STUDENT_TABLE_COLUMNS.filter((col) => !STUDENT_CONTEXT_COLUMN_KEYS.has(col.key));
+}
+
+function cellText(s: Student, key: StudentColumn["key"]) {
   switch (key) {
     case "serial_no":
       return s.serial_no != null ? String(s.serial_no) : "—";
@@ -36,10 +42,7 @@ function cellText(s: Student, key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]
   }
 }
 
-function renderCell(
-  s: Student,
-  col: (typeof STUDENT_TABLE_COLUMNS)[number]
-) {
+function renderCell(s: Student, col: StudentColumn) {
   if (col.key === "house") {
     return s.houses?.name ? <HouseBadge name={s.houses.name} /> : "—";
   }
@@ -47,18 +50,11 @@ function renderCell(
   const text = cellText(s, col.key);
 
   if (STUDENT_LONG_TEXT_COLUMN_KEYS.has(col.key)) {
-    const maxWidthClass =
-      col.key === "degree_programme"
-        ? "max-w-[260px]"
-        : col.key === "email"
-          ? "max-w-[200px]"
-          : "max-w-[180px]";
-
     return (
       <ExpandableCell
         label={col.label}
         value={text}
-        maxWidthClass={maxWidthClass}
+        maxWidthClass="max-w-[320px]"
       />
     );
   }
@@ -66,18 +62,19 @@ function renderCell(
   return text;
 }
 
-function columnHeaderClass(key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]) {
-  if (key === "degree_programme") return "min-w-[200px]";
-  if (STUDENT_LONG_TEXT_COLUMN_KEYS.has(key)) return "min-w-[140px]";
+function columnHeaderClass(key: StudentColumn["key"]) {
+  if (key === "degree_programme") return "min-w-[240px]";
+  if (key === "full_name") return "min-w-[180px]";
+  if (key === "email") return "min-w-[220px]";
+  if (key === "nic") return "min-w-[120px]";
   return "";
 }
 
-function columnCellClass(key: (typeof STUDENT_TABLE_COLUMNS)[number]["key"]) {
-  const base = "px-3 py-2 text-zinc-700";
-  if (STUDENT_LONG_TEXT_COLUMN_KEYS.has(key)) {
-    return `${base} align-top`;
-  }
-  return `${base} whitespace-nowrap`;
+function columnCellClass(key: StudentColumn["key"]) {
+  const base = "whitespace-nowrap px-4 py-2.5 align-middle text-zinc-700 dark:text-zinc-300";
+  if (key === "full_name") return `${base} font-medium text-zinc-900 dark:text-white`;
+  if (key === "email") return `${base} text-zinc-600 dark:text-zinc-400`;
+  return base;
 }
 
 function StudentsBreadcrumb({
@@ -90,8 +87,8 @@ function StudentsBreadcrumb({
   intake?: string;
 }) {
   return (
-    <nav className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
-      <Link href="/students" className="font-medium text-emerald-800 hover:underline">
+    <nav className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+      <Link href="/students" className="font-medium text-emerald-800 hover:underline dark:text-emerald-400">
         All faculties
       </Link>
       {faculty && (
@@ -100,19 +97,19 @@ function StudentsBreadcrumb({
           {intake ? (
             <Link
               href={`/students?faculty=${encodeURIComponent(faculty)}`}
-              className="font-medium text-emerald-800 hover:underline"
+              className="font-medium text-emerald-800 hover:underline dark:text-emerald-400"
             >
               {facultyName ?? faculty}
             </Link>
           ) : (
-            <span className="font-medium text-zinc-900">{facultyName ?? faculty}</span>
+            <span className="font-medium text-zinc-900 dark:text-white">{facultyName ?? faculty}</span>
           )}
         </>
       )}
       {intake && (
         <>
           <span aria-hidden>/</span>
-          <span className="font-medium text-zinc-900">Batch {intake}</span>
+          <span className="font-medium text-zinc-900 dark:text-white">Batch {intake}</span>
         </>
       )}
     </nav>
@@ -126,21 +123,21 @@ function FacultyGrid({ cards }: { cards: FacultyCard[] }) {
         <Link
           key={faculty.code}
           href={`/students?faculty=${encodeURIComponent(faculty.code)}`}
-          className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+          className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-emerald-300 hover:shadow-md dark:border-white/10 dark:bg-[var(--app-surface)] dark:shadow-none dark:hover:border-emerald-400/40"
         >
           <div className="flex items-start justify-between gap-3">
-            <span className="rounded-lg bg-emerald-100 px-3 py-1 text-sm font-bold text-emerald-900">
+            <span className="rounded-lg bg-emerald-100 px-3 py-1 text-sm font-bold text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-300">
               {faculty.code}
             </span>
-            <span className="text-sm text-zinc-500">
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">
               {faculty.count} student{faculty.count === 1 ? "" : "s"}
             </span>
           </div>
-          <h3 className="mt-4 text-lg font-semibold text-zinc-900 group-hover:text-emerald-900">
+          <h3 className="mt-4 text-lg font-semibold text-zinc-900 group-hover:text-emerald-900 dark:text-white dark:group-hover:text-emerald-400">
             {faculty.name}
           </h3>
-          <p className="mt-2 text-sm text-zinc-600">{faculty.description}</p>
-          <p className="mt-4 text-sm font-medium text-emerald-700">View batches →</p>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{faculty.description}</p>
+          <p className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-400">View batches →</p>
         </Link>
       ))}
     </div>
@@ -156,7 +153,7 @@ function IntakeGrid({
 }) {
   if (cards.length === 0) {
     return (
-      <Card className="p-8 text-center text-zinc-500">
+      <Card className="p-8 text-center text-zinc-500 dark:text-zinc-400">
         No batches found for this faculty yet. Import students from CSV or add them manually.
       </Card>
     );
@@ -168,16 +165,16 @@ function IntakeGrid({
         <Link
           key={batch.intake}
           href={`/students?faculty=${encodeURIComponent(faculty)}&intake=${encodeURIComponent(batch.intake)}`}
-          className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+          className="group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-emerald-300 hover:shadow-md dark:border-white/10 dark:bg-[var(--app-surface)] dark:shadow-none dark:hover:border-emerald-400/40"
         >
-          <p className="text-sm font-medium text-zinc-500">Batch / Intake</p>
-          <h3 className="mt-2 text-2xl font-semibold text-zinc-900 group-hover:text-emerald-900">
+          <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Batch / Intake</p>
+          <h3 className="mt-2 text-2xl font-semibold text-zinc-900 group-hover:text-emerald-900 dark:text-white dark:group-hover:text-emerald-400">
             {batch.intake}
           </h3>
-          <p className="mt-3 text-sm text-zinc-600">
+          <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
             {batch.count} student{batch.count === 1 ? "" : "s"}
           </p>
-          <p className="mt-4 text-sm font-medium text-emerald-700">View students →</p>
+          <p className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-400">View students →</p>
         </Link>
       ))}
     </div>
@@ -216,6 +213,12 @@ export function StudentsClient({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const columns = useMemo(
+    () => visibleColumns(Boolean(selectedFaculty && selectedIntake)),
+    [selectedFaculty, selectedIntake]
+  );
+  const columnCount = columns.length + 1;
 
   const listHref = (nextPage: number) => {
     const params = new URLSearchParams();
@@ -288,7 +291,7 @@ export function StudentsClient({
   if (view === "faculties") {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-zinc-600">Select a faculty to view batches and students.</p>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">Select a faculty to view batches and students.</p>
         <FacultyGrid cards={facultyCards} />
       </div>
     );
@@ -301,7 +304,7 @@ export function StudentsClient({
           faculty={selectedFaculty}
           facultyName={selectedFacultyName}
         />
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Select a batch for <span className="font-medium">{selectedFacultyName}</span>.
         </p>
         <IntakeGrid faculty={selectedFaculty} cards={intakeCards} />
@@ -319,13 +322,16 @@ export function StudentsClient({
 
       <div className="flex flex-wrap items-end gap-4">
         <div className="min-w-[200px] flex-1 max-w-md">
-          <Label htmlFor="search">Search this batch</Label>
+          <Label htmlFor="search">Search this page</Label>
           <Input
             id="search"
-            placeholder="Student No, name, email, NIC, mobile…"
+            placeholder="Student ID, name, email, NIC, mobile…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Filters the current page only ({students.length} shown). Use pagination for other pages.
+          </p>
         </div>
         <div>
           <Label htmlFor="house-filter">House</Label>
@@ -359,9 +365,18 @@ export function StudentsClient({
         </Button>
       </div>
 
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+        >
+          {error}
+        </p>
+      )}
+
       {showForm && (
         <Card>
-          <h3 className="font-medium text-zinc-900">
+          <h3 className="font-medium text-zinc-900 dark:text-white">
             New student — {selectedFacultyName}, batch {selectedIntake}
           </h3>
           <form
@@ -379,34 +394,34 @@ export function StudentsClient({
               </Button>
             </div>
           </form>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
         </Card>
       )}
 
-      <Card className="overflow-hidden p-0">
+      <Card className="overflow-hidden p-0 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-[1400px] w-full text-left text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-50">
+          <table className="w-full min-w-[1200px] border-collapse text-left text-sm">
+            <thead className="border-b border-zinc-200 bg-zinc-50/90 dark:border-white/10 dark:bg-white/5">
               <tr>
-                {STUDENT_TABLE_COLUMNS.map((col) => (
+                {columns.map((col) => (
                   <th
                     key={col.key}
-                    className={`whitespace-nowrap px-3 py-3 font-medium text-zinc-600 ${columnHeaderClass(col.key)}`}
+                    className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 ${columnHeaderClass(col.key)}`}
                   >
                     {col.label}
                   </th>
                 ))}
-                <th className="sticky right-0 bg-zinc-50 px-3 py-3 font-medium text-zinc-600">
+                <th className="sticky right-0 z-10 whitespace-nowrap bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)] dark:bg-white/5 dark:text-zinc-400 dark:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.4)]">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-zinc-100 dark:divide-white/10">
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={STUDENT_TABLE_COLUMN_COUNT}
-                    className="px-4 py-8 text-center text-zinc-500"
+                    colSpan={columnCount}
+                    className="px-4 py-10 text-center text-zinc-500 dark:text-zinc-400"
                   >
                     {query || houseFilter
                       ? "No students match your search."
@@ -415,9 +430,12 @@ export function StudentsClient({
                 </tr>
               ) : (
                 filtered.map((s) => (
-                  <tr key={s.id} className="border-b border-zinc-100 last:border-0">
+                  <tr
+                    key={s.id}
+                    className="group transition-colors hover:bg-emerald-50/40 dark:hover:bg-emerald-500/10"
+                  >
                     {editingId === s.id ? (
-                      <td colSpan={STUDENT_TABLE_COLUMN_COUNT} className="px-4 py-3">
+                      <td colSpan={columnCount} className="px-4 py-4">
                         <form
                           action={handleUpdate}
                           className="grid gap-3 sm:grid-cols-3 sm:items-end"
@@ -439,28 +457,29 @@ export function StudentsClient({
                               Cancel
                             </Button>
                             {error && (
-                              <p className="w-full text-sm text-red-600">{error}</p>
+                              <p className="w-full text-sm text-red-600 dark:text-red-300">{error}</p>
                             )}
                           </div>
                         </form>
                       </td>
                     ) : (
                       <>
-                        {STUDENT_TABLE_COLUMNS.map((col) => (
+                        {columns.map((col) => (
                           <td
                             key={col.key}
                             className={`${columnCellClass(col.key)} ${
-                              col.key === "student_id" ? "font-mono text-zinc-900" : ""
+                              col.key === "student_id" ? "font-mono text-zinc-900 dark:text-white" : ""
                             }`}
                           >
                             {renderCell(s, col)}
                           </td>
                         ))}
-                        <td className="sticky right-0 bg-white px-3 py-2">
-                          <div className="flex flex-wrap gap-2">
+                        <td className="sticky right-0 z-10 whitespace-nowrap bg-white px-4 py-2.5 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)] group-hover:bg-emerald-50/40 dark:bg-[var(--app-surface)] dark:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.4)] dark:group-hover:bg-emerald-500/10">
+                          <div className="flex flex-nowrap items-center gap-1">
                             <Button
                               type="button"
                               variant="ghost"
+                              className="h-8 px-2.5 py-1 text-xs"
                               onClick={() => {
                                 setEditingId(s.id);
                                 setShowForm(false);
@@ -471,7 +490,8 @@ export function StudentsClient({
                             </Button>
                             <Button
                               type="button"
-                              variant="danger"
+                              variant="ghost"
+                              className="h-8 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:text-red-300"
                               onClick={() =>
                                 handleDelete(
                                   s.id,
@@ -492,7 +512,7 @@ export function StudentsClient({
             </tbody>
           </table>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 bg-zinc-50/50 px-4 py-2.5 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
           <p>
             Showing {filtered.length} on this page · {totalCount} in this batch
             {totalPages > 1 && ` (page ${page} of ${totalPages})`}
@@ -502,24 +522,24 @@ export function StudentsClient({
               {page > 1 ? (
                 <Link
                   href={listHref(page - 1)}
-                  className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                  className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-white/10 dark:bg-[var(--app-surface)] dark:text-zinc-300 dark:hover:bg-white/5"
                 >
                   Previous
                 </Link>
               ) : (
-                <span className="rounded-lg border border-zinc-100 px-3 py-1.5 text-sm text-zinc-400">
+                <span className="rounded-lg border border-zinc-100 px-3 py-1.5 text-sm text-zinc-400 dark:border-white/10 dark:text-zinc-500">
                   Previous
                 </span>
               )}
               {page < totalPages ? (
                 <Link
                   href={listHref(page + 1)}
-                  className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                  className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-white/10 dark:bg-[var(--app-surface)] dark:text-zinc-300 dark:hover:bg-white/5"
                 >
                   Next
                 </Link>
               ) : (
-                <span className="rounded-lg border border-zinc-100 px-3 py-1.5 text-sm text-zinc-400">
+                <span className="rounded-lg border border-zinc-100 px-3 py-1.5 text-sm text-zinc-400 dark:border-white/10 dark:text-zinc-500">
                   Next
                 </span>
               )}

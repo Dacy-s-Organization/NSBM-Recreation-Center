@@ -14,8 +14,8 @@ export default async function InventoryPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold text-zinc-900">Inventory</h2>
-          <p className="mt-1 text-zinc-600">
+          <h2 className="text-2xl font-semibold text-zinc-900 dark:text-white">Inventory</h2>
+          <p className="mt-1 text-zinc-600 dark:text-zinc-400">
             Track equipment quantities. Add new items or edit existing counts.
           </p>
         </div>

@@ -60,13 +60,22 @@ export function RecordsClient({
       setLookup(null);
       return;
     }
+    let cancelled = false;
     const timer = setTimeout(async () => {
       setLookupLoading(true);
-      const result = await lookupStudentByStudentId(studentIdInput);
-      setLookup(result as LookupResult);
-      setLookupLoading(false);
+      try {
+        const result = await lookupStudentByStudentId(studentIdInput);
+        if (!cancelled) setLookup(result as LookupResult);
+      } catch {
+        if (!cancelled) setLookup(null);
+      } finally {
+        if (!cancelled) setLookupLoading(false);
+      }
     }, 400);
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [studentIdInput, lookupActive]);
 
   const filtered = useMemo(() => {
@@ -147,11 +156,11 @@ export function RecordsClient({
 
   function StudentLookupHint() {
     if (lookupLoading) {
-      return <p className="mt-1 text-xs text-zinc-500">Looking up…</p>;
+      return <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Looking up…</p>;
     }
     if (lookup) {
       return (
-        <p className="mt-1 text-sm text-emerald-700">
+        <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
           {lookup.full_name}
           {lookup.houses?.name && (
             <span className="ml-2">
@@ -162,7 +171,7 @@ export function RecordsClient({
       );
     }
     if (studentIdInput.trim()) {
-      return <p className="mt-1 text-xs text-red-600">Student not found</p>;
+      return <p className="mt-1 text-xs text-red-600 dark:text-red-300">Student not found</p>;
     }
     return null;
   }
@@ -237,7 +246,7 @@ export function RecordsClient({
             defaultValue={record?.value ?? undefined}
           />
           {selectedFormTrack?.lower_is_better && (
-            <p className="mt-1 text-xs text-zinc-500">Lower is better for this track.</p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Lower is better for this track.</p>
           )}
         </div>
         <div>
@@ -316,48 +325,57 @@ export function RecordsClient({
         </Button>
       </div>
 
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+        >
+          {error}
+        </p>
+      )}
+
       {showForm && (
         <Card>
-          <h3 className="font-medium text-zinc-900">New sport record</h3>
+          <h3 className="font-medium text-zinc-900 dark:text-white">New sport record</h3>
           <div className="mt-4">
             <RecordFormFields onSubmit={handleAdd} submitLabel="Save record" />
           </div>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
         </Card>
       )}
 
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-50">
+            <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-white/5">
               <tr>
-                <th className="px-4 py-3 font-medium text-zinc-600">Student ID</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Name</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Track</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Record</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Date</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Actions</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Student ID</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Name</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Track</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Record</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Date</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                     No records for this filter.
                   </td>
                 </tr>
               ) : (
                 filtered.map((r) => (
-                  <tr key={r.id} className="border-b border-zinc-100 last:border-0">
+                  <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-white/10">
                     {editingId === r.id ? (
                       <td colSpan={6} className="px-4 py-3">
-                        <p className="mb-3 font-medium text-zinc-900">Edit record</p>
+                        <p className="mb-3 font-medium text-zinc-900 dark:text-white">Edit record</p>
                         <RecordFormFields
                           record={r}
                           onSubmit={handleUpdate}
                           submitLabel="Save changes"
                         />
-                        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+                        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
                       </td>
                     ) : (
                       <>
@@ -369,7 +387,7 @@ export function RecordsClient({
                         <td className="px-4 py-3 font-medium">
                           {formatRecordValue(Number(r.value), r.sport_tracks)}
                         </td>
-                        <td className="px-4 py-3 text-zinc-500">
+                        <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
                           {new Date(r.recorded_at).toLocaleDateString()}
                         </td>
                         <td className="px-4 py-3">
@@ -399,7 +417,7 @@ export function RecordsClient({
             </tbody>
           </table>
         </div>
-        <p className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500">
+        <p className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
           {filtered.length} record(s) for {year}
           {trackId ? ` · filtered by track` : ""}
         </p>

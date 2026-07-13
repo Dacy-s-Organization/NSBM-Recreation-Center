@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_TYPE_BEST_PLAYER,
@@ -9,6 +8,9 @@ import {
 } from "@/lib/constants";
 import { chunkArray, IMPORT_BATCH_SIZE } from "@/lib/batch-chunks";
 import { buildHouseIdMap, lookupHouseId, resolveHouseName } from "@/lib/houses";
+import { normalizeFacultyCode } from "@/lib/faculties";
+import { getAuthedClient } from "@/lib/supabase/auth";
+import { fetchAllPages } from "@/lib/supabase/fetch-all";
 
 type ImportResult = {
   success: number;
@@ -38,6 +40,15 @@ type StudentRow = {
   email?: string;
 };
 
+type StudentExisting = {
+  id: string;
+  student_id: string | null;
+  serial_no: number | null;
+  house_id: string | null;
+  faculty: string | null;
+  intake: string | null;
+};
+
 function studentInsertPayload(row: StudentRow, houseId: string | null) {
   const serialRaw = row.serial_no?.trim();
   const serialNo = serialRaw ? parseInt(serialRaw, 10) : null;
@@ -47,7 +58,7 @@ function studentInsertPayload(row: StudentRow, houseId: string | null) {
     full_name: row.full_name.trim(),
     house_id: houseId,
     serial_no: serialNo !== null && !Number.isNaN(serialNo) ? serialNo : null,
-    faculty: row.faculty?.trim() || null,
+    faculty: normalizeFacultyCode(row.faculty) || null,
     intake: row.intake?.trim() || null,
     degree_programme: row.degree_programme?.trim() || null,
     university: row.university?.trim() || null,
@@ -57,6 +68,15 @@ function studentInsertPayload(row: StudentRow, houseId: string | null) {
     mobile: row.mobile?.trim() || null,
     email: row.email?.trim() || null,
   };
+}
+
+function serialContextKey(
+  faculty: string | null | undefined,
+  intake: string | null | undefined,
+  serialNo: number | null | undefined
+) {
+  if (serialNo == null || !faculty || !intake) return null;
+  return `${faculty}|${intake}|${serialNo}`;
 }
 
 function revalidateStudents() {
@@ -77,26 +97,37 @@ function revalidateInventory() {
 export async function importStudents(
   rows: StudentRow[]
 ): Promise<ImportResult> {
-  const supabase = await createClient();
+  const auth = await getAuthedClient();
+  if (auth.error || !auth.supabase) {
+    return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
+  }
+  const supabase = auth.supabase;
   const result = emptyImportResult();
 
   const { data: houses } = await supabase.from("houses").select("id, name");
   const houseMap = buildHouseIdMap(houses ?? []);
 
-  const { data: existingRows } = await supabase
-    .from("students")
-    .select("id, student_id, serial_no, house_id");
+  const { data: existingRows, error: existingError } = await fetchAllPages<StudentExisting>(
+    (from, to) =>
+      supabase
+        .from("students")
+        .select("id, student_id, serial_no, house_id, faculty, intake")
+        .range(from, to)
+  );
 
-  const byStudentId = new Map(
-    existingRows
-      ?.filter((s) => s.student_id)
-      .map((s) => [s.student_id as string, s]) ?? []
-  );
-  const bySerialNo = new Map(
-    existingRows
-      ?.filter((s) => s.serial_no != null)
-      .map((s) => [s.serial_no as number, s]) ?? []
-  );
+  if (existingError) {
+    result.errors.push(`Could not load existing students: ${existingError}`);
+    return result;
+  }
+
+  const byStudentId = new Map<string, StudentExisting>();
+  const bySerialContext = new Map<string, StudentExisting>();
+
+  for (const row of existingRows) {
+    if (row.student_id) byStudentId.set(row.student_id, row);
+    const key = serialContextKey(row.faculty, row.intake, row.serial_no);
+    if (key) bySerialContext.set(key, row);
+  }
 
   const withId: ReturnType<typeof studentInsertPayload>[] = [];
   const withoutId: ReturnType<typeof studentInsertPayload>[] = [];
@@ -108,7 +139,7 @@ export async function importStudents(
     const houseId = houseName ? lookupHouseId(houseName, houseMap) : null;
 
     if (!row.full_name?.trim()) {
-      result.errors.push(`Row ${line}: missing name or Student No`);
+      result.errors.push(`Row ${line}: missing name or Student ID`);
       continue;
     }
     if (houseName && !houseId) {
@@ -120,8 +151,14 @@ export async function importStudents(
     const existingById = payload.student_id
       ? byStudentId.get(payload.student_id)
       : undefined;
-    const existingBySerial =
-      payload.serial_no != null ? bySerialNo.get(payload.serial_no) : undefined;
+    const contextKey = serialContextKey(
+      payload.faculty,
+      payload.intake,
+      payload.serial_no
+    );
+    const existingBySerial = contextKey
+      ? bySerialContext.get(contextKey)
+      : undefined;
     const existing = existingById ?? existingBySerial;
 
     if (!payload.house_id && existing?.house_id) {
@@ -135,7 +172,19 @@ export async function importStudents(
     }
   }
 
-  for (const batch of chunkArray(withId, IMPORT_BATCH_SIZE)) {
+  // Last row wins when the same student_id appears twice in one CSV
+  const dedupedWithId = [
+    ...new Map(
+      withId
+        .filter((p) => p.student_id)
+        .map((p) => [p.student_id as string, p])
+    ).values(),
+  ];
+  if (dedupedWithId.length < withId.length) {
+    result.skipped += withId.length - dedupedWithId.length;
+  }
+
+  for (const batch of chunkArray(dedupedWithId, IMPORT_BATCH_SIZE)) {
     let batchInserted = 0;
     let batchUpdated = 0;
     for (const payload of batch) {
@@ -146,44 +195,49 @@ export async function importStudents(
       }
     }
 
-    const { error } = await supabase.from("students").upsert(batch, {
-      onConflict: "student_id",
-      ignoreDuplicates: false,
-    });
+    const { data: upserted, error } = await supabase
+      .from("students")
+      .upsert(batch, {
+        onConflict: "student_id",
+        ignoreDuplicates: false,
+      })
+      .select("id, student_id, serial_no, house_id, faculty, intake");
+
     if (error) {
       result.errors.push(`Batch upsert: ${error.message}`);
     } else {
       result.success += batch.length;
       result.inserted += batchInserted;
       result.updated += batchUpdated;
-      batch.forEach((payload) => {
-        if (payload.student_id) {
-          byStudentId.set(payload.student_id, {
-            id: byStudentId.get(payload.student_id)?.id ?? "",
-            student_id: payload.student_id,
-            serial_no: payload.serial_no,
-            house_id: payload.house_id,
-          });
-        }
-        if (payload.serial_no != null) {
-          bySerialNo.set(payload.serial_no, {
-            id: bySerialNo.get(payload.serial_no)?.id ?? "",
-            student_id: payload.student_id,
-            serial_no: payload.serial_no,
-            house_id: payload.house_id,
-          });
-        }
-      });
+      for (const row of upserted ?? []) {
+        const existing: StudentExisting = {
+          id: row.id,
+          student_id: row.student_id,
+          serial_no: row.serial_no,
+          house_id: row.house_id,
+          faculty: row.faculty,
+          intake: row.intake,
+        };
+        if (row.student_id) byStudentId.set(row.student_id, existing);
+        const key = serialContextKey(row.faculty, row.intake, row.serial_no);
+        if (key) bySerialContext.set(key, existing);
+      }
     }
   }
 
   const toInsertNoId: ReturnType<typeof studentInsertPayload>[] = [];
-  const toUpdateNoId: { id: string; payload: ReturnType<typeof studentInsertPayload> }[] =
-    [];
+  const toUpdateNoId: {
+    id: string;
+    payload: ReturnType<typeof studentInsertPayload>;
+  }[] = [];
 
   for (const payload of withoutId) {
-    const existing =
-      payload.serial_no != null ? bySerialNo.get(payload.serial_no) : undefined;
+    const key = serialContextKey(
+      payload.faculty,
+      payload.intake,
+      payload.serial_no
+    );
+    const existing = key ? bySerialContext.get(key) : undefined;
     if (existing?.id) {
       toUpdateNoId.push({ id: existing.id, payload });
     } else {
@@ -224,32 +278,63 @@ export async function importStudents(
 export async function importRecords(
   rows: { student_id: string; track_name: string; value: string; year: string }[]
 ): Promise<ImportResult> {
-  const supabase = await createClient();
+  const auth = await getAuthedClient();
+  if (auth.error || !auth.supabase) {
+    return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
+  }
+  const supabase = auth.supabase;
   const result = emptyImportResult();
 
-  const [{ data: students }, { data: tracks }] = await Promise.all([
-    supabase.from("students").select("id, student_id"),
-    supabase.from("sport_tracks").select("id, name"),
-  ]);
+  const [{ data: students, error: studentsError }, { data: tracks, error: tracksError }] =
+    await Promise.all([
+      fetchAllPages<{ id: string; student_id: string | null }>((from, to) =>
+        supabase.from("students").select("id, student_id").range(from, to)
+      ),
+      fetchAllPages<{ id: string; name: string }>((from, to) =>
+        supabase.from("sport_tracks").select("id, name").range(from, to)
+      ),
+    ]);
+
+  if (studentsError) {
+    result.errors.push(`Could not load students: ${studentsError}`);
+    return result;
+  }
+  if (tracksError) {
+    result.errors.push(`Could not load tracks: ${tracksError}`);
+    return result;
+  }
 
   const studentMap = new Map(
     students
-      ?.filter((s) => s.student_id)
-      .map((s) => [s.student_id as string, s.id]) ?? []
+      .filter((s) => s.student_id)
+      .map((s) => [s.student_id as string, s.id])
   );
-  const trackMap = new Map(tracks?.map((t) => [t.name.toLowerCase(), t.id]) ?? []);
+  const trackMap = new Map(tracks.map((t) => [t.name.toLowerCase(), t.id]));
 
-  const { data: existingRecords } = await supabase
-    .from("sport_records")
-    .select("id, student_id, track_id, year");
+  const { data: existingRecords, error: recordsError } = await fetchAllPages<{
+    id: string;
+    student_id: string;
+    track_id: string;
+    year: number;
+  }>((from, to) =>
+    supabase
+      .from("sport_records")
+      .select("id, student_id, track_id, year")
+      .range(from, to)
+  );
+
+  if (recordsError) {
+    result.errors.push(`Could not load records: ${recordsError}`);
+    return result;
+  }
 
   const recordKey = (studentId: string, trackId: string, year: number) =>
     `${studentId}:${trackId}:${year}`;
   const existingRecordMap = new Map(
-    existingRecords?.map((r) => [
+    existingRecords.map((r) => [
       recordKey(r.student_id, r.track_id, r.year),
       r.id,
-    ]) ?? []
+    ])
   );
 
   const toInsert: {
@@ -280,15 +365,30 @@ export async function importRecords(
       result.errors.push(`Row ${line}: invalid value`);
       continue;
     }
-    if (Number.isNaN(year)) {
+    if (Number.isNaN(year) || year < 1900 || year > 2100) {
       result.errors.push(`Row ${line}: invalid year`);
       continue;
     }
 
     const key = recordKey(studentUuid, trackId, year);
     const existingId = existingRecordMap.get(key);
-    if (existingId) {
-      toUpdate.push({ id: existingId, value });
+    if (existingId && !existingId.startsWith("pending:")) {
+      const updateIdx = toUpdate.findIndex((u) => u.id === existingId);
+      if (updateIdx >= 0) toUpdate[updateIdx] = { id: existingId, value };
+      else toUpdate.push({ id: existingId, value });
+    } else if (existingId?.startsWith("pending:")) {
+      const insertIdx = toInsert.findIndex(
+        (item) => recordKey(item.student_id, item.track_id, item.year) === key
+      );
+      if (insertIdx >= 0) {
+        toInsert[insertIdx] = {
+          student_id: studentUuid,
+          track_id: trackId,
+          year,
+          value,
+        };
+      }
+      result.skipped++;
     } else {
       toInsert.push({
         student_id: studentUuid,
@@ -296,6 +396,7 @@ export async function importRecords(
         year,
         value,
       });
+      existingRecordMap.set(key, `pending:${key}`);
     }
   }
 
@@ -349,16 +450,29 @@ function parseAchievementType(raw: string): AchievementType | null {
 export async function importAchievements(
   rows: AchievementImportRow[]
 ): Promise<ImportResult> {
-  const supabase = await createClient();
+  const auth = await getAuthedClient();
+  if (auth.error || !auth.supabase) {
+    return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
+  }
+  const supabase = auth.supabase;
   const result = emptyImportResult();
 
-  const { data: students } = await supabase
-    .from("students")
-    .select("id, student_id");
+  const { data: students, error: studentsError } = await fetchAllPages<{
+    id: string;
+    student_id: string | null;
+  }>((from, to) =>
+    supabase.from("students").select("id, student_id").range(from, to)
+  );
+
+  if (studentsError) {
+    result.errors.push(`Could not load students: ${studentsError}`);
+    return result;
+  }
+
   const studentMap = new Map(
     students
-      ?.filter((s) => s.student_id)
-      .map((s) => [s.student_id as string, s.id]) ?? []
+      .filter((s) => s.student_id)
+      .map((s) => [s.student_id as string, s.id])
   );
 
   type Prepared = {
@@ -460,12 +574,27 @@ export async function importAchievements(
 export async function importInventory(
   rows: { item_name: string; quantity: string }[]
 ): Promise<ImportResult> {
-  const supabase = await createClient();
+  const auth = await getAuthedClient();
+  if (auth.error || !auth.supabase) {
+    return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
+  }
+  const supabase = auth.supabase;
   const result = emptyImportResult();
 
-  const { data: existing } = await supabase.from("inventory_items").select("id, name");
+  const { data: existing, error: existingError } = await fetchAllPages<{
+    id: string;
+    name: string;
+  }>((from, to) =>
+    supabase.from("inventory_items").select("id, name").range(from, to)
+  );
+
+  if (existingError) {
+    result.errors.push(`Could not load inventory: ${existingError}`);
+    return result;
+  }
+
   const existingMap = new Map(
-    existing?.map((e) => [e.name.toLowerCase(), e.id]) ?? []
+    existing.map((e) => [e.name.toLowerCase(), e.id])
   );
 
   const toInsert: { name: string; quantity: number }[] = [];
@@ -486,12 +615,19 @@ export async function importInventory(
       continue;
     }
 
-    const existingId = existingMap.get(name.toLowerCase());
-    if (existingId) {
-      toUpdate.push({ id: existingId, quantity });
+    const key = name.toLowerCase();
+    const existingId = existingMap.get(key);
+    if (existingId && !existingId.startsWith("pending-")) {
+      const updateIdx = toUpdate.findIndex((u) => u.id === existingId);
+      if (updateIdx >= 0) toUpdate[updateIdx] = { id: existingId, quantity };
+      else toUpdate.push({ id: existingId, quantity });
+    } else if (existingId?.startsWith("pending-")) {
+      const insertIdx = toInsert.findIndex((item) => item.name.toLowerCase() === key);
+      if (insertIdx >= 0) toInsert[insertIdx] = { name, quantity };
+      result.skipped++;
     } else {
       toInsert.push({ name, quantity });
-      existingMap.set(name.toLowerCase(), `pending-${name}`);
+      existingMap.set(key, `pending-${name}`);
     }
   }
 

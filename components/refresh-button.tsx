@@ -11,8 +11,12 @@ export function RefreshButton({ className }: { className?: string }) {
 
   function handleRefresh() {
     startTransition(async () => {
-      await refreshAppData();
-      router.refresh();
+      try {
+        await refreshAppData();
+        router.refresh();
+      } catch {
+        /* keep previous data visible */
+      }
     });
   }
 

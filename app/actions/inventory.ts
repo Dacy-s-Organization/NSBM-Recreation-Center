@@ -49,6 +49,9 @@ export async function updateInventoryItem(formData: FormData) {
     .eq("id", id);
 
   if (error) {
+    if (error.code === "23505") {
+      return { error: "An item with this name already exists." };
+    }
     return { error: error.message };
   }
 

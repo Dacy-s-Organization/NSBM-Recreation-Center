@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeFacultyCode } from "@/lib/faculties";
 
 function parseStudentForm(formData: FormData) {
   const serialRaw = String(formData.get("serial_no") ?? "").trim();
   const serialParsed = serialRaw ? parseInt(serialRaw, 10) : null;
+  const facultyRaw = String(formData.get("faculty") ?? "").trim();
 
   return {
     student_id: String(formData.get("student_id") ?? "").trim() || null,
@@ -13,7 +15,7 @@ function parseStudentForm(formData: FormData) {
     house_id: String(formData.get("house_id") ?? "").trim() || null,
     serial_no:
       serialParsed !== null && !Number.isNaN(serialParsed) ? serialParsed : null,
-    faculty: String(formData.get("faculty") ?? "").trim() || null,
+    faculty: normalizeFacultyCode(facultyRaw) || null,
     intake: String(formData.get("intake") ?? "").trim() || null,
     degree_programme:
       String(formData.get("degree_programme") ?? "").trim() || null,

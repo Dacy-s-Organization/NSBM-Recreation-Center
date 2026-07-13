@@ -47,7 +47,7 @@ export function StudentFieldsForm({
         </Select>
       </div>
       <div>
-        <Label>Student No</Label>
+        <Label>Student ID</Label>
         <Input
           name="student_id"
           defaultValue={student?.student_id ?? ""}

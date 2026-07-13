@@ -1,3 +1,5 @@
+import { normalizeFacultyCode } from "@/lib/faculties";
+
 /**
  * Map NSBM Foundation CSV headers (and legacy app headers) to canonical student fields.
  */
@@ -24,6 +26,7 @@ const HEADER_ALIASES: Record<string, keyof CanonicalStudentCsvRow> = {
   intake: "intake",
   faculty: "faculty",
   student_id: "student_id",
+  "student id": "student_id",
   "student no": "student_id",
   "student number": "student_id",
   degree_programme: "degree_programme",
@@ -79,6 +82,10 @@ export function normalizeStudentCsvRow(
   }
   if (out.nic) {
     out.nic = out.nic.replace(/,/g, "").trim();
+  }
+
+  if (out.faculty) {
+    out.faculty = normalizeFacultyCode(out.faculty) || out.faculty;
   }
 
   const fullName = buildStudentFullName(out);

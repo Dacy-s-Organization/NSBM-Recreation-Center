@@ -23,18 +23,30 @@ export const NSBM_FACULTIES: NsbmFaculty[] = [
     description: "Engineering programmes",
   },
   {
-    code: "FOSM",
-    name: "Faculty of Sciences & Media",
-    description: "Science and media programmes",
+    code: "FOS",
+    name: "Faculty of Sciences",
+    description: "Science programmes",
   },
 ];
 
+/** Legacy / alternate codes → canonical NSBM codes */
+const FACULTY_ALIASES: Record<string, string> = {
+  FOSM: "FOS",
+};
+
 export const NSBM_FACULTY_CODES = NSBM_FACULTIES.map((f) => f.code);
 
+export function normalizeFacultyCode(code: string | null | undefined): string {
+  const trimmed = code?.trim().toUpperCase() ?? "";
+  if (!trimmed) return "";
+  return FACULTY_ALIASES[trimmed] ?? trimmed;
+}
+
 export function getFacultyByCode(code: string): NsbmFaculty | undefined {
-  return NSBM_FACULTIES.find((f) => f.code === code);
+  const normalized = normalizeFacultyCode(code);
+  return NSBM_FACULTIES.find((f) => f.code === normalized);
 }
 
 export function isNsbmFacultyCode(code: string): boolean {
-  return NSBM_FACULTY_CODES.includes(code);
+  return NSBM_FACULTY_CODES.includes(normalizeFacultyCode(code));
 }

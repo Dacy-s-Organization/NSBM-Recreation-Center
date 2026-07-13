@@ -57,9 +57,18 @@ export function InventoryClient({ items }: { items: InventoryItem[] }) {
         </Button>
       </div>
 
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+        >
+          {error}
+        </p>
+      )}
+
       {showAdd && (
         <Card>
-          <h3 className="font-medium text-zinc-900">New inventory item</h3>
+          <h3 className="font-medium text-zinc-900 dark:text-white">New inventory item</h3>
           <form
             id="add-inventory-form"
             action={handleAdd}
@@ -77,31 +86,31 @@ export function InventoryClient({ items }: { items: InventoryItem[] }) {
               {pending ? "Saving…" : "Add"}
             </Button>
           </form>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
         </Card>
       )}
 
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-50">
+            <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-white/5">
               <tr>
-                <th className="px-4 py-3 font-medium text-zinc-600">Item</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Quantity</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Last updated</th>
-                <th className="px-4 py-3 font-medium text-zinc-600">Actions</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Item</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Quantity</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Last updated</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
+                  <td colSpan={4} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                     No inventory items yet.
                   </td>
                 </tr>
               ) : (
                 items.map((item) => (
-                  <tr key={item.id} className="border-b border-zinc-100 last:border-0">
+                  <tr key={item.id} className="border-b border-zinc-100 last:border-0 dark:border-white/10">
                     {editingId === item.id ? (
                       <td colSpan={4} className="px-4 py-3">
                         <form
@@ -137,9 +146,9 @@ export function InventoryClient({ items }: { items: InventoryItem[] }) {
                       </td>
                     ) : (
                       <>
-                        <td className="px-4 py-3 font-medium text-zinc-900">{item.name}</td>
+                        <td className="px-4 py-3 font-medium text-zinc-900 dark:text-white">{item.name}</td>
                         <td className="px-4 py-3">{item.quantity}</td>
-                        <td className="px-4 py-3 text-zinc-500">
+                        <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
                           {new Date(item.updated_at).toLocaleString()}
                         </td>
                         <td className="px-4 py-3">

@@ -18,7 +18,7 @@ export type ImportPreviewRow = Record<string, string | number | boolean> & {
 
 export const IMPORT_DESCRIPTIONS: Record<ImportType, string> = {
   students:
-    "Supports NSBM Foundation CSV (Serial No, Intake, Faculty, Student No, …) or legacy columns. House is optional until assigned. Use Ruby, Citrine, Emerald, or Sapphire. Student No maps to student_id.",
+    "Supports NSBM Foundation CSV (Serial No, Intake, Faculty, Student No / Student ID, …) or legacy columns. House is optional until assigned. Use Ruby, Citrine, Emerald, or Sapphire. Student No maps to student_id.",
   records:
     "Columns: student_id, track_name, value, year. Students must exist before importing records.",
   inventory:
@@ -104,7 +104,7 @@ export function validateImportRow(
         ...flat,
         _line: line,
         _valid: false,
-        _error: "Missing Student No or name",
+        _error: "Missing Student ID or name",
       };
     }
     return { ...flat, _line: line, _valid: true };
