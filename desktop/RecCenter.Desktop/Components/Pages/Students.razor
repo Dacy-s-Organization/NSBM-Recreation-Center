@@ -1,0 +1,612 @@
+@page "/students"
+@implements IDisposable
+@inject StudentsService StudentsData
+@inject ReferenceService Reference
+@inject AppState State
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+@if (_loading)
+{
+    <LoadingSkeleton />
+}
+else
+{
+    <div class="space-y-6">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="min-w-0 flex-1">
+                <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white">Students</h2>
+                <p class="mt-1 text-zinc-600 dark:text-zinc-400">@HeaderSubtitle</p>
+            </div>
+            <CsvImportDialog Type="ImportType.Students" />
+        </div>
+
+        @if (_loadError is not null)
+        {
+            <p role="alert" class="@Ui.ErrorBanner">@_loadError</p>
+        }
+
+        @if (_view == StudentsView.Faculties)
+        {
+            <div class="space-y-4">
+                <p class="text-sm text-zinc-600 dark:text-zinc-400">Select a faculty to view batches and students.</p>
+                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    @foreach (var faculty in _facultyCards)
+                    {
+                        <a @key="faculty.Code" href="@FacultyHref(faculty.Code)" class="@CardLinkClass">
+                            <div class="flex items-start justify-between gap-3">
+                                <span class="rounded-lg bg-emerald-100 px-3 py-1 text-sm font-bold text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-300">@faculty.Code</span>
+                                <span class="text-sm text-zinc-500 dark:text-zinc-400">@faculty.Count student@(faculty.Count == 1 ? "" : "s")</span>
+                            </div>
+                            <h3 class="mt-4 text-lg font-semibold text-zinc-900 group-hover:text-emerald-900 dark:text-white dark:group-hover:text-emerald-400">@faculty.Name</h3>
+                            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">@faculty.Description</p>
+                            <p class="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-400">View batches →</p>
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+        else if (_view == StudentsView.Intakes)
+        {
+            <div class="space-y-4">
+                @Breadcrumb
+                <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                    Select a batch for <span class="font-medium">@_facultyName</span>.
+                </p>
+                @if (_intakeCards.Count == 0)
+                {
+                    <Card Class="p-8 text-center text-zinc-500 dark:text-zinc-400">
+                        No batches found for this faculty yet. Import students from CSV or add them manually.
+                    </Card>
+                }
+                else
+                {
+                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        @foreach (var batch in _intakeCards)
+                        {
+                            <a @key="batch.Intake" href="@BatchHref(batch.Intake)" class="@CardLinkClass">
+                                <p class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Batch / Intake</p>
+                                <h3 class="mt-2 text-2xl font-semibold text-zinc-900 group-hover:text-emerald-900 dark:text-white dark:group-hover:text-emerald-400">@batch.Intake</h3>
+                                <p class="mt-3 text-sm text-zinc-600 dark:text-zinc-400">@batch.Count student@(batch.Count == 1 ? "" : "s")</p>
+                                <p class="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-400">View students →</p>
+                            </a>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            var filtered = Filtered;
+            <div class="space-y-6">
+                @Breadcrumb
+
+                <div class="space-y-1">
+                    <div class="flex flex-wrap items-end gap-4">
+                        <div class="min-w-[200px] flex-1 max-w-md">
+                            <label for="search" class="@Ui.Label">Search students</label>
+                            <input id="search" class="@Ui.Input" placeholder="Student ID, name, email, NIC, mobile…"
+                                   @bind="_query" @bind:event="oninput" />
+                        </div>
+                        <div>
+                            <label for="house-filter" class="@Ui.Label">House</label>
+                            <select id="house-filter" class="@Ui.Select" @bind="_houseFilter">
+                                <option value="">All houses</option>
+                                @foreach (var h in _houses)
+                                {
+                                    <option value="@h.Id">@h.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label for="gender-filter" class="@Ui.Label">Gender</label>
+                            <select id="gender-filter" class="@Ui.Select" @bind="_genderFilter">
+                                <option value="">All genders</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+                        </div>
+                        @if (_houseFilter.Length > 0 || _genderFilter.Length > 0)
+                        {
+                            <Button Variant="ghost" OnClick="ClearFilters">Clear filters</Button>
+                        }
+                        <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add student")</Button>
+                    </div>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400">Filters all @_students.Count students in this batch.</p>
+                </div>
+
+                @if (_error is not null && !ModalOpen)
+                {
+                    <p role="alert" class="@Ui.ErrorBanner">@_error</p>
+                }
+
+                @if (_showForm)
+                {
+                    <Card>
+                        <h3 class="font-medium text-zinc-900 dark:text-white">New student — @_facultyName, batch @_intake</h3>
+                        <form @onsubmit="HandleAdd" class="mt-4 grid gap-4 sm:grid-cols-3">
+                            <StudentFieldsForm @key="_addFormKey" Model="_addForm" Houses="_houses" />
+                            <div class="flex gap-2 sm:col-span-3">
+                                <Button Type="submit" Disabled="_pending">@(_pending ? "Saving…" : "Save student")</Button>
+                            </div>
+                        </form>
+                        @if (_error is not null)
+                        {
+                            <p class="mt-2 text-sm text-red-600 dark:text-red-300">@_error</p>
+                        }
+                    </Card>
+                }
+
+                <Card Class="overflow-hidden p-0 shadow-sm">
+                    <div class="max-h-[calc(100vh-18rem)] overflow-auto">
+                        <table class="w-full min-w-[1200px] border-collapse text-left text-sm">
+                            <thead class="sticky top-0 z-20 border-b border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-[var(--app-surface-2)]">
+                                <tr>
+                                    @foreach (var col in _columns)
+                                    {
+                                        <th class="@($"whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 {ColumnHeaderClass(col.Key)}")">@col.Label</th>
+                                    }
+                                    <th class="sticky right-0 z-10 whitespace-nowrap bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)] dark:bg-[var(--app-surface-2)] dark:text-zinc-400 dark:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.4)]">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-100 dark:divide-white/10">
+                                @if (filtered.Count == 0)
+                                {
+                                    <tr>
+                                        <td colspan="@(_columns.Count + 1)" class="px-4 py-10 text-center text-zinc-500 dark:text-zinc-400">
+                                            @(_query.Length > 0 || _houseFilter.Length > 0 || _genderFilter.Length > 0
+                                                ? "No students match your search."
+                                                : "No students in this batch yet. Add one or import from CSV.")
+                                        </td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    @foreach (var s in filtered)
+                                    {
+                                        <tr @key="s.Id" class="group transition-colors hover:bg-emerald-50/40 dark:hover:bg-emerald-500/10">
+                                            @foreach (var col in _columns)
+                                            {
+                                                <td class="@Ui.Cn(ColumnCellClass(col.Key), col.Key == "student_id" ? "font-mono text-zinc-900 dark:text-white" : null)">
+                                                    @if (col.Key == "house")
+                                                    {
+                                                        if (!string.IsNullOrEmpty(s.Houses?.Name))
+                                                        {
+                                                            <HouseBadge Name="@(s.Houses!.Name!)" />
+                                                        }
+                                                        else
+                                                        {
+                                                            @("—")
+                                                        }
+                                                    }
+                                                    else if (StudentColumns.LongTextKeys.Contains(col.Key))
+                                                    {
+                                                        <ExpandableCell Label="@col.Label" Value="@CellText(s, col.Key)" MaxWidthClass="max-w-[320px]" />
+                                                    }
+                                                    else
+                                                    {
+                                                        @CellText(s, col.Key)
+                                                    }
+                                                </td>
+                                            }
+                                            <td class="sticky right-0 z-10 whitespace-nowrap bg-white px-4 py-2.5 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)] group-hover:bg-[color-mix(in_srgb,var(--color-emerald-50)_40%,white)] dark:bg-[var(--app-surface)] dark:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.4)] dark:group-hover:bg-[color-mix(in_srgb,var(--color-emerald-500)_10%,var(--app-surface))]">
+                                                <div class="flex flex-nowrap items-center gap-1">
+                                                    <Button Variant="ghost" Class="h-8 px-2.5 py-1 text-xs" OnClick="() => StartEdit(s)">Edit</Button>
+                                                    <Button Variant="ghost"
+                                                            Class="h-8 px-2.5 py-1 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:text-red-300"
+                                                            OnClick="() => StartDelete(s)"
+                                                            Disabled="_pending">
+                                                        Delete
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 bg-zinc-50/50 px-4 py-2.5 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+                        <p>Showing @filtered.Count of @_students.Count students</p>
+                    </div>
+                </Card>
+
+                @if (_editing is not null && _editForm is not null)
+                {
+                    <Modal TrapKeyboard="true" CloseOnBackdrop="true" OnClose="CloseEdit"
+                           PanelClass="max-h-[90vh] w-full max-w-3xl overflow-y-auto p-6">
+                        <div class="flex items-start justify-between gap-4">
+                            <h3 class="font-medium text-zinc-900 dark:text-white">Edit student — @(_editing.StudentId ?? _editing.FullName)</h3>
+                            <Button Variant="ghost" OnClick="CloseEdit">Close</Button>
+                        </div>
+                        <form @key="_editing.Id" @onsubmit="HandleUpdate" class="mt-4 grid gap-4 sm:grid-cols-3">
+                            <StudentFieldsForm Model="_editForm" Houses="_houses" />
+                            @if (_error is not null)
+                            {
+                                <p class="text-sm text-red-600 dark:text-red-300 sm:col-span-3">@_error</p>
+                            }
+                            <div class="flex flex-wrap gap-2 sm:col-span-3">
+                                <Button Type="submit" Disabled="_pending">@(_pending ? "Saving…" : "Save")</Button>
+                                <Button Variant="secondary" OnClick="CloseEdit">Cancel</Button>
+                            </div>
+                        </form>
+                    </Modal>
+                }
+
+                @if (_deleting is not null)
+                {
+                    <Modal Role="alertdialog" TrapKeyboard="true" CloseOnBackdrop="true" OnClose="EscapeDelete"
+                           PanelClass="w-full max-w-md p-6">
+                        <h3 class="font-medium text-zinc-900 dark:text-white">Delete student?</h3>
+                        <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                            <span class="font-medium text-zinc-900 dark:text-white">@_deleting.FullName</span>@(_deleting.StudentId is not null ? $" ({_deleting.StudentId})" : "") will be
+                            permanently removed, along with their sport records and achievement links. This
+                            cannot be undone.
+                        </p>
+                        @if (_error is not null)
+                        {
+                            <p class="mt-3 text-sm text-red-600 dark:text-red-300">@_error</p>
+                        }
+                        <div class="mt-6 flex justify-end gap-2">
+                            <Button Variant="secondary" OnClick="CloseDelete" Disabled="_pending">Cancel</Button>
+                            <button type="button" @ref="_confirmDeleteButton" class="@Ui.Cn(Ui.ButtonBase, Ui.ButtonDanger)"
+                                    disabled="@_pending" @onclick="ConfirmDelete">
+                                @(_pending ? "Deleting…" : "Delete")
+                            </button>
+                        </div>
+                    </Modal>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private enum StudentsView { Faculties, Intakes, List }
+
+    private const string CardLinkClass =
+        "group rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-emerald-300 hover:shadow-md dark:border-white/10 dark:bg-[var(--app-surface)] dark:shadow-none dark:hover:border-emerald-400/40";
+
+    private string? _loadedKey;
+    private bool _loading = true;
+    private string? _loadError;
+
+    private StudentsView _view;
+    private string _faculty = "";
+    private string _facultyName = "";
+    private string _intake = "";
+
+    private List<House> _houses = new();
+    private List<FacultyCard> _facultyCards = new();
+    private List<IntakeCard> _intakeCards = new();
+    private List<Student> _students = new();
+    private IReadOnlyList<StudentColumn> _columns = StudentColumns.All;
+
+    private string _query = "";
+    private string _houseFilter = "";
+    private string _genderFilter = "";
+
+    private bool _showForm;
+    private StudentForm _addForm = new();
+    private int _addFormKey;
+    private Student? _editing;
+    private StudentForm? _editForm;
+    private Student? _deleting;
+    private ElementReference _confirmDeleteButton;
+    private bool _focusDeleteButton;
+    private string? _error;
+    private bool _pending;
+
+    private bool ModalOpen => _editing is not null || _deleting is not null;
+
+    private string HeaderSubtitle =>
+        _intake.Length > 0 ? $"{_facultyName} · Batch {_intake}"
+        : _view == StudentsView.Intakes ? $"Batches for {_facultyName}"
+        : "Browse by faculty and batch, then manage student records.";
+
+    private static string FacultyHref(string code) => $"/students?faculty={Uri.EscapeDataString(code)}";
+    private string BatchHref(string intake) => $"{FacultyHref(_faculty)}&intake={Uri.EscapeDataString(intake)}";
+
+    private RenderFragment Breadcrumb => __builder =>
+    {
+        <nav class="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <a href="/students" class="font-medium text-emerald-800 hover:underline dark:text-emerald-400">All faculties</a>
+            @if (_faculty.Length > 0)
+            {
+                <span aria-hidden="true">/</span>
+                @if (_intake.Length > 0)
+                {
+                    <a href="@FacultyHref(_faculty)" class="font-medium text-emerald-800 hover:underline dark:text-emerald-400">@_facultyName</a>
+                }
+                else
+                {
+                    <span class="font-medium text-zinc-900 dark:text-white">@_facultyName</span>
+                }
+            }
+            @if (_intake.Length > 0)
+            {
+                <span aria-hidden="true">/</span>
+                <span class="font-medium text-zinc-900 dark:text-white">Batch @_intake</span>
+            }
+        </nav>
+    };
+
+    protected override void OnInitialized()
+    {
+        State.RefreshRequested += RefreshAsync;
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    protected override Task OnParametersSetAsync() => ApplyLocationAsync();
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (!Nav.ToBaseRelativePath(e.Location).StartsWith("students", StringComparison.OrdinalIgnoreCase)) return;
+        _ = InvokeAsync(async () =>
+        {
+            var task = ApplyLocationAsync();
+            StateHasChanged();
+            await task;
+            StateHasChanged();
+        });
+    }
+
+    private async Task ApplyLocationAsync()
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Nav.Uri).Query);
+        var faculty = query["faculty"]?.Trim() ?? "";
+        var intake = query["intake"]?.Trim() ?? "";
+        var key = $"{faculty}\n{intake}";
+        if (key == _loadedKey) return;
+        _loadedKey = key;
+
+        _faculty = faculty;
+        _intake = intake;
+        _query = "";
+        _houseFilter = "";
+        _genderFilter = "";
+        _showForm = false;
+        _editing = null;
+        _editForm = null;
+        _deleting = null;
+        _error = null;
+        _loading = true;
+        await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        var faculty = _faculty;
+        var intake = _intake;
+        try
+        {
+            _houses = await Reference.GetHousesAsync();
+            if (faculty.Length == 0 || !Faculties.IsNsbmCode(faculty))
+            {
+                _view = StudentsView.Faculties;
+                _faculty = "";
+                _intake = "";
+                _facultyCards = await StudentsData.GetFacultyCardsAsync();
+            }
+            else
+            {
+                _facultyName = Faculties.GetByCode(faculty)!.Name;
+                if (intake.Length == 0)
+                {
+                    _view = StudentsView.Intakes;
+                    _intakeCards = await StudentsData.GetIntakeCardsAsync(faculty);
+                }
+                else
+                {
+                    _view = StudentsView.List;
+                    _columns = StudentColumns.All.Where(c => !StudentColumns.ContextKeys.Contains(c.Key)).ToList();
+                    _students = await StudentsData.GetBatchStudentsAsync(faculty, intake);
+                    if (_editing is not null)
+                    {
+                        _editing = _students.FirstOrDefault(s => s.Id == _editing.Id);
+                        if (_editing is null) _editForm = null;
+                    }
+                    if (_deleting is not null) _deleting = _students.FirstOrDefault(s => s.Id == _deleting.Id);
+                }
+            }
+            _loadError = null;
+        }
+        catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)
+        {
+            _loadError = ex.Message;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private List<Student> Filtered
+    {
+        get
+        {
+            IEnumerable<Student> list = _students;
+            var q = _query.Trim().ToLowerInvariant();
+            if (q.Length > 0)
+            {
+                list = list.Where(s =>
+                    Contains(s.StudentId, q) || s.FullName.ToLowerInvariant().Contains(q) ||
+                    Contains(s.Email, q) || Contains(s.Nic, q) || Contains(s.Mobile, q));
+            }
+            if (_houseFilter.Length > 0) list = list.Where(s => s.HouseId == _houseFilter);
+            if (_genderFilter.Length > 0) list = list.Where(s => s.Gender?.Trim().ToLowerInvariant() == _genderFilter);
+            return list.ToList();
+        }
+    }
+
+    private static bool Contains(string? value, string q) => value?.ToLowerInvariant().Contains(q) ?? false;
+
+    private static string CellText(Student s, string key) => key switch
+    {
+        "serial_no" => s.SerialNo?.ToString(CultureInfo.InvariantCulture) ?? "—",
+        "student_id" => s.StudentId ?? "—",
+        "house" => s.Houses?.Name ?? "—",
+        "intake" => OrDash(s.Intake),
+        "faculty" => OrDash(s.Faculty),
+        "degree_programme" => OrDash(s.DegreeProgramme),
+        "university" => OrDash(s.University),
+        "title" => OrDash(s.Title),
+        "full_name" => OrDash(s.FullName),
+        "gender" => OrDash(s.Gender),
+        "nic" => OrDash(s.Nic),
+        "mobile" => OrDash(s.Mobile),
+        "email" => OrDash(s.Email),
+        _ => "—",
+    };
+
+    private static string OrDash(string? value) => string.IsNullOrEmpty(value) ? "—" : value;
+
+    private static string ColumnHeaderClass(string key) => key switch
+    {
+        "degree_programme" => "min-w-[240px]",
+        "full_name" => "min-w-[180px]",
+        "email" => "min-w-[220px]",
+        "nic" => "min-w-[120px]",
+        _ => "",
+    };
+
+    private static string ColumnCellClass(string key)
+    {
+        const string baseClass = "whitespace-nowrap px-4 py-2.5 align-middle text-zinc-700 dark:text-zinc-300";
+        return key switch
+        {
+            "full_name" => $"{baseClass} font-medium text-zinc-900 dark:text-white",
+            "email" => $"{baseClass} text-zinc-600 dark:text-zinc-400",
+            _ => baseClass,
+        };
+    }
+
+    private void ClearFilters()
+    {
+        _houseFilter = "";
+        _genderFilter = "";
+    }
+
+    private void ToggleAddForm()
+    {
+        _showForm = !_showForm;
+        if (_showForm)
+        {
+            _addForm = new StudentForm { Faculty = _faculty, Intake = _intake };
+            _addFormKey++;
+        }
+        _editing = null;
+        _editForm = null;
+    }
+
+    private void StartEdit(Student s)
+    {
+        _editing = s;
+        _editForm = StudentForm.From(s);
+        _showForm = false;
+        _error = null;
+    }
+
+    private void StartDelete(Student s)
+    {
+        _deleting = s;
+        _focusDeleteButton = true;
+        _error = null;
+    }
+
+    private void CloseEdit()
+    {
+        _editing = null;
+        _editForm = null;
+        _error = null;
+    }
+
+    private void CloseDelete()
+    {
+        if (_pending) return;
+        _deleting = null;
+        _error = null;
+    }
+
+    private void EscapeDelete()
+    {
+        _deleting = null;
+        _error = null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusDeleteButton || _deleting is null) return;
+        _focusDeleteButton = false;
+        try
+        {
+            await _confirmDeleteButton.FocusAsync();
+        }
+        catch (InvalidOperationException)
+        {
+            /* dialog closed before focus */
+        }
+    }
+
+    private async Task HandleAdd()
+    {
+        _error = null;
+        _addForm.Faculty = _faculty;
+        _addForm.Intake = _intake;
+        _pending = true;
+        var result = await StudentsData.AddAsync(_addForm);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _showForm = false;
+        await LoadAsync();
+    }
+
+    private async Task HandleUpdate()
+    {
+        if (_editForm is null) return;
+        _error = null;
+        _pending = true;
+        var result = await StudentsData.UpdateAsync(_editForm);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _editing = null;
+        _editForm = null;
+        await LoadAsync();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_deleting is null) return;
+        var id = _deleting.Id;
+        _error = null;
+        _pending = true;
+        var result = await StudentsData.DeleteAsync(id);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _deleting = null;
+        await LoadAsync();
+    }
+
+    public void Dispose()
+    {
+        State.RefreshRequested -= RefreshAsync;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+}

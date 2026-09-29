@@ -1,0 +1,165 @@
+@implements IDisposable
+@inject IJSRuntime JS
+
+<div class="@($"login-sports-overlay login-sports-overlay--{_scene.Id}")"
+     role="status"
+     aria-live="polite"
+     aria-label="@($"{_scene.Title} Signing you in")">
+    <div class="login-sports-stage" aria-hidden="true">
+        @switch (_scene.Id)
+        {
+            case "football":
+                <div class="login-sports-pitch">
+                    <div class="login-sports-goal">
+                        <div class="login-sports-post login-sports-post-left"></div>
+                        <div class="login-sports-crossbar"></div>
+                        <div class="login-sports-post login-sports-post-right"></div>
+                        <div class="login-sports-net"></div>
+                    </div>
+                    <div class="login-sports-prop login-sports-prop--football">
+                        <svg viewBox="0 0 64 64" class="h-full w-full">
+                            <circle cx="32" cy="32" r="30" fill="#f4f4f5" />
+                            <circle cx="32" cy="32" r="30" fill="none" stroke="#18181b" stroke-width="2.5" />
+                            <path d="M32 8c6 8 6 16 0 24-6-8-6-16 0-24Z" fill="#18181b" />
+                            <path d="M14 22c10 2 18 8 22 18-10-4-20-8-22-18Z" fill="#18181b" />
+                            <path d="M50 22c-10 2-18 8-22 18 10-4 20-8 22-18Z" fill="#18181b" />
+                            <path d="M18 48c8-6 20-6 28 0-8 4-20 4-28 0Z" fill="#18181b" />
+                        </svg>
+                    </div>
+                    <div class="login-sports-burst"></div>
+                </div>
+                break;
+            case "basketball":
+                <div class="login-sports-pitch">
+                    <div class="login-sports-hoop">
+                        <div class="login-sports-backboard"></div>
+                        <div class="login-sports-rim"></div>
+                        <div class="login-sports-hoop-net"></div>
+                    </div>
+                    <div class="login-sports-prop login-sports-prop--basketball">
+                        <svg viewBox="0 0 64 64" class="h-full w-full">
+                            <circle cx="32" cy="32" r="30" fill="#ea580c" />
+                            <path d="M32 2v60M2 32h60M12 12c12 8 28 8 40 0M12 52c12-8 28-8 40 0" fill="none" stroke="#7c2d12" stroke-width="3" />
+                        </svg>
+                    </div>
+                    <div class="login-sports-burst"></div>
+                </div>
+                break;
+            case "badminton":
+                <div class="login-sports-pitch">
+                    <div class="login-sports-racket"></div>
+                    <div class="login-sports-prop login-sports-prop--shuttle">
+                        <svg viewBox="0 0 64 64" class="h-full w-full">
+                            <ellipse cx="32" cy="48" rx="10" ry="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="2" />
+                            <path d="M22 44 L18 8 L32 18 L46 8 L42 44 Z" fill="#e2e8f0" stroke="#64748b" stroke-width="2" />
+                            <path d="M32 18 L32 44" stroke="#94a3b8" stroke-width="1.5" />
+                        </svg>
+                    </div>
+                    <div class="login-sports-burst"></div>
+                </div>
+                break;
+            case "athletics":
+                <div class="login-sports-pitch login-sports-pitch--track">
+                    <div class="login-sports-track-lanes"></div>
+                    <div class="login-sports-finish-line"></div>
+                    <div class="login-sports-prop login-sports-prop--runner">
+                        <svg viewBox="0 0 64 64" class="h-full w-full">
+                            <circle cx="38" cy="12" r="7" fill="#fcd34d" />
+                            <path d="M34 20 L28 34 L18 32 M28 34 L34 46 L24 58 M28 34 L42 40 L52 30 M42 40 L40 58"
+                                  fill="none" stroke="#f8fafc" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </div>
+                    <div class="login-sports-burst"></div>
+                </div>
+                break;
+            case "volleyball":
+                <div class="login-sports-pitch">
+                    <div class="login-sports-volley-net"></div>
+                    <div class="login-sports-prop login-sports-prop--volleyball">
+                        <svg viewBox="0 0 64 64" class="h-full w-full">
+                            <circle cx="32" cy="32" r="30" fill="#f8fafc" />
+                            <circle cx="32" cy="32" r="30" fill="none" stroke="#0f766e" stroke-width="2.5" />
+                            <path d="M8 28c10 4 20 4 30-2 8-5 14-6 18-4M10 40c12-2 22 2 34 6M22 8c2 14 0 28-6 44M42 6c-2 14 2 30 10 46"
+                                  fill="none" stroke="#0f766e" stroke-width="2.5" />
+                        </svg>
+                    </div>
+                    <div class="login-sports-burst"></div>
+                </div>
+                break;
+            default:
+                <div class="login-sports-pitch login-sports-pitch--pool">
+                    <div class="login-sports-pool-lanes"></div>
+                    <div class="login-sports-pool-wall"></div>
+                    <div class="login-sports-prop login-sports-prop--swimmer">
+                        <svg viewBox="0 0 64 64" class="h-full w-full">
+                            <circle cx="46" cy="22" r="6" fill="#67e8f9" />
+                            <path d="M40 26 L28 32 L14 28 M28 32 L34 44 L22 50 M28 32 L44 38"
+                                  fill="none" stroke="#ecfeff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M8 48c6-4 12-4 18 0s12 4 18 0 12-4 18 0" fill="none" stroke="#67e8f9" stroke-width="3" stroke-linecap="round" />
+                        </svg>
+                    </div>
+                    <div class="login-sports-burst"></div>
+                </div>
+                break;
+        }
+    </div>
+
+    <p class="login-sports-title">@_scene.Title</p>
+    <p class="login-sports-subtitle">@_scene.Subtitle</p>
+    <button type="button"
+            @onclick="Finish"
+            class="mt-6 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm text-white/90 transition hover:bg-white/20">
+        Skip
+    </button>
+</div>
+
+@code {
+    private sealed record SportScene(string Id, string Title, string Subtitle);
+
+    private static readonly SportScene[] Scenes =
+    {
+        new("football", "Goal!", "Heading to your dashboard…"),
+        new("basketball", "Swish!", "Heading to your dashboard…"),
+        new("badminton", "Smash!", "Heading to your dashboard…"),
+        new("athletics", "Finish!", "Heading to your dashboard…"),
+        new("volleyball", "Spike!", "Heading to your dashboard…"),
+        new("swimming", "Touch!", "Heading to your dashboard…"),
+    };
+
+    [Parameter] public EventCallback OnFinished { get; set; }
+    [Parameter] public int DurationMs { get; set; } = 2600;
+
+    private readonly SportScene _scene = Scenes[Random.Shared.Next(Scenes.Length)];
+    private readonly CancellationTokenSource _cts = new();
+    private bool _finished;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var reduced = await JS.InvokeAsync<bool>("recUi.prefersReducedMotion");
+        var wait = reduced ? Math.Min(DurationMs, 400) : DurationMs;
+        try
+        {
+            await Task.Delay(wait, _cts.Token);
+            await Finish();
+        }
+        catch (TaskCanceledException)
+        {
+            /* skipped or disposed */
+        }
+    }
+
+    private async Task Finish()
+    {
+        if (_finished) return;
+        _finished = true;
+        _cts.Cancel();
+        await OnFinished.InvokeAsync();
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

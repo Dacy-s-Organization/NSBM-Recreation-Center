@@ -1,0 +1,223 @@
+@page "/inventory"
+@implements IDisposable
+@inject InventoryService InventoryData
+@inject AppState State
+@inject IJSRuntime JS
+
+@if (_items is null && _loadError is null)
+{
+    <LoadingSkeleton />
+}
+else
+{
+    <div class="space-y-6">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+                <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white">Inventory</h2>
+                <p class="mt-1 text-zinc-600 dark:text-zinc-400">Track equipment quantities. Add new items or edit existing counts.</p>
+            </div>
+            <CsvImportDialog Type="ImportType.Inventory" />
+        </div>
+
+        @if (_loadError is not null)
+        {
+            <p role="alert" class="@Ui.ErrorBanner">@_loadError</p>
+        }
+
+        <div class="space-y-6">
+            <div class="flex justify-end">
+                <Button OnClick="ToggleAdd">@(_showAdd ? "Cancel" : "Add item")</Button>
+            </div>
+
+            @if (_error is not null)
+            {
+                <p role="alert" class="@Ui.ErrorBanner">@_error</p>
+            }
+
+            @if (_showAdd)
+            {
+                <Card>
+                    <h3 class="font-medium text-zinc-900 dark:text-white">New inventory item</h3>
+                    <form @onsubmit="HandleAdd" class="mt-4 flex flex-wrap items-end gap-4">
+                        <div class="min-w-[200px] flex-1">
+                            <label for="name" class="@Ui.Label">Item name</label>
+                            <input id="name" class="@Ui.Input" placeholder="Basketballs" required @bind="_addForm.Name" />
+                        </div>
+                        <div class="w-32">
+                            <label for="quantity" class="@Ui.Label">Quantity</label>
+                            <input id="quantity" class="@Ui.Input" type="number" min="0" required @bind="_addForm.Quantity" />
+                        </div>
+                        <Button Type="submit" Disabled="_pending">@(_pending ? "Saving…" : "Add")</Button>
+                    </form>
+                    @if (_error is not null)
+                    {
+                        <p class="mt-2 text-sm text-red-600 dark:text-red-300">@_error</p>
+                    }
+                </Card>
+            }
+
+            <Card Class="overflow-hidden p-0">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="@Ui.TableHead">
+                            <tr>
+                                <th class="@Ui.Th">Item</th>
+                                <th class="@Ui.Th">Quantity</th>
+                                <th class="@Ui.Th">Last updated</th>
+                                <th class="@Ui.Th">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_items is null || _items.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="4" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">No inventory items yet.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var item in _items)
+                                {
+                                    <tr @key="item.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
+                                        @if (_editingId == item.Id && _editForm is not null)
+                                        {
+                                            <td colspan="4" class="px-4 py-3">
+                                                <form @onsubmit="HandleUpdate" class="flex flex-wrap items-end gap-3">
+                                                    <div class="min-w-[180px] flex-1">
+                                                        <label class="@Ui.Label">Name</label>
+                                                        <input class="@Ui.Input" required @bind="_editForm.Name" />
+                                                    </div>
+                                                    <div class="w-28">
+                                                        <label class="@Ui.Label">Qty</label>
+                                                        <input class="@Ui.Input" type="number" min="0" required @bind="_editForm.Quantity" />
+                                                    </div>
+                                                    <Button Type="submit" Disabled="_pending">Save</Button>
+                                                    <Button Variant="secondary" OnClick="() => _editingId = null">Cancel</Button>
+                                                </form>
+                                            </td>
+                                        }
+                                        else
+                                        {
+                                            <td class="px-4 py-3 font-medium text-zinc-900 dark:text-white">@item.Name</td>
+                                            <td class="px-4 py-3">@item.Quantity</td>
+                                            <td class="px-4 py-3 text-zinc-500 dark:text-zinc-400">@Ui.FormatDateTime(item.UpdatedAt)</td>
+                                            <td class="px-4 py-3">
+                                                <div class="flex flex-wrap gap-2">
+                                                    <Button Variant="ghost" OnClick="() => StartEdit(item)">Edit</Button>
+                                                    <Button Variant="danger" OnClick="() => HandleDelete(item.Id, item.Name)" Disabled="_pending">Delete</Button>
+                                                </div>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+        </div>
+    </div>
+}
+
+@code {
+    private List<InventoryItem>? _items;
+    private string? _loadError;
+    private bool _showAdd;
+    private InventoryForm _addForm = new();
+    private string? _editingId;
+    private InventoryForm? _editForm;
+    private string? _error;
+    private bool _pending;
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.RefreshRequested += ReloadAsync;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _items = await InventoryData.GetAllAsync();
+            _loadError = null;
+        }
+        catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)
+        {
+            _items ??= new();
+            _loadError = ex.Message;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleAdd()
+    {
+        _showAdd = !_showAdd;
+        if (_showAdd) _addForm = new InventoryForm();
+    }
+
+    private void StartEdit(InventoryItem item)
+    {
+        _editingId = item.Id;
+        _editForm = new InventoryForm
+        {
+            Id = item.Id,
+            Name = item.Name,
+            Quantity = item.Quantity.ToString(CultureInfo.InvariantCulture),
+        };
+    }
+
+    private async Task HandleAdd()
+    {
+        _error = null;
+        _pending = true;
+        var result = await InventoryData.AddAsync(_addForm);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _showAdd = false;
+        _addForm = new InventoryForm();
+        await LoadAsync();
+    }
+
+    private async Task HandleUpdate()
+    {
+        if (_editForm is null) return;
+        _error = null;
+        _pending = true;
+        var result = await InventoryData.UpdateAsync(_editForm);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _editingId = null;
+        await LoadAsync();
+    }
+
+    private async Task HandleDelete(string id, string name)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete inventory item \"{name}\"?")) return;
+        _error = null;
+        _pending = true;
+        var result = await InventoryData.DeleteAsync(id);
+        _pending = false;
+        if (!result.Success) _error = result.Error;
+        else
+        {
+            if (_editingId == id) _editingId = null;
+            await LoadAsync();
+        }
+    }
+
+    public void Dispose() => State.RefreshRequested -= ReloadAsync;
+}

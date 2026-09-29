@@ -1,0 +1,89 @@
+<form @onsubmit="Submit" class="grid gap-4 sm:grid-cols-2">
+    <div>
+        <label class="@Ui.Label">Sport</label>
+        <input class="@Ui.Input" required placeholder="e.g. Basketball" @bind="_form.Sport" />
+    </div>
+    <div>
+        <label class="@Ui.Label">Achievement type</label>
+        <select class="@Ui.Select" required @bind="_form.AchievementType">
+            <option value="" disabled>Select type</option>
+            @foreach (var t in AchievementTypes.All)
+            {
+                <option value="@t">@t</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label class="@Ui.Label">Year</label>
+        <input class="@Ui.Input" type="number" required @bind="_form.MeetYear" />
+    </div>
+    <div>
+        <label class="@Ui.Label">House (team)</label>
+        <select class="@Ui.Select" required @bind="_form.TeamName">
+            <option value="" disabled>Select house</option>
+            @foreach (var h in Houses)
+            {
+                <option value="@h.Name">@h.Name</option>
+            }
+        </select>
+    </div>
+    @if (_form.AchievementType == AchievementTypes.BestPlayer)
+    {
+        <div class="sm:col-span-2">
+            <label class="@Ui.Label">Best Player student ID</label>
+            <input class="@Ui.Input" required placeholder="e.g. 2024001" @bind="_form.WinnerStudentId" />
+            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Enter one student ID for this house's Best Player award.</p>
+        </div>
+    }
+    <div class="sm:col-span-2">
+        <label class="@Ui.Label">Notes (optional)</label>
+        <input class="@Ui.Input" placeholder="Any extra info" @bind="_form.Notes" />
+    </div>
+    <div class="flex flex-wrap gap-2 sm:col-span-2">
+        <Button Type="submit" Disabled="Pending">@(Pending ? "Saving…" : SubmitLabel)</Button>
+        @if (OnCancel.HasDelegate)
+        {
+            <Button Variant="secondary" OnClick="OnCancel">Cancel</Button>
+        }
+        @if (Error is not null)
+        {
+            <p class="w-full text-sm text-red-600 dark:text-red-300">@Error</p>
+        }
+    </div>
+</form>
+
+@code {
+    [Parameter] public SportsAchievement? Achievement { get; set; }
+    [Parameter] public IReadOnlyList<House> Houses { get; set; } = Array.Empty<House>();
+    [Parameter] public int DefaultYear { get; set; }
+    [Parameter] public bool Pending { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public string SubmitLabel { get; set; } = "Save";
+    [Parameter] public EventCallback<AchievementForm> OnSubmit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private AchievementForm _form = new();
+
+    protected override void OnInitialized()
+    {
+        var a = Achievement;
+        _form = new AchievementForm
+        {
+            Id = a?.Id ?? "",
+            Sport = a?.Sport ?? "",
+            AchievementType = a?.AchievementType ?? "",
+            MeetYear = (a?.MeetYear ?? DefaultYear).ToString(CultureInfo.InvariantCulture),
+            TeamName = HouseNameFor(a),
+            WinnerStudentId = a?.SportsAchievementWinners?.FirstOrDefault()?.Students?.StudentId ?? "",
+            Notes = a?.Notes ?? "",
+        };
+    }
+
+    private string HouseNameFor(SportsAchievement? a)
+    {
+        if (string.IsNullOrEmpty(a?.TeamName)) return "";
+        return Houses.FirstOrDefault(h => h.Name == a.TeamName)?.Name ?? a.TeamName;
+    }
+
+    private Task Submit() => OnSubmit.InvokeAsync(_form);
+}

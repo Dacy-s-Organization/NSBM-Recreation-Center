@@ -1,0 +1,81 @@
+@implements IDisposable
+@inject NavigationManager Nav
+@inject AuthService Auth
+@inject AppState State
+
+<header class="border-b border-zinc-200/80 bg-white dark:border-white/10 dark:bg-[var(--app-surface)]">
+    <div class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:gap-4 lg:py-4">
+        <div class="flex items-center gap-3">
+            <img src="logo.png" alt="NSBM Green University Town" width="104" height="48" class="h-10 w-auto shrink-0 object-contain lg:h-12" />
+            <div class="hidden md:block">
+                <h1 class="whitespace-nowrap text-lg font-semibold text-zinc-900 dark:text-white">
+                    Recreation <span class="text-emerald-600 dark:text-emerald-400">Center</span>
+                </h1>
+            </div>
+        </div>
+        <nav aria-label="Main" class="flex flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5">
+            @foreach (var link in Links)
+            {
+                var active = CurrentPath == link.Href;
+                <a href="@link.Href"
+                   aria-current="@(active ? "page" : null)"
+                   class="@Ui.Cn("whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition lg:px-3.5 lg:text-sm",
+                              active
+                                  ? "bg-emerald-500 text-zinc-950 shadow-sm dark:bg-emerald-400"
+                                  : "text-zinc-600 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white")">
+                    @link.Label
+                </a>
+            }
+        </nav>
+        <div class="flex items-center gap-2">
+            <ThemeToggle />
+            <Button Variant="secondary" OnClick="Refresh" Disabled="_refreshing" title="Reload data from the database">
+                @(_refreshing ? "Refreshing…" : "Refresh")
+            </Button>
+            <Button Variant="secondary" OnClick="SignOut">Sign out</Button>
+        </div>
+    </div>
+</header>
+
+@code {
+    private static readonly (string Href, string Label)[] Links =
+    {
+        ("/", "Dashboard"),
+        ("/students", "Students"),
+        ("/achievements", "Achievements"),
+        ("/inventory", "Inventory"),
+    };
+
+    private bool _refreshing;
+
+    private string CurrentPath => "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].TrimEnd('/');
+
+    protected override void OnInitialized() => Nav.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
+
+    private async Task Refresh()
+    {
+        _refreshing = true;
+        try
+        {
+            await State.RequestRefreshAsync();
+        }
+        catch
+        {
+            /* keep previous data visible */
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    private async Task SignOut()
+    {
+        await Auth.SignOutAsync();
+        Nav.NavigateTo("/login", replace: true);
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+}
