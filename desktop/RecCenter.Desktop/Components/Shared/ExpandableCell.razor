@@ -1,0 +1,46 @@
+@inject DesktopBridge Bridge
+
+@if (string.IsNullOrEmpty(Value) || Value == "—")
+{
+    <span class="@Class">—</span>
+}
+else
+{
+    <button type="button"
+            @onclick="() => _open = true"
+            class="@Ui.Cn("block max-w-full cursor-pointer truncate rounded px-0.5 py-0.5 text-left text-zinc-700 underline-offset-2 hover:bg-zinc-50 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500/40 dark:text-zinc-300 dark:hover:bg-white/5", MaxWidthClass, Class)"
+            title="Click to view full text">
+        @Value
+    </button>
+
+    @if (_open)
+    {
+        <Modal CloseOnBackdrop="true" OnClose="() => _open = false" PanelClass="w-full max-w-md p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">@Label</p>
+            <p class="mt-2 whitespace-pre-wrap break-words text-sm text-zinc-900 dark:text-white">@Value</p>
+            <div class="mt-4 flex gap-2">
+                <Button Variant="secondary" OnClick="Copy">@(_copied ? "Copied" : "Copy")</Button>
+                <Button Variant="ghost" OnClick="() => _open = false">Close</Button>
+            </div>
+        </Modal>
+    }
+}
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string MaxWidthClass { get; set; } = "max-w-[280px]";
+
+    private bool _open;
+    private bool _copied;
+
+    private async Task Copy()
+    {
+        _copied = Bridge.CopyText(Value);
+        if (!_copied) return;
+        StateHasChanged();
+        await Task.Delay(2000);
+        _copied = false;
+    }
+}

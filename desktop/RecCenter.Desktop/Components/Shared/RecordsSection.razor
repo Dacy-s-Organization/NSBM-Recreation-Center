@@ -1,0 +1,495 @@
+@implements IDisposable
+@inject RecordsService RecordsData
+@inject IJSRuntime JS
+
+<div class="space-y-8">
+    <div class="flex flex-wrap items-end gap-4">
+        <div>
+            <label for="year-filter" class="@Ui.Label">Year</label>
+            <select id="year-filter" class="@Ui.Select" value="@SelectedYear" @onchange="OnYearChanged">
+                @foreach (var y in YearOptions)
+                {
+                    <option value="@y">@y</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label for="track-filter" class="@Ui.Label">Track</label>
+            <select id="track-filter" class="@Ui.Select" @bind="_trackFilter">
+                <option value="">All tracks</option>
+                @foreach (var t in Tracks)
+                {
+                    <option value="@t.Id">@t.Name</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (_error is not null && _addSection is null && _editingId is null)
+    {
+        <p role="alert" class="@Ui.ErrorBanner">@_error</p>
+    }
+
+    @foreach (var (key, label) in Sections)
+    {
+        var sectionRecords = Filtered.Where(r => GenderKey(r.Students?.Gender) == key).ToList();
+        <div class="space-y-4" data-records-section="@key">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h4 class="text-base font-semibold text-zinc-800 dark:text-zinc-100">@label</h4>
+                <Button OnClick="() => ToggleAddForm(key)">@(_addSection == key ? "Cancel" : $"Add {key} record")</Button>
+            </div>
+
+            @if (_addSection == key)
+            {
+                <Card>
+                    <h3 class="font-medium text-zinc-900 dark:text-white">New @key sport record</h3>
+                    <div class="mt-4">
+                        @RecordFormFields(null, "Save record")
+                    </div>
+                    @if (_error is not null)
+                    {
+                        <p role="alert" class="mt-2 text-sm text-red-600 dark:text-red-300">@_error</p>
+                    }
+                </Card>
+            }
+
+            @RecordsTable(sectionRecords, $"No {key} records for this filter.", $"{key} record(s)")
+        </div>
+    }
+
+    @{ var hiddenCount = Filtered.Count(r => GenderKey(r.Students?.Gender) is null); }
+    @if (hiddenCount > 0)
+    {
+        <p class="text-sm text-zinc-500 dark:text-zinc-400" data-records-hidden="@hiddenCount">
+            @(hiddenCount == 1 ? "1 record isn't" : $"{hiddenCount} records aren't") shown because the student's gender isn't set. Set it on the Students page.
+        </p>
+    }
+</div>
+
+@code {
+    private static readonly (string Key, string Label)[] Sections = { ("male", "Male"), ("female", "Female") };
+
+    [Parameter] public IReadOnlyList<SportRecord> Records { get; set; } = Array.Empty<SportRecord>();
+    [Parameter] public IReadOnlyList<SportTrack> Tracks { get; set; } = Array.Empty<SportTrack>();
+    [Parameter] public IReadOnlyList<int> Years { get; set; } = Array.Empty<int>();
+    [Parameter] public int SelectedYear { get; set; }
+    [Parameter] public EventCallback<int> OnYearSelected { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private string _trackFilter = "";
+    private string? _addSection;
+    private string? _editingId;
+    private string? _editingSection;
+    private RecordForm _form = new();
+    private StudentLookup? _lookup;
+    private bool _lookupLoading;
+    private CancellationTokenSource? _lookupCts;
+    private string? _error;
+    private bool _pending;
+
+    private bool LookupActive => _addSection is not null || _editingId is not null;
+
+    /// <summary>The section the open form belongs to; null when editing a record whose student has no gender.</summary>
+    private string? FormSection => _addSection ?? _editingSection;
+
+    private IReadOnlyList<int> YearOptions =>
+        Years.Count > 0 ? Years : new[] { SelectedYear, SelectedYear - 1, SelectedYear - 2 };
+
+    private SportTrack? SelectedFormTrack => Tracks.FirstOrDefault(t => t.Id == _form.TrackId);
+
+    private static string? GenderKey(string? gender) =>
+        gender?.Trim().ToLowerInvariant() is "male" or "female" ? gender.Trim().ToLowerInvariant() : null;
+
+    private static string SectionLabel(string key) => key == "male" ? "Male" : "Female";
+
+    /// <summary>Why this student can't go in the open form's section, or null when they can.</summary>
+    private string? GenderProblem(StudentLookup student)
+    {
+        var section = FormSection;
+        if (section is null) return null;
+        var gender = GenderKey(student.Gender);
+        if (gender is null) return "Set this student's gender on the Students page before adding a record.";
+        if (gender != section) return $"This student is {gender}. Add the record in the {SectionLabel(gender)} section.";
+        return null;
+    }
+
+    private List<SportRecord> Filtered
+    {
+        get
+        {
+            IEnumerable<SportRecord> list = Records;
+            if (_trackFilter.Length > 0) list = list.Where(r => r.TrackId == _trackFilter);
+            var byTrack = Comparer<string>.Create((a, b) => string.Compare(a, b, CultureInfo.CurrentCulture, CompareOptions.None));
+            return list
+                .OrderBy(r => r.SportTracks?.Name ?? "", byTrack)
+                .ThenBy(r => (r.SportTracks?.LowerIsBetter ?? false) ? r.Value : -r.Value)
+                .ToList();
+        }
+    }
+
+    private RenderFragment RecordsTable(List<SportRecord> rows, string emptyText, string countLabel) => __builder =>
+    {
+        <Card Class="overflow-hidden p-0">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="@Ui.TableHead">
+                        <tr>
+                            <th class="@Ui.Th">Student ID</th>
+                            <th class="@Ui.Th">Name</th>
+                            <th class="@Ui.Th">Track</th>
+                            <th class="@Ui.Th">Record</th>
+                            <th class="@Ui.Th">Date</th>
+                            <th class="@Ui.Th">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (rows.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="6" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">@emptyText</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var r in rows)
+                            {
+                                <tr @key="r.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
+                                    @if (_editingId == r.Id)
+                                    {
+                                        <td colspan="6" class="px-4 py-3">
+                                            <p class="mb-3 font-medium text-zinc-900 dark:text-white">Edit record</p>
+                                            @RecordFormFields(r, "Save changes")
+                                            @if (_error is not null)
+                                            {
+                                                <p role="alert" class="mt-2 text-sm text-red-600 dark:text-red-300">@_error</p>
+                                            }
+                                        </td>
+                                    }
+                                    else
+                                    {
+                                        <td class="px-4 py-3 font-mono">@(r.Students?.StudentId ?? "—")</td>
+                                        <td class="px-4 py-3">@r.Students?.FullName</td>
+                                        <td class="px-4 py-3">@r.SportTracks?.Name</td>
+                                        <td class="px-4 py-3 font-medium">@Formatting.RecordValue(r.Value, r.SportTracks)</td>
+                                        <td class="px-4 py-3 text-zinc-500 dark:text-zinc-400">@Ui.FormatDate(r.RecordedAt)</td>
+                                        <td class="px-4 py-3">
+                                            <div class="flex flex-wrap gap-2">
+                                                <Button Variant="ghost" OnClick="() => StartEdit(r)">Edit</Button>
+                                                <Button Variant="danger" OnClick="() => HandleDelete(r.Id)" Disabled="_pending">Delete</Button>
+                                            </div>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
+                @rows.Count @countLabel for @SelectedYear@(_trackFilter.Length > 0 ? " · filtered by track" : "")
+            </p>
+        </Card>
+    };
+
+    private RenderFragment RecordFormFields(SportRecord? record, string submitLabel) => __builder =>
+    {
+        var isEdit = record is not null;
+        var suffix = isEdit ? $"-{record!.Id}" : $"-new-{_addSection}";
+        var track = SelectedFormTrack;
+        var unitLabel = track is not null ? Formatting.TrackUnitLabel(track.Unit) : "value";
+        var unit = track?.Unit?.ToLowerInvariant();
+        var valueStep = unit is "s" or "m" ? "0.01" : "any";
+
+        <form @onsubmit="() => isEdit ? HandleUpdate() : HandleAdd()" class="grid gap-4 sm:grid-cols-2">
+            <div>
+                <label for="@($"student_id{suffix}")" class="@Ui.Label">Student ID</label>
+                <input id="@($"student_id{suffix}")" class="@Ui.Input" required
+                       @bind="_form.StudentId" @bind:event="oninput" @bind:after="ScheduleLookup" />
+                @if (_lookupLoading)
+                {
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Looking up…</p>
+                }
+                else if (_lookup is not null)
+                {
+                    var problem = GenderProblem(_lookup);
+                    <p class="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
+                        @_lookup.FullName
+                        <span class="ml-1 text-xs text-zinc-500 dark:text-zinc-400">(@(string.IsNullOrWhiteSpace(_lookup.Gender) ? "gender not set" : _lookup.Gender.Trim()))</span>
+                        @if (!string.IsNullOrEmpty(_lookup.Houses?.Name))
+                        {
+                            <span class="ml-2"><HouseBadge Name="@(_lookup.Houses!.Name!)" /></span>
+                        }
+                    </p>
+                    @if (problem is not null)
+                    {
+                        <p class="mt-1 text-xs text-red-600 dark:text-red-300">@problem</p>
+                    }
+                }
+                else if (_form.StudentId.Trim().Length > 0)
+                {
+                    <p class="mt-1 text-xs text-red-600 dark:text-red-300">Student not found</p>
+                }
+            </div>
+            <div>
+                <label for="@($"track_id{suffix}")" class="@Ui.Label">Track</label>
+                <select id="@($"track_id{suffix}")" class="@Ui.Select" required @bind="_form.TrackId">
+                    @if (!isEdit)
+                    {
+                        <option value="" disabled>Select track</option>
+                    }
+                    @foreach (var t in Tracks)
+                    {
+                        <option value="@t.Id">@t.Name</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label for="@($"value{suffix}")" class="@Ui.Label">Record value (@unitLabel)</label>
+                <input id="@($"value{suffix}")" class="@Ui.Input" type="number" step="@valueStep" min="0" required @bind="_form.Value" />
+                @if (track?.LowerIsBetter == true)
+                {
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Lower is better for this track.</p>
+                }
+            </div>
+            <div>
+                <label for="@($"year{suffix}")" class="@Ui.Label">Year</label>
+                <input id="@($"year{suffix}")" class="@Ui.Input" type="number" required @bind="_form.Year" />
+            </div>
+            <div class="flex flex-wrap gap-2 sm:col-span-2">
+                <Button Type="submit" Disabled="_pending">@(_pending ? "Saving…" : submitLabel)</Button>
+                @if (isEdit)
+                {
+                    <Button Variant="secondary" OnClick="CancelEdit">Cancel</Button>
+                }
+            </div>
+        </form>
+    };
+
+    private Task OnYearChanged(ChangeEventArgs e)
+    {
+        var year = Formatting.ParseIntLoose(e.Value?.ToString());
+        return year is null ? Task.CompletedTask : OnYearSelected.InvokeAsync(year.Value);
+    }
+
+    private void ResetFormState()
+    {
+        _form = new RecordForm { Year = SelectedYear.ToString(CultureInfo.InvariantCulture) };
+        CancelLookup();
+        _lookup = null;
+    }
+
+    private void ToggleAddForm(string section)
+    {
+        _addSection = _addSection == section ? null : section;
+        _editingId = null;
+        _editingSection = null;
+        ResetFormState();
+        _error = null;
+    }
+
+    private void StartEdit(SportRecord record)
+    {
+        _editingId = record.Id;
+        _editingSection = GenderKey(record.Students?.Gender);
+        _addSection = null;
+        _error = null;
+        _form = new RecordForm
+        {
+            Id = record.Id,
+            StudentId = record.Students?.StudentId ?? "",
+            TrackId = record.TrackId,
+            Value = record.Value.ToString(CultureInfo.InvariantCulture),
+            Year = record.Year.ToString(CultureInfo.InvariantCulture),
+        };
+        _lookup = null;
+        ScheduleLookup();
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _editingSection = null;
+        ResetFormState();
+        _error = null;
+    }
+
+    private void CancelLookup()
+    {
+        _lookupCts?.Cancel();
+        _lookupCts?.Dispose();
+        _lookupCts = null;
+        _lookupLoading = false;
+    }
+
+    private void ScheduleLookup()
+    {
+        CancelLookup();
+        var input = _form.StudentId;
+        if (!LookupActive || input.Trim().Length == 0)
+        {
+            _lookup = null;
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _lookupCts = cts;
+        _ = RunLookupAsync(input, cts.Token);
+    }
+
+    private async Task RunLookupAsync(string input, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(400, token);
+            _lookupLoading = true;
+            await InvokeAsync(StateHasChanged);
+            StudentLookup? result;
+            try
+            {
+                result = await RecordsData.LookupStudentAsync(input);
+            }
+            catch (Exception ex) when (ex is PostgrestException or HttpRequestException)
+            {
+                result = null;
+            }
+            if (token.IsCancellationRequested) return;
+            _lookup = result;
+            _lookupLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException)
+        {
+            /* superseded by newer input */
+        }
+    }
+
+    /// <summary>
+    /// Checks gender and existing holders before saving. Returns the record ids to replace,
+    /// or null when the save must not go ahead (with <see cref="_error"/> set, or the user declined).
+    /// </summary>
+    private async Task<List<string>?> PrepareSaveAsync(string? editingId)
+    {
+        var studentIdText = _form.StudentId.Trim();
+        var year = Formatting.ParseIntLoose(_form.Year);
+        var trackId = _form.TrackId.Trim();
+        if (studentIdText.Length == 0 || trackId.Length == 0 || year is null)
+            return new List<string>();
+
+        StudentLookup? student;
+        List<SportRecord> existing;
+        try
+        {
+            student = await RecordsData.LookupStudentAsync(studentIdText);
+            if (student is null)
+            {
+                _error = "Student not found. Add them first or check the ID.";
+                return null;
+            }
+            existing = await RecordsData.GetForTrackYearAsync(trackId, year.Value);
+        }
+        catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)
+        {
+            _error = ex.Message;
+            return null;
+        }
+
+        _lookup = student;
+        var problem = GenderProblem(student);
+        if (problem is not null)
+        {
+            _error = problem;
+            return null;
+        }
+
+        var others = existing.Where(r => r.Id != editingId).ToList();
+        if (others.Any(r => string.Equals(r.Students?.StudentId, student.StudentId, StringComparison.OrdinalIgnoreCase)))
+        {
+            _error = "This student already has a record for this track. Use Edit to change it.";
+            return null;
+        }
+
+        var gender = GenderKey(student.Gender);
+        if (gender is null) return new List<string>();
+
+        var original = editingId is null ? null : Records.FirstOrDefault(r => r.Id == editingId);
+        if (original is not null && original.TrackId == trackId && original.Year == year.Value)
+            return new List<string>();
+
+        var holders = others.Where(r => GenderKey(r.Students?.Gender) == gender).ToList();
+        if (holders.Count == 0) return new List<string>();
+
+        var trackName = holders[0].SportTracks?.Name ?? SelectedFormTrack?.Name ?? "this track";
+        var lines = string.Join("\n", holders.Select(h =>
+            $"  • {h.Students?.StudentId ?? "—"} {h.Students?.FullName} — {Formatting.RecordValue(h.Value, h.SportTracks)}"));
+        var several = holders.Count > 1;
+        var message =
+            $"{(several ? "These" : "A")} {gender} {trackName} record{(several ? "s" : "")} for {year} already exist{(several ? "" : "s")}:\n{lines}\n\n" +
+            $"Replace {(several ? "them" : "it")} with {student.StudentId} {student.FullName}?\n\n" +
+            $"OK replaces the previous record{(several ? "s" : "")}. Cancel keeps {(several ? "them" : "it")}.";
+        if (!await JS.InvokeAsync<bool>("confirm", message)) return null;
+
+        return holders.Select(h => h.Id).ToList();
+    }
+
+    private async Task HandleAdd()
+    {
+        _error = null;
+        _pending = true;
+        var replace = await PrepareSaveAsync(null);
+        if (replace is null)
+        {
+            _pending = false;
+            return;
+        }
+        var result = await RecordsData.AddAsync(_form, replace);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _addSection = null;
+        ResetFormState();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task HandleUpdate()
+    {
+        _error = null;
+        _pending = true;
+        var replace = await PrepareSaveAsync(_form.Id);
+        if (replace is null)
+        {
+            _pending = false;
+            return;
+        }
+        var result = await RecordsData.UpdateAsync(_form, replace);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _editingId = null;
+        _editingSection = null;
+        ResetFormState();
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task HandleDelete(string id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this sport record?")) return;
+        _error = null;
+        _pending = true;
+        var result = await RecordsData.DeleteAsync(id);
+        _pending = false;
+        if (!result.Success) _error = result.Error;
+        else
+        {
+            if (_editingId == id) CancelEdit();
+            await OnChanged.InvokeAsync();
+        }
+    }
+
+    public void Dispose() => CancelLookup();
+}

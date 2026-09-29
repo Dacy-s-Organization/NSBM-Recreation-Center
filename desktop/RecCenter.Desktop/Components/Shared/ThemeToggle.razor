@@ -1,0 +1,51 @@
+@inject IJSRuntime JS
+@inject WindowThemeBridge WindowTheme
+
+<button type="button"
+        @onclick="Toggle"
+        class="@Ui.Cn("inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10 dark:hover:text-white", Class)"
+        aria-label="@(_mounted ? (_isDark ? "Switch to light mode" : "Switch to dark mode") : "Toggle theme")"
+        title="@(_mounted ? (_isDark ? "Light mode" : "Dark mode") : "Theme")">
+    @if (!_mounted)
+    {
+        <span class="h-4 w-4 rounded-full bg-zinc-300/80 dark:bg-zinc-600" aria-hidden="true"></span>
+    }
+    else if (_isDark)
+    {
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6 4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4 4.2 19.8M19.8 4.2l-1.4 1.4"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8" />
+        </svg>
+    }
+    else
+    {
+        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" aria-hidden="true">
+            <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+    }
+</button>
+
+@code {
+    [Parameter] public string? Class { get; set; }
+
+    private bool _mounted;
+    private bool _isDark;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _isDark = await JS.InvokeAsync<string>("recTheme.get") == "dark";
+        WindowTheme.Set(_isDark);
+        _mounted = true;
+        StateHasChanged();
+    }
+
+    private async Task Toggle()
+    {
+        _isDark = await JS.InvokeAsync<string>("recTheme.toggle") == "dark";
+        WindowTheme.Set(_isDark);
+        _mounted = true;
+    }
+}

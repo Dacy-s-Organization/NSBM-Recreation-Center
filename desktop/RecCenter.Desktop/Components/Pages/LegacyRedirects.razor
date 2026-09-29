@@ -1,0 +1,11 @@
+@page "/records"
+@page "/import"
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        var path = Nav.ToBaseRelativePath(Nav.Uri);
+        Nav.NavigateTo(path.StartsWith("import", StringComparison.OrdinalIgnoreCase) ? "/students" : "/achievements", replace: true);
+    }
+}

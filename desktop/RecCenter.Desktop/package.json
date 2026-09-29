@@ -1,0 +1,13 @@
+{
+  "name": "rec-center-desktop-styles",
+  "private": true,
+  "description": "Compiles the Tailwind stylesheet embedded in the NSBM Recreation Center desktop app",
+  "scripts": {
+    "css": "tailwindcss -i Styles/app.css -o wwwroot/css/app.css --minify",
+    "css:watch": "tailwindcss -i Styles/app.css -o wwwroot/css/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.0",
+    "tailwindcss": "4.3.0"
+  }
+}

@@ -1,0 +1,93 @@
+@page "/"
+@implements IDisposable
+@inject DashboardService DashboardData
+@inject AppState State
+
+@if (_stats is null && _error is null)
+{
+    <LoadingSkeleton />
+}
+else
+{
+    <div class="space-y-8">
+        <div>
+            <h2 class="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-white">Dashboard</h2>
+            <p class="mt-2 text-zinc-600 dark:text-zinc-400">University recreation center overview</p>
+        </div>
+
+        @if (_error is not null)
+        {
+            <p role="alert" class="@Ui.ErrorBanner">@_error</p>
+        }
+
+        <div class="grid gap-4 sm:grid-cols-3">
+            @foreach (var stat in Stats)
+            {
+                <a href="@stat.Href">
+                    <Card Class="relative overflow-hidden transition hover:border-emerald-400/60 hover:shadow-md dark:hover:border-emerald-400/40">
+                        <span aria-hidden="true" class="@($"absolute inset-x-0 top-0 h-1 {stat.Accent}")"></span>
+                        <p class="text-sm text-zinc-500 dark:text-zinc-400">@stat.Label</p>
+                        <p class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-white">@stat.Value</p>
+                    </Card>
+                </a>
+            }
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+            @foreach (var link in QuickLinks)
+            {
+                <a href="@link.Href">
+                    <Card Class="transition hover:border-emerald-400/60 dark:hover:border-emerald-400/40">
+                        <h3 class="font-medium text-zinc-900 dark:text-white">@link.Title</h3>
+                        <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">@link.Desc</p>
+                    </Card>
+                </a>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardStats? _stats;
+    private string? _error;
+
+    private static readonly (string Href, string Title, string Desc)[] QuickLinks =
+    {
+        ("/students", "Manage students", "Search by ID and assign houses"),
+        ("/achievements", "Achievements", "Male and female athletic records"),
+        ("/inventory", "Equipment inventory", "Track quantities of gear"),
+    };
+
+    private IEnumerable<(string Label, int Value, string Href, string Accent)> Stats
+    {
+        get
+        {
+            var s = _stats ?? new DashboardStats(0, 0, 0, DateTime.Now.Year);
+            yield return ("Students", s.Students, "/students", "bg-emerald-600 dark:bg-emerald-400");
+            yield return ($"Records ({s.Year})", s.Records, "/achievements", "bg-brand-navy");
+            yield return ("Inventory items", s.InventoryItems, "/inventory", "bg-brand-cyan");
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.RefreshRequested += LoadAsync;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _stats = await DashboardData.GetStatsAsync();
+            _error = null;
+        }
+        catch (PostgrestException ex)
+        {
+            _error = ex.Message;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => State.RefreshRequested -= LoadAsync;
+}

@@ -46,3 +46,10 @@ next-env.d.ts
 
 # Electron build output
 /dist-electron
+
+# .NET desktop app
+/desktop/**/bin/
+/desktop/**/obj/
+/desktop/publish/
+/desktop/RecCenter.Desktop/appsettings.json
+/desktop/RecCenter.Desktop/node_modules/

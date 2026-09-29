@@ -1,0 +1,177 @@
+@using System.IO
+@using System.Text
+@inject ImportService Importer
+@inject DesktopBridge Bridge
+@inject AppState State
+
+<Button Variant="secondary" OnClick="() => _open = true">@Label</Button>
+
+@if (_open)
+{
+    <Modal PanelClass="max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h3 class="font-medium text-zinc-900 dark:text-white">@Label</h3>
+                <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">@ImportConfig.Descriptions[Type]</p>
+            </div>
+            <Button Variant="ghost" OnClick="Close">Close</Button>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+            <Button Variant="secondary" OnClick="DownloadTemplate">Download template</Button>
+            <label class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:hover:bg-white/10">
+                Upload CSV
+                <InputFile @key="_inputKey" accept=".csv" class="hidden" OnChange="HandleFile" />
+            </label>
+            @if (_preview.Count > 0)
+            {
+                <Button OnClick="HandleImport" Disabled="@(_pending || ValidCount == 0)">
+                    @(_pending ? "Importing…" : $"Import {ValidCount} row(s)")
+                </Button>
+            }
+        </div>
+
+        @if (_preview.Count > 0)
+        {
+            var template = ImportConfig.Templates[Type];
+            var labels = ImportConfig.PreviewLabels(Type);
+            <div class="mt-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-white/10">
+                <p class="border-b border-zinc-100 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+                    Preview: @ValidCount valid, @(_preview.Count - ValidCount) invalid
+                </p>
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="border-b border-zinc-100 dark:border-white/10">
+                            <th class="px-2 py-2">Line</th>
+                            @foreach (var label in labels)
+                            {
+                                <th class="whitespace-nowrap px-2 py-2">@label</th>
+                            }
+                            <th class="px-2 py-2">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _preview.Take(20))
+                        {
+                            <tr @key="row.Line" class="@(row.Valid ? "" : "bg-red-50 dark:bg-red-950/50")">
+                                <td class="px-2 py-1">@row.Line</td>
+                                @foreach (var c in template.Columns)
+                                {
+                                    <td class="px-2 py-1">@row.Get(c)</td>
+                                }
+                                <td class="px-2 py-1">
+                                    @if (row.Valid)
+                                    {
+                                        <span class="text-emerald-700 dark:text-emerald-400">OK</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-red-600 dark:text-red-300">@row.Error</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (_preview.Count > 20)
+                {
+                    <p class="px-3 py-2 text-xs text-zinc-500 dark:text-zinc-400">Showing first 20 of @_preview.Count rows</p>
+                }
+            </div>
+        }
+
+        @if (_result is not null)
+        {
+            <pre class="mt-4 whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 text-xs text-zinc-800 dark:bg-white/5 dark:text-zinc-300">@_result</pre>
+        }
+    </Modal>
+}
+
+@code {
+    [Parameter, EditorRequired] public ImportType Type { get; set; }
+    [Parameter] public string Label { get; set; } = "Import CSV";
+
+    private const long MaxCsvBytes = 50L * 1024 * 1024;
+
+    private bool _open;
+    private bool _pending;
+    private string? _result;
+    private int _inputKey;
+    private List<ImportPreviewRow> _preview = new();
+
+    private int ValidCount => _preview.Count(r => r.Valid);
+
+    private void Close()
+    {
+        _open = false;
+        _preview = new();
+        _result = null;
+    }
+
+    private void DownloadTemplate()
+    {
+        var t = ImportConfig.Templates[Type];
+        Bridge.SaveTextFile(t.Filename, t.Content + "\n");
+    }
+
+    private async Task HandleFile(InputFileChangeEventArgs e)
+    {
+        _result = null;
+        try
+        {
+            await using var stream = e.File.OpenReadStream(MaxCsvBytes);
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            var text = await reader.ReadToEndAsync();
+            var parsed = CsvParser.ParseWithHeader(text);
+            _preview = parsed.Select((row, i) => ImportConfig.ValidateRow(Type, row, i + 2)).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            _result = $"Parse error: {ex.Message}";
+        }
+        _inputKey++;
+    }
+
+    private async Task HandleImport()
+    {
+        var valid = _preview.Where(r => r.Valid).ToList();
+        if (valid.Count == 0)
+        {
+            _result = "No valid rows to import.";
+            return;
+        }
+
+        _pending = true;
+        StateHasChanged();
+        try
+        {
+            var importResult = await Importer.ImportAsync(Type, valid);
+            _result = FormatResult(importResult);
+            _preview = new();
+            if (importResult.Success > 0) await State.RequestRefreshAsync();
+        }
+        catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)
+        {
+            _result = ex.Message;
+        }
+        finally
+        {
+            _pending = false;
+        }
+    }
+
+    private static string FormatResult(ImportResult r)
+    {
+        var parts = new List<string> { $"Processed: {r.Success}" };
+        if (r.Inserted > 0) parts.Add($"New: {r.Inserted}");
+        if (r.Updated > 0) parts.Add($"Updated: {r.Updated}");
+        if (r.Skipped > 0) parts.Add($"Skipped: {r.Skipped}");
+        if (r.Errors.Count > 0)
+        {
+            var errors = "Errors:\n" + string.Join("\n", r.Errors.Take(10));
+            if (r.Errors.Count > 10) errors += $"\n… and {r.Errors.Count - 10} more";
+            parts.Add(errors);
+        }
+        return string.Join("\n", parts);
+    }
+}

@@ -1,0 +1,51 @@
+@inject AuthService Auth
+@inject SupabaseOptions Options
+@inject IJSRuntime JS
+@inject WindowThemeBridge WindowTheme
+
+@if (!Options.IsConfigured)
+{
+    <div class="flex min-h-full flex-1 items-center justify-center p-6">
+        <div class="w-full max-w-lg rounded-2xl border border-red-200 bg-white p-6 shadow-sm dark:border-red-900/50 dark:bg-[var(--app-surface)]">
+            <h1 class="text-lg font-semibold text-zinc-900 dark:text-white">Supabase is not configured</h1>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                Place an <span class="font-mono">appsettings.json</span> with your Supabase URL and publishable key next to the app, then restart.
+            </p>
+        </div>
+    </div>
+}
+else if (!_ready)
+{
+    <div class="flex min-h-full flex-1 items-center justify-center">
+        <img src="logo.png" alt="NSBM Green University" class="h-12 w-auto animate-pulse object-contain" />
+    </div>
+}
+else
+{
+    <Router AppAssembly="typeof(Main).Assembly">
+        <Found Context="routeData">
+            <RouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)" />
+        </Found>
+        <NotFound>
+            <LayoutView Layout="typeof(MainLayout)">
+                <p class="text-zinc-600 dark:text-zinc-400">Page not found.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+}
+
+@code {
+    private bool _ready;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Options.IsConfigured) await Auth.TryRestoreAsync();
+        _ready = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        WindowTheme.Set(await JS.InvokeAsync<string>("recTheme.get") == "dark");
+    }
+}

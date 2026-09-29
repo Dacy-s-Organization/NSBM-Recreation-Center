@@ -1,0 +1,31 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+@if (Auth.IsSignedIn)
+{
+    <div class="min-h-full">
+        <AppNav />
+        <main class="mx-auto max-w-[1600px] px-4 py-8 sm:px-6">@Body</main>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        Auth.SessionChanged += OnSessionChanged;
+        if (!Auth.IsSignedIn) Nav.NavigateTo("/login", replace: true);
+    }
+
+    private void OnSessionChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (!Auth.IsSignedIn) Nav.NavigateTo("/login", replace: true);
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose() => Auth.SessionChanged -= OnSessionChanged;
+}
