@@ -1,0 +1,8 @@
+@{
+    var style = Ui.HouseStyle(Name);
+}
+<span class="@Ui.Cn("inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium", style.Bg, style.Text, style.Border)">@Name</span>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+}

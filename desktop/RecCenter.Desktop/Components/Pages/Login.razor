@@ -1,0 +1,98 @@
+@page "/login"
+@layout AuthLayout
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+@if (_celebrating)
+{
+    <LoginSportsTransition OnFinished="FinishLogin" />
+}
+else
+{
+    <div class="relative flex min-h-full flex-1 flex-col overflow-hidden">
+        <div class="pointer-events-none absolute inset-0 opacity-80 dark:opacity-100"
+             aria-hidden="true"
+             style="background: radial-gradient(ellipse at 50% -10%, rgba(63, 165, 53, 0.22), transparent 55%), radial-gradient(ellipse at 90% 20%, rgba(27, 79, 156, 0.14), transparent 40%);">
+        </div>
+
+        <header class="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
+            <div class="flex items-center gap-3">
+                <img src="logo.png" alt="NSBM Green University" width="86" height="40" class="h-10 w-auto object-contain" />
+                <p class="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                    <span class="text-emerald-700 dark:text-emerald-400">Recreation Center</span>
+                </p>
+            </div>
+            <ThemeToggle />
+        </header>
+
+        <main class="relative z-10 flex flex-1 flex-col items-center justify-center px-4 pb-16 pt-6">
+            <div class="mb-10 max-w-2xl text-center">
+                <h1 class="text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl dark:text-white">
+                    NSBM <span class="text-emerald-600 dark:text-emerald-400">Recreation Center</span>
+                </h1>
+                <p class="mt-4 text-base text-zinc-600 dark:text-zinc-400">
+                    Staff portal for students, athletic records, achievements, and inventory.
+                </p>
+            </div>
+
+            <div class="w-full max-w-md rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-xl shadow-emerald-950/5 dark:border-white/10 dark:bg-[var(--app-surface)] dark:shadow-black/40 sm:p-8">
+                <div class="flex flex-col items-center text-center">
+                    <div class="rounded-2xl bg-emerald-50 px-4 py-3 dark:bg-emerald-500/10">
+                        <img src="logo.png" alt="" width="121" height="56" class="h-14 w-auto object-contain" />
+                    </div>
+                    <h2 class="mt-4 text-xl font-semibold text-zinc-900 dark:text-white">Staff sign in</h2>
+                    <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Use your invited recreation center account.</p>
+                </div>
+
+                <form @onsubmit="HandleSubmit" class="mt-6 space-y-4">
+                    <div>
+                        <label for="email" class="@Ui.Label">Email</label>
+                        <input id="email" type="email" autocomplete="email" required class="@Ui.Input" @bind="_email" @bind:event="oninput" />
+                    </div>
+                    <div>
+                        <label for="password" class="@Ui.Label">Password</label>
+                        <input id="password" type="password" autocomplete="current-password" required class="@Ui.Input" @bind="_password" @bind:event="oninput" />
+                    </div>
+                    @if (_error is not null)
+                    {
+                        <p class="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">@_error</p>
+                    }
+                    <Button Type="submit" Class="w-full rounded-full py-2.5" Disabled="_loading">
+                        @(_loading ? "Signing in…" : "Sign in")
+                    </Button>
+                </form>
+            </div>
+        </main>
+    </div>
+}
+
+@code {
+    private string _email = "";
+    private string _password = "";
+    private string? _error;
+    private bool _loading;
+    private bool _celebrating;
+
+    protected override void OnInitialized()
+    {
+        if (Auth.IsSignedIn) Nav.NavigateTo("/", replace: true);
+    }
+
+    private async Task HandleSubmit()
+    {
+        _loading = true;
+        _error = null;
+
+        var error = await Auth.SignInWithPasswordAsync(_email, _password);
+        if (error is not null)
+        {
+            _error = error;
+            _loading = false;
+            return;
+        }
+
+        _celebrating = true;
+    }
+
+    private void FinishLogin() => Nav.NavigateTo("/", replace: true);
+}

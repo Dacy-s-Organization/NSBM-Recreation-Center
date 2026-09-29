@@ -1,0 +1,189 @@
+@inject AchievementsService AchievementsData
+@inject IJSRuntime JS
+
+<div class="space-y-6">
+    <div class="flex flex-wrap items-end gap-4">
+        <div>
+            <label for="ach-year-filter" class="@Ui.Label">Year</label>
+            <select id="ach-year-filter" class="@Ui.Select" value="@SelectedYear" @onchange="OnYearChanged">
+                @foreach (var y in Years)
+                {
+                    <option value="@y">@y</option>
+                }
+            </select>
+        </div>
+        <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add achievement")</Button>
+    </div>
+
+    @if (_error is not null && !_showForm && _editingId is null)
+    {
+        <p class="text-sm text-red-600 dark:text-red-300">@_error</p>
+    }
+
+    @if (_showForm)
+    {
+        <Card>
+            <h3 class="font-medium text-zinc-900 dark:text-zinc-100">New sports achievement</h3>
+            <div class="mt-4">
+                <AchievementFormFields @key="_addFormKey" Houses="Houses" DefaultYear="SelectedYear" Pending="_pending" Error="_error"
+                                       OnSubmit="HandleAdd" SubmitLabel="Save achievement" />
+            </div>
+        </Card>
+    }
+
+    <Card Class="overflow-hidden p-0">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="@Ui.TableHead">
+                    <tr>
+                        <th class="@Ui.Th">Sport</th>
+                        <th class="@Ui.Th">Achievement</th>
+                        <th class="@Ui.Th">Team</th>
+                        <th class="@Ui.Th">Winners</th>
+                        <th class="@Ui.Th">Notes</th>
+                        <th class="@Ui.Th">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Achievements.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">No achievements for @SelectedYear.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var a in Achievements)
+                        {
+                            <tr @key="a.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
+                                @if (_editingId == a.Id)
+                                {
+                                    <td colspan="6" class="px-4 py-3">
+                                        <p class="mb-3 font-medium text-zinc-900 dark:text-zinc-100">Edit achievement</p>
+                                        <AchievementFormFields @key="a.Id" Achievement="a" Houses="Houses" DefaultYear="SelectedYear"
+                                                               Pending="_pending" Error="_error" OnSubmit="HandleUpdate"
+                                                               SubmitLabel="Save changes" OnCancel="CancelEdit" />
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td class="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">@a.Sport</td>
+                                    <td class="px-4 py-3">@a.AchievementType</td>
+                                    <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">@(string.IsNullOrEmpty(a.TeamName) ? "—" : a.TeamName)</td>
+                                    <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">@FormatWinners(a)</td>
+                                    <td class="px-4 py-3 text-zinc-500 dark:text-zinc-400">@(string.IsNullOrEmpty(a.Notes) ? "—" : a.Notes)</td>
+                                    <td class="px-4 py-3">
+                                        <div class="flex flex-wrap gap-2">
+                                            <Button Variant="ghost" OnClick="() => StartEdit(a)">Edit</Button>
+                                            <Button Variant="danger" OnClick="() => HandleDelete(a.Id, a.Sport)" Disabled="_pending">Delete</Button>
+                                        </div>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
+            @Achievements.Count achievement(s) for @SelectedYear
+        </p>
+    </Card>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<SportsAchievement> Achievements { get; set; } = Array.Empty<SportsAchievement>();
+    [Parameter] public IReadOnlyList<House> Houses { get; set; } = Array.Empty<House>();
+    [Parameter] public IReadOnlyList<int> Years { get; set; } = Array.Empty<int>();
+    [Parameter] public int SelectedYear { get; set; }
+    [Parameter] public EventCallback<int> OnYearSelected { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private bool _showForm;
+    private int _addFormKey;
+    private string? _editingId;
+    private string? _error;
+    private bool _pending;
+
+    private Task OnYearChanged(ChangeEventArgs e)
+    {
+        var year = Formatting.ParseIntLoose(e.Value?.ToString());
+        return year is null ? Task.CompletedTask : OnYearSelected.InvokeAsync(year.Value);
+    }
+
+    private static string FormatWinners(SportsAchievement a)
+    {
+        if (a.AchievementType != AchievementTypes.BestPlayer) return "—";
+        var winners = a.SportsAchievementWinners;
+        if (winners is null || winners.Count == 0) return "—";
+        return string.Join(", ", winners.Select(w => w.Students?.FullName ?? w.Students?.StudentId ?? "?"));
+    }
+
+    private void ToggleAddForm()
+    {
+        _showForm = !_showForm;
+        if (_showForm) _addFormKey++;
+        _editingId = null;
+        _error = null;
+    }
+
+    private void StartEdit(SportsAchievement a)
+    {
+        _editingId = a.Id;
+        _showForm = false;
+        _error = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _error = null;
+    }
+
+    private async Task HandleAdd(AchievementForm form)
+    {
+        _error = null;
+        _pending = true;
+        var result = await AchievementsData.AddAsync(form);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _showForm = false;
+        _error = null;
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task HandleUpdate(AchievementForm form)
+    {
+        _error = null;
+        _pending = true;
+        var result = await AchievementsData.UpdateAsync(form);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _editingId = null;
+        _error = null;
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task HandleDelete(string id, string sport)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete sports achievement for {sport}?")) return;
+        _error = null;
+        _pending = true;
+        var result = await AchievementsData.DeleteAsync(id);
+        _pending = false;
+        if (!result.Success) _error = result.Error;
+        else
+        {
+            if (_editingId == id) _editingId = null;
+            await OnChanged.InvokeAsync();
+        }
+    }
+}

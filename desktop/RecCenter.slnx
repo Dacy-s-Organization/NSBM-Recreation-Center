@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="RecCenter.Core/RecCenter.Core.csproj" />
+  <Project Path="RecCenter.Desktop/RecCenter.Desktop.csproj" />
+</Solution>

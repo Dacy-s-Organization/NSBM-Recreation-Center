@@ -1,0 +1,73 @@
+<div>
+    <label class="@Ui.Label">Serial No</label>
+    <input class="@Ui.Input" type="number" @bind="Model.SerialNo" placeholder="e.g. 574" />
+</div>
+<div>
+    <label class="@Ui.Label">Intake</label>
+    <input class="@Ui.Input" @bind="Model.Intake" placeholder="e.g. 2026.1" />
+</div>
+<div>
+    <label class="@Ui.Label">Faculty</label>
+    <select class="@Ui.Select" @bind="Model.Faculty">
+        <option value="">Select faculty</option>
+        @foreach (var faculty in Faculties.All)
+        {
+            <option value="@faculty.Code">@faculty.Code — @faculty.Name</option>
+        }
+    </select>
+</div>
+<div>
+    <label class="@Ui.Label">Student ID</label>
+    <input class="@Ui.Input" @bind="Model.StudentId" placeholder="e.g. 39706" />
+</div>
+<div class="sm:col-span-2">
+    <label class="@Ui.Label">Degree Programme</label>
+    <input class="@Ui.Input" @bind="Model.DegreeProgramme" placeholder="Foundation Programme…" />
+</div>
+<div>
+    <label class="@Ui.Label">University</label>
+    <input class="@Ui.Input" @bind="Model.University" placeholder="e.g. NSBM" />
+</div>
+<div>
+    <label class="@Ui.Label">Title</label>
+    <input class="@Ui.Input" @bind="Model.Title" placeholder="Ms. / Mr." />
+</div>
+<div>
+    <label class="@Ui.Label">Name with Initials</label>
+    <input class="@Ui.Input" @bind="Model.FullName" required />
+</div>
+<div>
+    <label class="@Ui.Label">Gender</label>
+    <select class="@Ui.Select" @bind="Model.Gender">
+        <option value="">—</option>
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
+    </select>
+</div>
+<div>
+    <label class="@Ui.Label">NIC/Passport</label>
+    <input class="@Ui.Input" @bind="Model.Nic" />
+</div>
+<div>
+    <label class="@Ui.Label">Mobile No</label>
+    <input class="@Ui.Input" @bind="Model.Mobile" />
+</div>
+<div>
+    <label class="@Ui.Label">E-Mail</label>
+    <input class="@Ui.Input" type="email" @bind="Model.Email" placeholder="name@example.com" />
+</div>
+<div>
+    <label class="@Ui.Label">House (recreation)</label>
+    <select class="@Ui.Select" @bind="Model.HouseId">
+        <option value="">No house yet</option>
+        @foreach (var h in Houses)
+        {
+            <option value="@h.Id">@h.Name</option>
+        }
+    </select>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public StudentForm Model { get; set; } = default!;
+    [Parameter] public IReadOnlyList<House> Houses { get; set; } = Array.Empty<House>();
+}

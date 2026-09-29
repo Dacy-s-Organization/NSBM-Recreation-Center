@@ -1,0 +1,53 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+     role="@Role"
+     aria-modal="true"
+     @onclick="OnBackdropClick">
+    <div class="@Ui.Cn(Ui.ModalPanel, PanelClass)" @onclick:stopPropagation="true">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? PanelClass { get; set; }
+    [Parameter] public string Role { get; set; } = "dialog";
+    [Parameter] public bool CloseOnBackdrop { get; set; }
+    /// <summary>Locks page scroll and closes on Escape, like the student popups.</summary>
+    [Parameter] public bool TrapKeyboard { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private DotNetObjectReference<Modal>? _self;
+    private IJSObjectReference? _handle;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !TrapKeyboard) return;
+        _self = DotNetObjectReference.Create(this);
+        _handle = await JS.InvokeAsync<IJSObjectReference>("recUi.openModal", _self);
+    }
+
+    [JSInvokable]
+    public Task OnEscape() => OnClose.InvokeAsync();
+
+    private Task OnBackdropClick() => CloseOnBackdrop ? OnClose.InvokeAsync() : Task.CompletedTask;
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_handle is not null)
+            {
+                await _handle.InvokeVoidAsync("close");
+                await _handle.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            /* window closing */
+        }
+        _self?.Dispose();
+    }
+}
