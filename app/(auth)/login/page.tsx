@@ -63,14 +63,12 @@ export default function LoginPage() {
           <Image
             src="/logo.png"
             alt="NSBM Green University"
-            width={36}
-            height={36}
-            className="h-9 w-9 object-contain"
+            width={160}
+            height={42}
+            className="h-10 w-auto object-contain"
             priority
           />
           <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-            NSBM Green University{" "}
-            <span className="text-zinc-400 dark:text-zinc-500">·</span>{" "}
             <span className="text-emerald-700 dark:text-emerald-400">Recreation Center</span>
           </p>
         </div>
@@ -90,13 +88,13 @@ export default function LoginPage() {
 
         <div className="w-full max-w-md rounded-3xl border border-zinc-200/80 bg-white/90 p-6 shadow-xl shadow-emerald-950/5 backdrop-blur dark:border-white/10 dark:bg-[var(--app-surface)]/90 dark:shadow-black/40 sm:p-8">
           <div className="flex flex-col items-center text-center">
-            <div className="rounded-2xl bg-emerald-50 p-3 dark:bg-emerald-500/10">
+            <div className="rounded-2xl bg-emerald-50 px-4 py-3 dark:bg-emerald-500/10">
               <Image
                 src="/logo.png"
                 alt=""
-                width={56}
+                width={200}
                 height={56}
-                className="h-14 w-14 object-contain"
+                className="h-14 w-auto object-contain"
                 priority
               />
             </div>
