@@ -4,31 +4,43 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Light — clean campus admin */
-  --app-bg: #f4f7f5;
-  --app-fg: #14201a;
-  --app-muted: #5b6b63;
+  /* Light — chalky off-white campus */
+  --app-bg: #f3f5ec;
+  --app-fg: #14261a;
+  --app-muted: #5b6b5f;
   --app-surface: #ffffff;
-  --app-surface-2: #eef3f0;
-  --app-border: #d7e0db;
-  --app-accent: #059669;
-  --app-accent-soft: #ecfdf5;
-  --app-accent-fg: #065f46;
+  --app-surface-2: #eef2e6;
+  --app-border: #d6dcc8;
+  --app-accent: #3fa535;
+  --app-accent-soft: #eef8ea;
+  --app-accent-fg: #2b7a2a;
+  --brand-navy: #1b4f9c;
+  --brand-cyan: #22a7d8;
+  --brand-lime: #9bcb3b;
+  --glow-green: rgba(63, 165, 53, 0.14);
+  --glow-navy: rgba(27, 79, 156, 0.1);
+  --glow-cyan: rgba(34, 167, 216, 0.08);
   --background: var(--app-bg);
   --foreground: var(--app-fg);
 }
 
 .dark {
-  /* Dark theme */
-  --app-bg: #0b1410;
-  --app-fg: #f3faf6;
-  --app-muted: #9db0a6;
-  --app-surface: #121c17;
-  --app-surface-2: #18241e;
-  --app-border: #24312a;
-  --app-accent: #22c55e;
-  --app-accent-soft: rgba(34, 197, 94, 0.14);
-  --app-accent-fg: #86efac;
+  /* Dark — deep turf */
+  --app-bg: #0f1a14;
+  --app-fg: #e8f0e3;
+  --app-muted: #93a697;
+  --app-surface: #16241c;
+  --app-surface-2: #1b2b21;
+  --app-border: #26382d;
+  --app-accent: #5cc24e;
+  --app-accent-soft: rgba(92, 194, 78, 0.14);
+  --app-accent-fg: #8ed67f;
+  --brand-navy: #5b8fd6;
+  --brand-cyan: #4cc3ec;
+  --brand-lime: #b5dc5c;
+  --glow-green: rgba(92, 194, 78, 0.16);
+  --glow-navy: rgba(91, 143, 214, 0.14);
+  --glow-cyan: rgba(76, 195, 236, 0.08);
   --background: var(--app-bg);
   --foreground: var(--app-fg);
 }
@@ -38,11 +50,76 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-cyan: var(--brand-cyan);
+  --color-brand-lime: var(--brand-lime);
+}
+
+@theme {
+  --color-zinc-50: #f3f5ec;
+  --color-zinc-100: #e8f0e3;
+  --color-zinc-200: #d6dcc8;
+  --color-zinc-300: #b9c2b0;
+  --color-zinc-400: #93a697;
+  --color-zinc-500: #5b6b5f;
+  --color-zinc-600: #465549;
+  --color-zinc-700: #26382d;
+  --color-zinc-800: #1d2d23;
+  --color-zinc-900: #14261a;
+  --color-zinc-950: #0f1a14;
+
+  --color-emerald-50: #eef8ea;
+  --color-emerald-100: #d9f0d2;
+  --color-emerald-200: #b5e2a9;
+  --color-emerald-300: #8ed67f;
+  --color-emerald-400: #5cc24e;
+  --color-emerald-500: #4ab43f;
+  --color-emerald-600: #3fa535;
+  --color-emerald-700: #2b7a2a;
+  --color-emerald-800: #22611f;
+  --color-emerald-900: #1b4d1a;
+  --color-emerald-950: #0e2a0e;
 }
 
 body {
   background: var(--app-bg);
   color: var(--app-fg);
+  isolation: isolate;
+}
+
+/* Sports-pitch markings over brand glows, on a single GPU-composited layer
+   so scrolling doesn't force a repaint of the background. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transform: translateZ(0);
+  will-change: transform;
+  background-image:
+    var(--pitch-svg),
+    radial-gradient(ellipse 55% 45% at 0% 0%, var(--glow-green), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 100% 0%, var(--glow-navy), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, var(--glow-cyan), transparent 70%);
+  background-size: cover, 100% 100%, 100% 100%, 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+:root {
+  --pitch-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1000' preserveAspectRatio='xMidYMid slice' fill='none' stroke='%2314261a' stroke-opacity='0.07' stroke-width='3'%3E%3Crect x='60' y='60' width='1480' height='880' rx='24'/%3E%3Cline x1='800' y1='60' x2='800' y2='940'/%3E%3Ccircle cx='800' cy='500' r='130'/%3E%3Crect x='60' y='270' width='230' height='460'/%3E%3Crect x='60' y='390' width='80' height='220'/%3E%3Cpath d='M290 410 A120 120 0 0 1 290 590'/%3E%3Crect x='1310' y='270' width='230' height='460'/%3E%3Crect x='1460' y='390' width='80' height='220'/%3E%3Cpath d='M1310 410 A120 120 0 0 0 1310 590'/%3E%3Cpath d='M60 90 A30 30 0 0 0 90 60'/%3E%3Cpath d='M1510 60 A30 30 0 0 0 1540 90'/%3E%3Cpath d='M60 910 A30 30 0 0 1 90 940'/%3E%3Cpath d='M1510 940 A30 30 0 0 1 1540 910'/%3E%3Cg fill='%2314261a' fill-opacity='0.07' stroke='none'%3E%3Ccircle cx='800' cy='500' r='7'/%3E%3Ccircle cx='215' cy='500' r='6'/%3E%3Ccircle cx='1385' cy='500' r='6'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.dark {
+  --pitch-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1000' preserveAspectRatio='xMidYMid slice' fill='none' stroke='%23e8f0e3' stroke-opacity='0.06' stroke-width='3'%3E%3Crect x='60' y='60' width='1480' height='880' rx='24'/%3E%3Cline x1='800' y1='60' x2='800' y2='940'/%3E%3Ccircle cx='800' cy='500' r='130'/%3E%3Crect x='60' y='270' width='230' height='460'/%3E%3Crect x='60' y='390' width='80' height='220'/%3E%3Cpath d='M290 410 A120 120 0 0 1 290 590'/%3E%3Crect x='1310' y='270' width='230' height='460'/%3E%3Crect x='1460' y='390' width='80' height='220'/%3E%3Cpath d='M1310 410 A120 120 0 0 0 1310 590'/%3E%3Cpath d='M60 90 A30 30 0 0 0 90 60'/%3E%3Cpath d='M1510 60 A30 30 0 0 0 1540 90'/%3E%3Cpath d='M60 910 A30 30 0 0 1 90 940'/%3E%3Cpath d='M1510 940 A30 30 0 0 1 1540 910'/%3E%3Cg fill='%23e8f0e3' fill-opacity='0.06' stroke='none'%3E%3Ccircle cx='800' cy='500' r='7'/%3E%3Ccircle cx='215' cy='500' r='6'/%3E%3Ccircle cx='1385' cy='500' r='6'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  body::before {
+    background-image: var(--pitch-svg);
+    background-size: cover;
+  }
 }
 
 /* Post-login multi-sport celebration */

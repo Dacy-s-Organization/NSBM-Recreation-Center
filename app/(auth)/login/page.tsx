@@ -48,13 +48,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-full flex-1 flex-col overflow-hidden bg-[var(--app-bg)]">
+    <div className="relative flex min-h-full flex-1 flex-col overflow-hidden">
       <div
         className="pointer-events-none absolute inset-0 opacity-80 dark:opacity-100"
         aria-hidden
         style={{
           background:
-            "radial-gradient(ellipse at 50% -10%, rgba(34, 197, 94, 0.22), transparent 55%), radial-gradient(ellipse at 90% 20%, rgba(16, 185, 129, 0.12), transparent 40%)",
+            "radial-gradient(ellipse at 50% -10%, rgba(63, 165, 53, 0.22), transparent 55%), radial-gradient(ellipse at 90% 20%, rgba(27, 79, 156, 0.14), transparent 40%)",
         }}
       />
 
@@ -63,8 +63,8 @@ export default function LoginPage() {
           <Image
             src="/logo.png"
             alt="NSBM Green University"
-            width={160}
-            height={42}
+            width={86}
+            height={40}
             className="h-10 w-auto object-contain"
             priority
           />
@@ -86,13 +86,13 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="w-full max-w-md rounded-3xl border border-zinc-200/80 bg-white/90 p-6 shadow-xl shadow-emerald-950/5 backdrop-blur dark:border-white/10 dark:bg-[var(--app-surface)]/90 dark:shadow-black/40 sm:p-8">
+        <div className="w-full max-w-md rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-xl shadow-emerald-950/5 dark:border-white/10 dark:bg-[var(--app-surface)] dark:shadow-black/40 sm:p-8">
           <div className="flex flex-col items-center text-center">
             <div className="rounded-2xl bg-emerald-50 px-4 py-3 dark:bg-emerald-500/10">
               <Image
                 src="/logo.png"
                 alt=""
-                width={200}
+                width={121}
                 height={56}
                 className="h-14 w-auto object-contain"
                 priority

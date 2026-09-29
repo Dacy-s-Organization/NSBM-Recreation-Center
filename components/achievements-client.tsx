@@ -259,7 +259,7 @@ export function AchievementsClient({
 
       {showForm && (
         <Card>
-          <h3 className="font-medium text-zinc-900 dark:text-white">New sports achievement</h3>
+          <h3 className="font-medium text-zinc-900 dark:text-zinc-100">New sports achievement</h3>
           <div className="mt-4">
             <AchievementForm
               key="new-achievement"
@@ -302,7 +302,7 @@ export function AchievementsClient({
                   >
                     {editingId === a.id ? (
                       <td colSpan={6} className="px-4 py-3">
-                        <p className="mb-3 font-medium text-zinc-900 dark:text-white">
+                        <p className="mb-3 font-medium text-zinc-900 dark:text-zinc-100">
                           Edit achievement
                         </p>
                         <AchievementForm
@@ -322,7 +322,7 @@ export function AchievementsClient({
                       </td>
                     ) : (
                       <>
-                        <td className="px-4 py-3 font-medium text-zinc-900 dark:text-white">
+                        <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
                           {a.sport}
                         </td>
                         <td className="px-4 py-3">{a.achievement_type}</td>
