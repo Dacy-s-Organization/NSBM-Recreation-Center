@@ -1,6 +1,8 @@
 {
   "name": "rec-center-manager",
   "version": "0.1.0",
+  "description": "NSBM Recreation Center desktop app",
+  "author": "NSBM Green University",
   "main": "electron/main.cjs",
   "private": true,
   "scripts": {
@@ -62,6 +64,8 @@
       "category": "public.app-category.productivity"
     },
     "win": {
+      "icon": "electron/icons/icon.png",
+      "signAndEditExecutable": true,
       "target": [
         {
           "target": "nsis",
@@ -74,7 +78,10 @@
     "nsis": {
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "electron/icons/icon.png",
+      "uninstallerIcon": "electron/icons/icon.png",
+      "installerHeaderIcon": "electron/icons/icon.png"
     }
   }
 }

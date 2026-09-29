@@ -38,15 +38,12 @@ export function AppNav() {
           <Image
             src="/logo.png"
             alt="NSBM Green University Town"
-            width={44}
-            height={44}
-            className="h-11 w-11 shrink-0 rounded-xl object-contain"
+            width={180}
+            height={48}
+            className="h-12 w-auto shrink-0 object-contain"
             priority
           />
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-              NSBM Green University
-            </p>
             <h1 className="text-lg font-semibold text-zinc-900 dark:text-white">
               Recreation <span className="text-emerald-600 dark:text-emerald-400">Center</span>
             </h1>
