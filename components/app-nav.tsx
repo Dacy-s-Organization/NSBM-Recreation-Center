@@ -32,13 +32,13 @@ export function AppNav() {
   }
 
   return (
-    <header className="border-b border-zinc-200/80 bg-white/90 backdrop-blur dark:border-white/10 dark:bg-[var(--app-surface)]/90">
+    <header className="border-b border-zinc-200/80 bg-white dark:border-white/10 dark:bg-[var(--app-surface)]">
       <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
         <div className="flex items-center gap-3">
           <Image
             src="/logo.png"
             alt="NSBM Green University Town"
-            width={180}
+            width={104}
             height={48}
             className="h-12 w-auto shrink-0 object-contain"
             priority
