@@ -20,9 +20,9 @@ export default async function DashboardPage() {
   ]);
 
   const stats = [
-    { label: "Students", value: studentCount ?? 0, href: "/students" },
-    { label: `Records (${year})`, value: recordCount ?? 0, href: "/achievements" },
-    { label: "Inventory items", value: inventoryCount ?? 0, href: "/inventory" },
+    { label: "Students", value: studentCount ?? 0, href: "/students", accent: "bg-emerald-600 dark:bg-emerald-400" },
+    { label: `Records (${year})`, value: recordCount ?? 0, href: "/achievements", accent: "bg-brand-navy" },
+    { label: "Inventory items", value: inventoryCount ?? 0, href: "/inventory", accent: "bg-brand-cyan" },
   ];
 
   const quickLinks = [
@@ -45,7 +45,8 @@ export default async function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         {stats.map((stat) => (
           <Link key={stat.href} href={stat.href}>
-            <Card className="transition hover:border-emerald-400/60 hover:shadow-md dark:hover:border-emerald-400/40">
+            <Card className="relative overflow-hidden transition hover:border-emerald-400/60 hover:shadow-md dark:hover:border-emerald-400/40">
+              <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${stat.accent}`} />
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{stat.label}</p>
               <p className="mt-2 text-3xl font-semibold text-zinc-900 dark:text-white">
                 {stat.value}
