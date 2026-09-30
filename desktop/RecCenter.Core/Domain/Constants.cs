@@ -7,6 +7,7 @@ public static class AchievementTypes
 {
     public const string Champion = "Champion Team";
     public const string BestPlayer = "Best Player";
+    public const string NewSport = "__new__";
 
     public static readonly string[] All = { Champion, BestPlayer };
 

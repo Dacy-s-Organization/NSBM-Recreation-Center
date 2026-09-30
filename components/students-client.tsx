@@ -190,6 +190,7 @@ export function StudentsClient({
   selectedIntake,
   students,
   houses,
+  canEdit,
 }: {
   view: StudentsView;
   facultyCards: FacultyCard[];
@@ -199,6 +200,7 @@ export function StudentsClient({
   selectedIntake?: string;
   students: Student[];
   houses: House[];
+  canEdit: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [houseFilter, setHouseFilter] = useState("");
@@ -213,7 +215,7 @@ export function StudentsClient({
     () => visibleColumns(Boolean(selectedFaculty && selectedIntake)),
     [selectedFaculty, selectedIntake]
   );
-  const columnCount = columns.length + 1;
+  const columnCount = columns.length + (canEdit ? 1 : 0);
 
   const editingStudent = editingId
     ? students.find((s) => s.id === editingId)
@@ -392,16 +394,18 @@ export function StudentsClient({
               Clear filters
             </Button>
           )}
-          <Button
-            type="button"
-            className="ml-auto"
-            onClick={() => {
-              setShowForm(!showForm);
-              setEditingId(null);
-            }}
-          >
-            {showForm ? "Cancel" : "Add student"}
-          </Button>
+          {canEdit && (
+            <Button
+              type="button"
+              className="ml-auto"
+              onClick={() => {
+                setShowForm(!showForm);
+                setEditingId(null);
+              }}
+            >
+              {showForm ? "Cancel" : "Add student"}
+            </Button>
+          )}
         </div>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Filters all {students.length} students in this batch.
@@ -417,7 +421,7 @@ export function StudentsClient({
         </p>
       )}
 
-      {showForm && (
+      {canEdit && showForm && (
         <Card>
           <h3 className="font-medium text-zinc-900 dark:text-white">
             New student — {selectedFacultyName}, batch {selectedIntake}
@@ -454,9 +458,11 @@ export function StudentsClient({
                     {col.label}
                   </th>
                 ))}
-                <th className="sticky right-0 z-10 whitespace-nowrap bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)] dark:bg-[var(--app-surface-2)] dark:text-zinc-400 dark:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.4)]">
-                  Actions
-                </th>
+                {canEdit && (
+                  <th className="sticky right-0 z-10 whitespace-nowrap bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)] dark:bg-[var(--app-surface-2)] dark:text-zinc-400 dark:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.4)]">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-white/10">
@@ -487,6 +493,7 @@ export function StudentsClient({
                         {renderCell(s, col)}
                       </td>
                     ))}
+                    {canEdit && (
                     <td className="sticky right-0 z-10 whitespace-nowrap bg-white px-4 py-2.5 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)] group-hover:bg-[color-mix(in_srgb,var(--color-emerald-50)_40%,white)] dark:bg-[var(--app-surface)] dark:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.4)] dark:group-hover:bg-[color-mix(in_srgb,var(--color-emerald-500)_10%,var(--app-surface))]">
                       <div className="flex flex-nowrap items-center gap-1">
                         <Button
@@ -515,6 +522,7 @@ export function StudentsClient({
                         </Button>
                       </div>
                     </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -528,7 +536,7 @@ export function StudentsClient({
         </div>
       </Card>
 
-      {editingStudent && (
+      {canEdit && editingStudent && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           role="dialog"
@@ -570,7 +578,7 @@ export function StudentsClient({
         </div>
       )}
 
-      {deletingStudent && (
+      {canEdit && deletingStudent && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           role="alertdialog"

@@ -33,6 +33,8 @@ export type AchievementType = (typeof ACHIEVEMENT_TYPES)[number];
 export const ACHIEVEMENT_TYPE_CHAMPION: AchievementType = "Champion Team";
 export const ACHIEVEMENT_TYPE_BEST_PLAYER: AchievementType = "Best Player";
 
+export const NEW_SPORT_VALUE = "__new__";
+
 export function formatTrackUnitLabel(unit: string): string {
   const u = unit.trim().toLowerCase();
   if (u === "s") return "seconds";

@@ -24,7 +24,7 @@ export const IMPORT_DESCRIPTIONS: Record<ImportType, string> = {
   inventory:
     "Columns: item_name, quantity. Existing items are updated by name.",
   achievements:
-    "Required: meet_year, sport, achievement_type, team_name (house). Best Player requires winner_student_id. Types: Champion Team, Best Player.",
+    "Required: meet_year, sport, achievement_type, team_name (house). Best Player requires winner_student_id. Other types may include winner_student_id. A sport that is not already listed is added. Types: Champion Team, Best Player.",
 };
 
 type ImportTemplate = {

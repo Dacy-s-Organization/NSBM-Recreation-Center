@@ -1,9 +1,13 @@
 import Link from "next/link";
+import { AddUserDialog } from "@/components/add-user-dialog";
 import { createClient } from "@/lib/supabase/server";
+import { getStaffRole } from "@/lib/supabase/auth";
 import { Card } from "@/components/ui/card";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const { role } = await getStaffRole();
+  const canEdit = role === "super";
   const year = new Date().getFullYear();
 
   const [
@@ -55,6 +59,8 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {canEdit ? <AddUserDialog /> : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         {quickLinks.map((link) => (

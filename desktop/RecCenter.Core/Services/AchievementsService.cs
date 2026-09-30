@@ -6,6 +6,8 @@ namespace RecCenter.Core.Services;
 
 internal sealed record AchievementPayload(int MeetYear, string Sport, string AchievementType, string? TeamName, string? Notes);
 
+internal sealed record SportInsert(string Name, int SortOrder);
+
 internal sealed record WinnerPayload(string AchievementId, string StudentId);
 
 public sealed class AchievementsService
@@ -14,6 +16,83 @@ public sealed class AchievementsService
 
     public AchievementsService(PostgrestClient db) => _db = db;
 
+    public Task<List<Sport>> ListSportsAsync() =>
+        _db.GetAsync<Sport>(PostgrestClient.From("sports").Select("id, name, sort_order").Order("sort_order").Order("name"));
+
+    public async Task<(string? Name, string? Error)> EnsureNewSportAsync(string raw)
+    {
+        var trimmed = raw.Trim();
+        if (trimmed.Length == 0) return (null, "Enter a name for the new sport.");
+
+        List<Sport> existing;
+        try
+        {
+            existing = await ListSportsAsync();
+        }
+        catch (PostgrestException ex)
+        {
+            return (null, ex.Message);
+        }
+
+        var match = existing.FirstOrDefault(s => string.Equals(s.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+        if (match is not null)
+            return (null, $"\"{match.Name}\" is already in the sport list. Choose it from the menu.");
+
+        var sortOrder = existing.Count == 0 ? 1 : existing.Max(s => s.SortOrder) + 1;
+        try
+        {
+            await _db.InsertAsync("sports", new SportInsert(trimmed, sortOrder));
+            return (trimmed, null);
+        }
+        catch (PostgrestException ex) when (ex.Code == "23505")
+        {
+            return (null, $"\"{trimmed}\" is already in the sport list. Choose it from the menu.");
+        }
+        catch (PostgrestException ex)
+        {
+            return (null, ex.Message);
+        }
+    }
+
+    public async Task<(Dictionary<string, string>? Canonical, string? Error)> EnsureImportedSportsAsync(IEnumerable<string> names)
+    {
+        List<Sport> existing;
+        try
+        {
+            existing = await ListSportsAsync();
+        }
+        catch (PostgrestException ex)
+        {
+            return (null, ex.Message);
+        }
+
+        var known = existing.ToDictionary(s => s.Name.ToLowerInvariant(), s => s.Name);
+        var sortOrder = existing.Count == 0 ? 0 : existing.Max(s => s.SortOrder);
+        foreach (var raw in names)
+        {
+            var trimmed = raw.Trim();
+            if (trimmed.Length == 0) continue;
+            var key = trimmed.ToLowerInvariant();
+            if (known.ContainsKey(key)) continue;
+            sortOrder++;
+            try
+            {
+                await _db.InsertAsync("sports", new SportInsert(trimmed, sortOrder));
+                known[key] = trimmed;
+            }
+            catch (PostgrestException ex) when (ex.Code == "23505")
+            {
+                known[key] = trimmed;
+            }
+            catch (PostgrestException ex)
+            {
+                return (null, ex.Message);
+            }
+        }
+
+        return (known, null);
+    }
+
     public Task<List<SportsAchievement>> GetForYearAsync(int year) =>
         _db.GetAsync<SportsAchievement>(PostgrestClient.From("sports_achievements")
             .Select(@"id, meet_year, sport, achievement_type, team_name, notes, created_at,
@@ -21,10 +100,18 @@ public sealed class AchievementsService
             .Eq("meet_year", year)
             .Order("created_at", ascending: false));
 
-    private async Task<(string? Uuid, string? Error)> ResolveBestPlayerAsync(string studentIdText)
+    private async Task<(string? Name, string? Error)> ResolveSportAsync(AchievementForm form)
+    {
+        var choice = form.Sport.Trim();
+        if (choice == AchievementTypes.NewSport) return await EnsureNewSportAsync(form.NewSport);
+        if (choice.Length == 0) return (null, "Sport, achievement type, and year are required.");
+        return (choice, null);
+    }
+
+    private async Task<(string? Uuid, string? Error)> ResolveStudentAsync(string studentIdText)
     {
         var sid = studentIdText.Trim();
-        if (sid.Length == 0) return (null, "Student ID is required for Best Player.");
+        if (sid.Length == 0) return (null, null);
         IdRow? row = null;
         try
         {
@@ -57,13 +144,16 @@ public sealed class AchievementsService
         var (error, payload) = Parse(form, requireId: false);
         if (error is not null) return ActionResult.Fail(error);
 
-        string? winnerUuid = null;
-        if (payload!.AchievementType == AchievementTypes.BestPlayer)
-        {
-            var resolved = await ResolveBestPlayerAsync(form.WinnerStudentId);
-            if (resolved.Error is not null) return ActionResult.Fail(resolved.Error);
-            winnerUuid = resolved.Uuid;
-        }
+        if (payload!.AchievementType == AchievementTypes.BestPlayer && form.WinnerStudentId.Trim().Length == 0)
+            return ActionResult.Fail("Student ID is required for Best Player.");
+
+        var student = await ResolveStudentAsync(form.WinnerStudentId);
+        if (student.Error is not null) return ActionResult.Fail(student.Error);
+        var winnerUuid = student.Uuid;
+
+        var sport = await ResolveSportAsync(form);
+        if (sport.Error is not null) return ActionResult.Fail(sport.Error);
+        payload = payload with { Sport = sport.Name! };
 
         try
         {
@@ -86,13 +176,16 @@ public sealed class AchievementsService
         if (error is not null) return ActionResult.Fail(error);
         var id = form.Id.Trim();
 
-        string? winnerUuid = null;
-        if (payload!.AchievementType == AchievementTypes.BestPlayer)
-        {
-            var resolved = await ResolveBestPlayerAsync(form.WinnerStudentId);
-            if (resolved.Error is not null) return ActionResult.Fail(resolved.Error);
-            winnerUuid = resolved.Uuid;
-        }
+        if (payload!.AchievementType == AchievementTypes.BestPlayer && form.WinnerStudentId.Trim().Length == 0)
+            return ActionResult.Fail("Student ID is required for Best Player.");
+
+        var student = await ResolveStudentAsync(form.WinnerStudentId);
+        if (student.Error is not null) return ActionResult.Fail(student.Error);
+        var winnerUuid = student.Uuid;
+
+        var sport = await ResolveSportAsync(form);
+        if (sport.Error is not null) return ActionResult.Fail(sport.Error);
+        payload = payload with { Sport = sport.Name! };
 
         try
         {

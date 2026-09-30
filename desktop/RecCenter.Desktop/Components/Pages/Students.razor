@@ -5,6 +5,7 @@
 @inject AppState State
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject AuthService Auth
 
 @if (_loading)
 {
@@ -110,7 +111,10 @@ else
                         {
                             <Button Variant="ghost" OnClick="ClearFilters">Clear filters</Button>
                         }
-                        <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add student")</Button>
+                        @if (Auth.CanEdit)
+                        {
+                            <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add student")</Button>
+                        }
                     </div>
                     <p class="text-xs text-zinc-500 dark:text-zinc-400">Filters all @_students.Count students in this batch.</p>
                 </div>
@@ -120,7 +124,7 @@ else
                     <p role="alert" class="@Ui.ErrorBanner">@_error</p>
                 }
 
-                @if (_showForm)
+                @if (Auth.CanEdit && _showForm)
                 {
                     <Card>
                         <h3 class="font-medium text-zinc-900 dark:text-white">New student — @_facultyName, batch @_intake</h3>
@@ -146,9 +150,12 @@ else
                                     {
                                         <th class="@($"whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 {ColumnHeaderClass(col.Key)}")">@col.Label</th>
                                     }
+                                    @if (Auth.CanEdit)
+                                    {
                                     <th class="sticky right-0 z-10 whitespace-nowrap bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)] dark:bg-[var(--app-surface-2)] dark:text-zinc-400 dark:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.4)]">
                                         Actions
                                     </th>
+                                    }
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-zinc-100 dark:divide-white/10">
@@ -191,6 +198,8 @@ else
                                                     }
                                                 </td>
                                             }
+                                            @if (Auth.CanEdit)
+                                            {
                                             <td class="sticky right-0 z-10 whitespace-nowrap bg-white px-4 py-2.5 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)] group-hover:bg-[color-mix(in_srgb,var(--color-emerald-50)_40%,white)] dark:bg-[var(--app-surface)] dark:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.4)] dark:group-hover:bg-[color-mix(in_srgb,var(--color-emerald-500)_10%,var(--app-surface))]">
                                                 <div class="flex flex-nowrap items-center gap-1">
                                                     <Button Variant="ghost" Class="h-8 px-2.5 py-1 text-xs" OnClick="() => StartEdit(s)">Edit</Button>
@@ -202,6 +211,7 @@ else
                                                     </Button>
                                                 </div>
                                             </td>
+                                            }
                                         </tr>
                                     }
                                 }
@@ -213,7 +223,7 @@ else
                     </div>
                 </Card>
 
-                @if (_editing is not null && _editForm is not null)
+                @if (Auth.CanEdit && _editing is not null && _editForm is not null)
                 {
                     <Modal TrapKeyboard="true" CloseOnBackdrop="true" OnClose="CloseEdit"
                            PanelClass="max-h-[90vh] w-full max-w-3xl overflow-y-auto p-6">
@@ -235,7 +245,7 @@ else
                     </Modal>
                 }
 
-                @if (_deleting is not null)
+                @if (Auth.CanEdit && _deleting is not null)
                 {
                     <Modal Role="alertdialog" TrapKeyboard="true" CloseOnBackdrop="true" OnClose="EscapeDelete"
                            PanelClass="w-full max-w-md p-6">

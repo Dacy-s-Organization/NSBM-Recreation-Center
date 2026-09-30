@@ -7,6 +7,16 @@ export const getHouses = cache(async () => {
   return data ?? [];
 });
 
+export const getSports = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("sports")
+    .select("id, name, sort_order")
+    .order("sort_order")
+    .order("name");
+  return data ?? [];
+});
+
 export const getSportTracks = cache(async () => {
   const supabase = await createClient();
   const { data } = await supabase

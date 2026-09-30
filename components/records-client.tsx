@@ -30,12 +30,14 @@ export function RecordsClient({
   years,
   defaultYear,
   selectedYear,
+  canEdit,
 }: {
   records: SportRecord[];
   tracks: SportTrack[];
   years: number[];
   defaultYear: number;
   selectedYear: number;
+  canEdit: boolean;
 }) {
   const router = useRouter();
   const [year, setYear] = useState(selectedYear);
@@ -309,20 +311,22 @@ export function RecordsClient({
             ))}
           </Select>
         </div>
-        <Button
-          type="button"
-          className="ml-auto"
-          onClick={() => {
-            setShowForm(!showForm);
-            setEditingId(null);
-            setStudentIdInput("");
-            setFormTrackId("");
-            setLookup(null);
-            setError(null);
-          }}
-        >
-          {showForm ? "Cancel" : "Add record"}
-        </Button>
+        {canEdit && (
+          <Button
+            type="button"
+            className="ml-auto"
+            onClick={() => {
+              setShowForm(!showForm);
+              setEditingId(null);
+              setStudentIdInput("");
+              setFormTrackId("");
+              setLookup(null);
+              setError(null);
+            }}
+          >
+            {showForm ? "Cancel" : "Add record"}
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -334,7 +338,7 @@ export function RecordsClient({
         </p>
       )}
 
-      {showForm && (
+      {canEdit && showForm && (
         <Card>
           <h3 className="font-medium text-zinc-900 dark:text-white">New sport record</h3>
           <div className="mt-4">
@@ -354,20 +358,22 @@ export function RecordsClient({
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Track</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Record</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Date</th>
-                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
+                {canEdit && (
+                  <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={canEdit ? 6 : 5} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                     No records for this filter.
                   </td>
                 </tr>
               ) : (
                 filtered.map((r) => (
                   <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-white/10">
-                    {editingId === r.id ? (
+                    {canEdit && editingId === r.id ? (
                       <td colSpan={6} className="px-4 py-3">
                         <p className="mb-3 font-medium text-zinc-900 dark:text-white">Edit record</p>
                         <RecordFormFields
@@ -390,25 +396,27 @@ export function RecordsClient({
                         <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
                           {new Date(r.recorded_at).toLocaleDateString()}
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              onClick={() => startEdit(r)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="danger"
-                              onClick={() => handleDelete(r.id)}
-                              disabled={pending}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </td>
+                        {canEdit && (
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => startEdit(r)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="danger"
+                                onClick={() => handleDelete(r.id)}
+                                disabled={pending}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        )}
                       </>
                     )}
                   </tr>

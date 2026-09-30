@@ -1,8 +1,23 @@
 <form @onsubmit="Submit" class="grid gap-4 sm:grid-cols-2">
     <div>
         <label class="@Ui.Label">Sport</label>
-        <input class="@Ui.Input" required placeholder="e.g. Basketball" @bind="_form.Sport" />
+        <select class="@Ui.Select" required @bind="_sportChoice">
+            <option value="" disabled>Select sport</option>
+            @foreach (var name in SportOptions)
+            {
+                <option value="@name">@name</option>
+            }
+            <option value="@AchievementTypes.NewSport">Add a new sport</option>
+        </select>
     </div>
+    @if (_sportChoice == AchievementTypes.NewSport)
+    {
+        <div class="sm:col-span-2">
+            <label class="@Ui.Label">New sport</label>
+            <input class="@Ui.Input" required placeholder="Name of the new sport" @bind="_form.NewSport" />
+            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">This name is saved and appears in the sport menu after you save the achievement.</p>
+        </div>
+    }
     <div>
         <label class="@Ui.Label">Achievement type</label>
         <select class="@Ui.Select" required @bind="_form.AchievementType">
@@ -27,14 +42,15 @@
             }
         </select>
     </div>
-    @if (_form.AchievementType == AchievementTypes.BestPlayer)
-    {
-        <div class="sm:col-span-2">
-            <label class="@Ui.Label">Best Player student ID</label>
-            <input class="@Ui.Input" required placeholder="e.g. 2024001" @bind="_form.WinnerStudentId" />
-            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Enter one student ID for this house's Best Player award.</p>
-        </div>
-    }
+    <div class="sm:col-span-2">
+        <label class="@Ui.Label">@(_form.AchievementType == AchievementTypes.BestPlayer ? "Best Player student ID" : "Student ID (optional)")</label>
+        <input class="@Ui.Input" required="@(_form.AchievementType == AchievementTypes.BestPlayer)" placeholder="e.g. 2024001" @bind="_form.WinnerStudentId" />
+        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            @(_form.AchievementType == AchievementTypes.BestPlayer
+                ? "Enter one student ID for this house's Best Player award."
+                : "Enter a student ID for a personal achievement. Leave blank for a team result.")
+        </p>
+    </div>
     <div class="sm:col-span-2">
         <label class="@Ui.Label">Notes (optional)</label>
         <input class="@Ui.Input" placeholder="Any extra info" @bind="_form.Notes" />
@@ -53,6 +69,8 @@
 </form>
 
 @code {
+    [Inject] private AchievementsService AchievementsData { get; set; } = default!;
+
     [Parameter] public SportsAchievement? Achievement { get; set; }
     [Parameter] public IReadOnlyList<House> Houses { get; set; } = Array.Empty<House>();
     [Parameter] public int DefaultYear { get; set; }
@@ -63,20 +81,43 @@
     [Parameter] public EventCallback OnCancel { get; set; }
 
     private AchievementForm _form = new();
+    private string _sportChoice = "";
+    private List<Sport> _sports = new();
 
-    protected override void OnInitialized()
+    private IEnumerable<string> SportOptions
+    {
+        get
+        {
+            var names = _sports.Select(s => s.Name).ToList();
+            var current = Achievement?.Sport;
+            if (!string.IsNullOrEmpty(current) && !names.Any(name => string.Equals(name, current, StringComparison.OrdinalIgnoreCase)))
+                names.Add(current);
+            return names;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
     {
         var a = Achievement;
+        _sportChoice = a?.Sport ?? "";
         _form = new AchievementForm
         {
             Id = a?.Id ?? "",
-            Sport = a?.Sport ?? "",
+            Sport = _sportChoice,
             AchievementType = a?.AchievementType ?? "",
             MeetYear = (a?.MeetYear ?? DefaultYear).ToString(CultureInfo.InvariantCulture),
             TeamName = HouseNameFor(a),
             WinnerStudentId = a?.SportsAchievementWinners?.FirstOrDefault()?.Students?.StudentId ?? "",
             Notes = a?.Notes ?? "",
         };
+        try
+        {
+            _sports = await AchievementsData.ListSportsAsync();
+        }
+        catch (PostgrestException)
+        {
+            _sports = new List<Sport>();
+        }
     }
 
     private string HouseNameFor(SportsAchievement? a)
@@ -85,5 +126,9 @@
         return Houses.FirstOrDefault(h => h.Name == a.TeamName)?.Name ?? a.TeamName;
     }
 
-    private Task Submit() => OnSubmit.InvokeAsync(_form);
+    private Task Submit()
+    {
+        _form.Sport = _sportChoice;
+        return OnSubmit.InvokeAsync(_form);
+    }
 }

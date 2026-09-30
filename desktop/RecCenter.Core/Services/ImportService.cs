@@ -47,11 +47,13 @@ public sealed class ImportService
 
     private readonly PostgrestClient _db;
     private readonly AuthService _auth;
+    private readonly AchievementsService _achievements;
 
-    public ImportService(PostgrestClient db, AuthService auth)
+    public ImportService(PostgrestClient db, AuthService auth, AchievementsService achievements)
     {
         _db = db;
         _auth = auth;
+        _achievements = achievements;
     }
 
     public Task<ImportResult> ImportAsync(ImportType type, IReadOnlyList<ImportPreviewRow> validRows) => type switch
@@ -442,13 +444,13 @@ public sealed class ImportService
             }
 
             string? winnerUuid = null;
-            if (achievementType == AchievementTypes.BestPlayer)
+            if (achievementType == AchievementTypes.BestPlayer && winnerStudentId.Length == 0)
             {
-                if (winnerStudentId.Length == 0)
-                {
-                    result.Errors.Add($"Row {line}: winner_student_id required for Best Player");
-                    continue;
-                }
+                result.Errors.Add($"Row {line}: winner_student_id required for Best Player");
+                continue;
+            }
+            if (winnerStudentId.Length > 0)
+            {
                 if (!studentMap.TryGetValue(winnerStudentId, out winnerUuid))
                 {
                     result.Errors.Add($"Row {line}: student \"{winnerStudentId}\" not found");
@@ -457,6 +459,22 @@ public sealed class ImportService
             }
 
             prepared.Add((new AchievementPayload(meetYear.Value, sport, achievementType, teamName, notes), winnerUuid));
+        }
+
+        var ensured = await _achievements.EnsureImportedSportsAsync(prepared.Select(p => p.Achievement.Sport));
+        if (ensured.Error is not null)
+        {
+            result.Errors.Add(ensured.Error);
+            return result;
+        }
+        if (ensured.Canonical is { } canonical)
+        {
+            for (var i = 0; i < prepared.Count; i++)
+            {
+                var item = prepared[i];
+                if (canonical.TryGetValue(item.Achievement.Sport.Trim().ToLowerInvariant(), out var name))
+                    prepared[i] = (item.Achievement with { Sport = name }, item.WinnerUuid);
+            }
         }
 
         foreach (var batch in Chunk(prepared, ImportBatchSize))

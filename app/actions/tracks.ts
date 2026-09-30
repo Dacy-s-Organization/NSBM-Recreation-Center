@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireSuper } from "@/lib/supabase/auth";
 
 export async function addSportTrack(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -15,7 +15,9 @@ export async function addSportTrack(formData: FormData) {
     return { error: "Unit is required (e.g. s for seconds, m for meters)." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
   const { error } = await supabase.from("sport_tracks").insert({
     name,
     unit,
@@ -38,7 +40,9 @@ export async function deleteSportTrack(id: string) {
     return { error: "Invalid track." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
   const { error } = await supabase.from("sport_tracks").delete().eq("id", id);
 
   if (error) {

@@ -3,7 +3,8 @@ import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { TracksManager } from "@/components/tracks-manager";
 import { RecordsClient } from "@/components/records-client";
 import { AchievementsClient } from "@/components/achievements-client";
-import { getHouses, getSportTracks } from "@/lib/data/reference";
+import { getHouses, getSports, getSportTracks } from "@/lib/data/reference";
+import { getStaffRole } from "@/lib/supabase/auth";
 import type { House, SportRecord, SportTrack, SportsAchievement } from "@/lib/types/database";
 
 const RECORDS_LIMIT = 500;
@@ -18,10 +19,13 @@ export default async function AchievementsPage({
   const selectedYear = parseInt(params.year ?? String(defaultYear), 10) || defaultYear;
 
   const supabase = await createClient();
-  const [tracks, houses, { data: records }, { data: achievements }] =
+  const { role } = await getStaffRole();
+  const canEdit = role === "super";
+  const [tracks, houses, sports, { data: records }, { data: achievements }] =
     await Promise.all([
       getSportTracks(),
       getHouses(),
+      getSports(),
       supabase
         .from("sport_records")
         .select(
@@ -64,8 +68,8 @@ export default async function AchievementsPage({
         <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
           <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Athletic Records</h3>
           <div className="flex flex-wrap gap-2">
-            <TracksManager tracks={tracks as SportTrack[]} />
-            <CsvImportDialog type="records" />
+            {canEdit ? <TracksManager tracks={tracks as SportTrack[]} /> : null}
+            {canEdit ? <CsvImportDialog type="records" /> : null}
           </div>
         </div>
         <RecordsClient
@@ -74,6 +78,7 @@ export default async function AchievementsPage({
           years={years}
           defaultYear={selectedYear}
           selectedYear={selectedYear}
+          canEdit={canEdit}
         />
       </section>
 
@@ -82,14 +87,16 @@ export default async function AchievementsPage({
           <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">
             Sports Achievements
           </h3>
-          <CsvImportDialog type="achievements" />
+          {canEdit ? <CsvImportDialog type="achievements" /> : null}
         </div>
         <AchievementsClient
           achievements={(achievements ?? []) as unknown as SportsAchievement[]}
           houses={houses as House[]}
+          sports={(sports ?? []).map((sport) => sport.name)}
           defaultYear={selectedYear}
           selectedYear={selectedYear}
           years={years}
+          canEdit={canEdit}
         />
       </section>
     </div>

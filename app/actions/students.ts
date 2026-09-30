@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireSuper } from "@/lib/supabase/auth";
 import { normalizeFacultyCode } from "@/lib/faculties";
 
 function parseStudentForm(formData: FormData) {
@@ -35,7 +35,9 @@ export async function addStudent(formData: FormData) {
     return { error: "Name is required." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
   const { error } = await supabase.from("students").insert(data);
 
   if (error) {
@@ -57,7 +59,9 @@ export async function updateStudent(formData: FormData) {
     return { error: "Name is required." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
   const { error } = await supabase.from("students").update(data).eq("id", id);
 
   if (error) {
@@ -76,7 +80,9 @@ export async function deleteStudent(id: string) {
     return { error: "Invalid student." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
   const { error } = await supabase.from("students").delete().eq("id", id);
 
   if (error) return { error: error.message };

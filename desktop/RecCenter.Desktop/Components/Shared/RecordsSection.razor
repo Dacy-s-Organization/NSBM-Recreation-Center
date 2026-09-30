@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject RecordsService RecordsData
 @inject IJSRuntime JS
+@inject AuthService Auth
 
 <div class="space-y-8">
     <div class="flex flex-wrap items-end gap-4">
@@ -36,10 +37,13 @@
         <div class="space-y-4" data-records-section="@key">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h4 class="text-base font-semibold text-zinc-800 dark:text-zinc-100">@label</h4>
-                <Button OnClick="() => ToggleAddForm(key)">@(_addSection == key ? "Cancel" : $"Add {key} record")</Button>
+                @if (Auth.CanEdit)
+                {
+                    <Button OnClick="() => ToggleAddForm(key)">@(_addSection == key ? "Cancel" : $"Add {key} record")</Button>
+                }
             </div>
 
-            @if (_addSection == key)
+            @if (Auth.CanEdit && _addSection == key)
             {
                 <Card>
                     <h3 class="font-medium text-zinc-900 dark:text-white">New @key sport record</h3>
@@ -139,14 +143,17 @@
                             <th class="@Ui.Th">Track</th>
                             <th class="@Ui.Th">Record</th>
                             <th class="@Ui.Th">Date</th>
+                            @if (Auth.CanEdit)
+                            {
                             <th class="@Ui.Th">Actions</th>
+                            }
                         </tr>
                     </thead>
                     <tbody>
                         @if (rows.Count == 0)
                         {
                             <tr>
-                                <td colspan="6" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">@emptyText</td>
+                                <td colspan="@(Auth.CanEdit ? 6 : 5)" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">@emptyText</td>
                             </tr>
                         }
                         else
@@ -154,7 +161,7 @@
                             @foreach (var r in rows)
                             {
                                 <tr @key="r.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
-                                    @if (_editingId == r.Id)
+                                    @if (Auth.CanEdit && _editingId == r.Id)
                                     {
                                         <td colspan="6" class="px-4 py-3">
                                             <p class="mb-3 font-medium text-zinc-900 dark:text-white">Edit record</p>
@@ -172,12 +179,15 @@
                                         <td class="px-4 py-3">@r.SportTracks?.Name</td>
                                         <td class="px-4 py-3 font-medium">@Formatting.RecordValue(r.Value, r.SportTracks)</td>
                                         <td class="px-4 py-3 text-zinc-500 dark:text-zinc-400">@Ui.FormatDate(r.RecordedAt)</td>
+                                        @if (Auth.CanEdit)
+                                        {
                                         <td class="px-4 py-3">
                                             <div class="flex flex-wrap gap-2">
                                                 <Button Variant="ghost" OnClick="() => StartEdit(r)">Edit</Button>
                                                 <Button Variant="danger" OnClick="() => HandleDelete(r.Id)" Disabled="_pending">Delete</Button>
                                             </div>
                                         </td>
+                                        }
                                     }
                                 </tr>
                             }

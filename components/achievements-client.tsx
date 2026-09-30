@@ -10,6 +10,7 @@ import {
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_TYPE_BEST_PLAYER,
+  NEW_SPORT_VALUE,
   type AchievementType,
 } from "@/lib/constants";
 import type { House, SportsAchievement } from "@/lib/types/database";
@@ -28,9 +29,18 @@ function houseNameForAchievement(
   return match?.name ?? achievement.team_name;
 }
 
+function sportChoices(sports: string[], current?: string) {
+  const names = [...sports];
+  if (current && !names.some((name) => name.toLowerCase() === current.toLowerCase())) {
+    names.push(current);
+  }
+  return names;
+}
+
 function AchievementForm({
   achievement,
   houses,
+  sports,
   defaultYear,
   pending,
   error,
@@ -40,6 +50,7 @@ function AchievementForm({
 }: {
   achievement?: SportsAchievement;
   houses: House[];
+  sports: string[];
   defaultYear: number;
   pending: boolean;
   error: string | null;
@@ -50,23 +61,43 @@ function AchievementForm({
   const isEdit = Boolean(achievement);
   const initialType = (achievement?.achievement_type as AchievementType) ?? "";
   const [achievementType, setAchievementType] = useState(initialType);
+  const [sportChoice, setSportChoice] = useState(achievement?.sport ?? "");
   const existingWinnerId =
     achievement?.sports_achievement_winners?.[0]?.students?.student_id ?? "";
-
-  const showBestPlayerField = achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER;
+  const studentRequired = achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER;
+  const options = sportChoices(sports, achievement?.sport);
 
   return (
     <form action={onSubmit} className="grid gap-4 sm:grid-cols-2">
       {isEdit && <input type="hidden" name="id" value={achievement!.id} />}
       <div>
         <Label>Sport</Label>
-        <Input
+        <Select
           name="sport"
           required
-          defaultValue={achievement?.sport ?? ""}
-          placeholder="e.g. Basketball"
-        />
+          value={sportChoice}
+          onChange={(e) => setSportChoice(e.target.value)}
+        >
+          <option value="" disabled>
+            Select sport
+          </option>
+          {options.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+          <option value={NEW_SPORT_VALUE}>Add a new sport</option>
+        </Select>
       </div>
+      {sportChoice === NEW_SPORT_VALUE && (
+        <div className="sm:col-span-2">
+          <Label>New sport</Label>
+          <Input name="new_sport" required placeholder="Name of the new sport" />
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            This name is saved and appears in the sport menu after you save the achievement.
+          </p>
+        </div>
+      )}
       <div>
         <Label>Achievement type</Label>
         <Select
@@ -111,20 +142,20 @@ function AchievementForm({
           ))}
         </Select>
       </div>
-      {showBestPlayerField && (
-        <div className="sm:col-span-2">
-          <Label>Best Player student ID</Label>
-          <Input
-            name="winner_student_id"
-            required
-            defaultValue={existingWinnerId}
-            placeholder="e.g. 2024001"
-          />
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Enter one student ID for this house&apos;s Best Player award.
-          </p>
-        </div>
-      )}
+      <div className="sm:col-span-2">
+        <Label>{studentRequired ? "Best Player student ID" : "Student ID (optional)"}</Label>
+        <Input
+          name="winner_student_id"
+          required={studentRequired}
+          defaultValue={existingWinnerId}
+          placeholder="e.g. 2024001"
+        />
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          {studentRequired
+            ? "Enter one student ID for this house's Best Player award."
+            : "Enter a student ID for a personal achievement. Leave blank for a team result."}
+        </p>
+      </div>
       <div className="sm:col-span-2">
         <Label>Notes (optional)</Label>
         <Input
@@ -151,15 +182,19 @@ function AchievementForm({
 export function AchievementsClient({
   achievements,
   houses,
+  sports,
   defaultYear,
   selectedYear,
   years,
+  canEdit,
 }: {
   achievements: SportsAchievement[];
   houses: House[];
+  sports: string[];
   defaultYear: number;
   selectedYear: number;
   years: number[];
+  canEdit: boolean;
 }) {
   const router = useRouter();
   const [yearFilter, setYearFilter] = useState(selectedYear);
@@ -209,13 +244,15 @@ export function AchievementsClient({
   }
 
   function formatWinners(a: SportsAchievement): string {
-    if (a.achievement_type !== ACHIEVEMENT_TYPE_BEST_PLAYER) {
-      return "—";
-    }
     const winners = a.sports_achievement_winners;
     if (!winners?.length) return "—";
     return winners
-      .map((w) => w.students?.full_name ?? w.students?.student_id ?? "?")
+      .map((w) => {
+        const name = w.students?.full_name;
+        const studentId = w.students?.student_id;
+        if (name && studentId) return `${name} (${studentId})`;
+        return name ?? studentId ?? "?";
+      })
       .join(", ");
   }
 
@@ -240,30 +277,33 @@ export function AchievementsClient({
             ))}
           </Select>
         </div>
-        <Button
-          type="button"
-          className="ml-auto"
-          onClick={() => {
-            setShowForm(!showForm);
-            setEditingId(null);
-            setError(null);
-          }}
-        >
-          {showForm ? "Cancel" : "Add achievement"}
-        </Button>
+        {canEdit && (
+          <Button
+            type="button"
+            className="ml-auto"
+            onClick={() => {
+              setShowForm(!showForm);
+              setEditingId(null);
+              setError(null);
+            }}
+          >
+            {showForm ? "Cancel" : "Add achievement"}
+          </Button>
+        )}
       </div>
 
       {error && !showForm && editingId === null && (
         <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
       )}
 
-      {showForm && (
+      {canEdit && showForm && (
         <Card>
           <h3 className="font-medium text-zinc-900 dark:text-zinc-100">New sports achievement</h3>
           <div className="mt-4">
             <AchievementForm
               key="new-achievement"
               houses={houses}
+              sports={sports}
               defaultYear={defaultYear}
               pending={pending}
               error={error}
@@ -284,13 +324,15 @@ export function AchievementsClient({
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Team</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Winners</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Notes</th>
-                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
+                {canEdit && (
+                  <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={canEdit ? 6 : 5} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                     No achievements for {yearFilter}.
                   </td>
                 </tr>
@@ -300,7 +342,7 @@ export function AchievementsClient({
                     key={a.id}
                     className="border-b border-zinc-100 last:border-0 dark:border-white/10"
                   >
-                    {editingId === a.id ? (
+                    {canEdit && editingId === a.id ? (
                       <td colSpan={6} className="px-4 py-3">
                         <p className="mb-3 font-medium text-zinc-900 dark:text-zinc-100">
                           Edit achievement
@@ -309,6 +351,7 @@ export function AchievementsClient({
                           key={a.id}
                           achievement={a}
                           houses={houses}
+                          sports={sports}
                           defaultYear={defaultYear}
                           pending={pending}
                           error={error}
@@ -335,6 +378,7 @@ export function AchievementsClient({
                         <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
                           {a.notes || "—"}
                         </td>
+                        {canEdit && (
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-2">
                             <Button
@@ -358,6 +402,7 @@ export function AchievementsClient({
                             </Button>
                           </div>
                         </td>
+                        )}
                       </>
                     )}
                   </tr>

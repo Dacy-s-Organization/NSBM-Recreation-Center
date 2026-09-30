@@ -81,6 +81,13 @@ public sealed class InventoryItem
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
+public sealed class Sport
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int SortOrder { get; set; }
+}
+
 public sealed class AchievementWinner
 {
     public string? StudentId { get; set; }

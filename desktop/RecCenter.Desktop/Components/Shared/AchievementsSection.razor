@@ -1,5 +1,6 @@
 @inject AchievementsService AchievementsData
 @inject IJSRuntime JS
+@inject AuthService Auth
 
 <div class="space-y-6">
     <div class="flex flex-wrap items-end gap-4">
@@ -12,7 +13,10 @@
                 }
             </select>
         </div>
-        <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add achievement")</Button>
+        @if (Auth.CanEdit)
+        {
+            <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add achievement")</Button>
+        }
     </div>
 
     @if (_error is not null && !_showForm && _editingId is null)
@@ -20,7 +24,7 @@
         <p class="text-sm text-red-600 dark:text-red-300">@_error</p>
     }
 
-    @if (_showForm)
+    @if (Auth.CanEdit && _showForm)
     {
         <Card>
             <h3 class="font-medium text-zinc-900 dark:text-zinc-100">New sports achievement</h3>
@@ -41,14 +45,17 @@
                         <th class="@Ui.Th">Team</th>
                         <th class="@Ui.Th">Winners</th>
                         <th class="@Ui.Th">Notes</th>
+                        @if (Auth.CanEdit)
+                        {
                         <th class="@Ui.Th">Actions</th>
+                        }
                     </tr>
                 </thead>
                 <tbody>
                     @if (Achievements.Count == 0)
                     {
                         <tr>
-                            <td colspan="6" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">No achievements for @SelectedYear.</td>
+                            <td colspan="@(Auth.CanEdit ? 6 : 5)" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">No achievements for @SelectedYear.</td>
                         </tr>
                     }
                     else
@@ -56,7 +63,7 @@
                         @foreach (var a in Achievements)
                         {
                             <tr @key="a.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
-                                @if (_editingId == a.Id)
+                                @if (Auth.CanEdit && _editingId == a.Id)
                                 {
                                     <td colspan="6" class="px-4 py-3">
                                         <p class="mb-3 font-medium text-zinc-900 dark:text-zinc-100">Edit achievement</p>
@@ -72,12 +79,15 @@
                                     <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">@(string.IsNullOrEmpty(a.TeamName) ? "—" : a.TeamName)</td>
                                     <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">@FormatWinners(a)</td>
                                     <td class="px-4 py-3 text-zinc-500 dark:text-zinc-400">@(string.IsNullOrEmpty(a.Notes) ? "—" : a.Notes)</td>
+                                    @if (Auth.CanEdit)
+                                    {
                                     <td class="px-4 py-3">
                                         <div class="flex flex-wrap gap-2">
                                             <Button Variant="ghost" OnClick="() => StartEdit(a)">Edit</Button>
                                             <Button Variant="danger" OnClick="() => HandleDelete(a.Id, a.Sport)" Disabled="_pending">Delete</Button>
                                         </div>
                                     </td>
+                                    }
                                 }
                             </tr>
                         }
@@ -113,10 +123,15 @@
 
     private static string FormatWinners(SportsAchievement a)
     {
-        if (a.AchievementType != AchievementTypes.BestPlayer) return "—";
         var winners = a.SportsAchievementWinners;
         if (winners is null || winners.Count == 0) return "—";
-        return string.Join(", ", winners.Select(w => w.Students?.FullName ?? w.Students?.StudentId ?? "?"));
+        return string.Join(", ", winners.Select(w =>
+        {
+            var name = w.Students?.FullName;
+            var studentId = w.Students?.StudentId;
+            if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(studentId)) return $"{name} ({studentId})";
+            return name ?? studentId ?? "?";
+        }));
     }
 
     private void ToggleAddForm()

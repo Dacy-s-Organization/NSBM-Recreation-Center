@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject DashboardService DashboardData
 @inject AppState State
+@inject AuthService Auth
 
 @if (_stats is null && _error is null)
 {
@@ -33,6 +34,23 @@ else
             }
         </div>
 
+        @if (Auth.CanEdit)
+        {
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h3 class="font-medium text-zinc-900 dark:text-white">Staff accounts</h3>
+                    <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                        New accounts can view every list. Only this super user account can change data.
+                    </p>
+                </div>
+                <Button OnClick="OpenAddUser">Add user</Button>
+            </div>
+            @if (_userMessage is not null)
+            {
+                <p class="text-sm text-emerald-800 dark:text-emerald-300">@_userMessage</p>
+            }
+        }
+
         <div class="grid gap-4 sm:grid-cols-2">
             @foreach (var link in QuickLinks)
             {
@@ -45,11 +63,46 @@ else
             }
         </div>
     </div>
+
+    @if (_addUserOpen)
+    {
+        <Modal TrapKeyboard="true" CloseOnBackdrop="true" OnClose="CloseAddUser" PanelClass="w-full max-w-md p-6">
+            <h3 class="font-medium text-zinc-900 dark:text-white">Add user</h3>
+            <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                Set the email and password this person will use on the same sign-in page.
+            </p>
+            <form @onsubmit="CreateUser" class="mt-4 space-y-4">
+                <div>
+                    <label for="staff-email" class="@Ui.Label">Email</label>
+                    <input id="staff-email" class="@Ui.Input" type="email" required autocomplete="off" @bind="_staffEmail" />
+                </div>
+                <div>
+                    <label for="staff-password" class="@Ui.Label">Password</label>
+                    <input id="staff-password" class="@Ui.Input" type="text" required minlength="8" autocomplete="new-password" @bind="_staffPassword" />
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">At least 8 characters. Shown so you can give it to the new user.</p>
+                </div>
+                @if (_userError is not null)
+                {
+                    <p class="text-sm text-red-600 dark:text-red-300">@_userError</p>
+                }
+                <div class="flex justify-end gap-2">
+                    <Button Variant="secondary" OnClick="CloseAddUser" Disabled="_creatingUser">Cancel</Button>
+                    <Button Type="submit" Disabled="_creatingUser">@(_creatingUser ? "Saving…" : "Create account")</Button>
+                </div>
+            </form>
+        </Modal>
+    }
 }
 
 @code {
     private DashboardStats? _stats;
     private string? _error;
+    private bool _addUserOpen;
+    private bool _creatingUser;
+    private string _staffEmail = "";
+    private string _staffPassword = "";
+    private string? _userError;
+    private string? _userMessage;
 
     private static readonly (string Href, string Title, string Desc)[] QuickLinks =
     {
@@ -87,6 +140,37 @@ else
             _error = ex.Message;
         }
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenAddUser()
+    {
+        _userError = null;
+        _addUserOpen = true;
+    }
+
+    private void CloseAddUser()
+    {
+        if (_creatingUser) return;
+        _addUserOpen = false;
+        _userError = null;
+    }
+
+    private async Task CreateUser()
+    {
+        _creatingUser = true;
+        _userError = null;
+        _userMessage = null;
+        var error = await Auth.CreateStaffUserAsync(_staffEmail, _staffPassword);
+        _creatingUser = false;
+        if (error is not null)
+        {
+            _userError = error;
+            return;
+        }
+        _userMessage = $"{_staffEmail.Trim()} can sign in with the password you set.";
+        _staffEmail = "";
+        _staffPassword = "";
+        _addUserOpen = false;
     }
 
     public void Dispose() => State.RefreshRequested -= LoadAsync;

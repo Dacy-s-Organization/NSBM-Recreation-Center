@@ -9,7 +9,8 @@ import {
 import { chunkArray, IMPORT_BATCH_SIZE } from "@/lib/batch-chunks";
 import { buildHouseIdMap, lookupHouseId, resolveHouseName } from "@/lib/houses";
 import { normalizeFacultyCode } from "@/lib/faculties";
-import { getAuthedClient } from "@/lib/supabase/auth";
+import { requireSuper } from "@/lib/supabase/auth";
+import { ensureImportedSports } from "@/lib/sports";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
 
 type ImportResult = {
@@ -97,7 +98,7 @@ function revalidateInventory() {
 export async function importStudents(
   rows: StudentRow[]
 ): Promise<ImportResult> {
-  const auth = await getAuthedClient();
+  const auth = await requireSuper();
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
   }
@@ -278,7 +279,7 @@ export async function importStudents(
 export async function importRecords(
   rows: { student_id: string; track_name: string; value: string; year: string }[]
 ): Promise<ImportResult> {
-  const auth = await getAuthedClient();
+  const auth = await requireSuper();
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
   }
@@ -450,7 +451,7 @@ function parseAchievementType(raw: string): AchievementType | null {
 export async function importAchievements(
   rows: AchievementImportRow[]
 ): Promise<ImportResult> {
-  const auth = await getAuthedClient();
+  const auth = await requireSuper();
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
   }
@@ -509,11 +510,11 @@ export async function importAchievements(
     }
 
     let winnerStudentUuid: string | null = null;
-    if (achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER) {
-      if (!winnerStudentId) {
-        result.errors.push(`Row ${line}: winner_student_id required for Best Player`);
-        continue;
-      }
+    if (achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER && !winnerStudentId) {
+      result.errors.push(`Row ${line}: winner_student_id required for Best Player`);
+      continue;
+    }
+    if (winnerStudentId) {
       winnerStudentUuid = studentMap.get(winnerStudentId) ?? null;
       if (!winnerStudentUuid) {
         result.errors.push(`Row ${line}: student "${winnerStudentId}" not found`);
@@ -531,6 +532,19 @@ export async function importAchievements(
       },
       winnerStudentUuid,
     });
+  }
+
+  const ensured = await ensureImportedSports(
+    supabase,
+    prepared.map((item) => item.achievement.sport)
+  );
+  if ("error" in ensured) {
+    result.errors.push(ensured.error);
+    return result;
+  }
+  for (const item of prepared) {
+    const canonical = ensured.canonical.get(item.achievement.sport.trim().toLowerCase());
+    if (canonical) item.achievement.sport = canonical;
   }
 
   for (const batch of chunkArray(prepared, IMPORT_BATCH_SIZE)) {
@@ -574,7 +588,7 @@ export async function importAchievements(
 export async function importInventory(
   rows: { item_name: string; quantity: string }[]
 ): Promise<ImportResult> {
-  const auth = await getAuthedClient();
+  const auth = await requireSuper();
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
   }

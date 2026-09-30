@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireSuper } from "@/lib/supabase/auth";
 
 export async function addInventoryItem(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -15,7 +15,9 @@ export async function addInventoryItem(formData: FormData) {
     return { error: "Quantity must be a non-negative number." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
   const { error } = await supabase.from("inventory_items").insert({ name, quantity });
 
   if (error) {
@@ -42,7 +44,9 @@ export async function updateInventoryItem(formData: FormData) {
     return { error: "Quantity must be a non-negative number." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
   const { error } = await supabase
     .from("inventory_items")
     .update({ name, quantity, updated_at: new Date().toISOString() })
@@ -64,7 +68,9 @@ export async function deleteInventoryItem(id: string) {
     return { error: "Invalid item." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
   const { error } = await supabase.from("inventory_items").delete().eq("id", id);
 
   if (error) return { error: error.message };
