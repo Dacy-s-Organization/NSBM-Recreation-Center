@@ -167,9 +167,19 @@
     private static string FormatResult(ImportResult r)
     {
         var parts = new List<string> { $"Processed: {r.Success}" };
-        if (r.Inserted > 0) parts.Add($"New: {r.Inserted}");
-        if (r.Updated > 0) parts.Add($"Updated: {r.Updated}");
+        var studentImport = r.Filled is not null;
+        if (studentImport || r.Inserted > 0) parts.Add($"New: {r.Inserted}");
+        if (r.Filled is int filled) parts.Add($"Filled: {filled}");
+        if (r.Unchanged is int unchanged) parts.Add($"Already complete: {unchanged}");
+        if (r.Kept is int kept) parts.Add($"Kept existing: {kept}");
+        if (!studentImport && r.Updated > 0) parts.Add($"Updated: {r.Updated}");
         if (r.Skipped > 0) parts.Add($"Skipped: {r.Skipped}");
+        if (r.Notices.Count > 0)
+        {
+            var notes = "Notes:\n" + string.Join("\n", r.Notices.Take(10));
+            if (r.Notices.Count > 10) notes += $"\n… and {r.Notices.Count - 10} more";
+            parts.Add(notes);
+        }
         if (r.Errors.Count > 0)
         {
             var errors = "Errors:\n" + string.Join("\n", r.Errors.Take(10));
