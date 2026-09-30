@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject ReferenceService Reference
 @inject RecordsService RecordsData
+@inject AchievementsService AchievementsData
 @inject AppState State
 @inject NavigationManager Nav
 
@@ -14,7 +15,7 @@ else
     <div class="space-y-10">
         <div>
             <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white">Achievements</h2>
-            <p class="mt-1 text-zinc-600 dark:text-zinc-400">Male and female athletic records for the recreation center.</p>
+            <p class="mt-1 text-zinc-600 dark:text-zinc-400">Athletic records and sports achievements for the recreation center.</p>
         </div>
 
         @if (_loadError is not null)
@@ -33,6 +34,15 @@ else
             <RecordsSection Records="_records" Tracks="_tracks" Years="_years" SelectedYear="_selectedYear"
                             OnYearSelected="SelectYear" OnChanged="ReloadAsync" />
         </section>
+
+        <section>
+            <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
+                <h3 class="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Sports Achievements</h3>
+                <CsvImportDialog Type="ImportType.Achievements" />
+            </div>
+            <AchievementsSection Achievements="_achievements" Houses="_houses" Years="_years" SelectedYear="_selectedYear"
+                                 OnYearSelected="SelectYear" OnChanged="ReloadAsync" />
+        </section>
     </div>
 }
 
@@ -44,6 +54,8 @@ else
     private List<int> _years = new();
     private List<SportTrack> _tracks = new();
     private List<SportRecord> _records = new();
+    private List<House> _houses = new();
+    private List<SportsAchievement> _achievements = new();
 
     protected override void OnInitialized()
     {
@@ -90,9 +102,13 @@ else
         {
             var tracks = Reference.GetSportTracksAsync();
             var records = RecordsData.GetForYearAsync(_selectedYear);
-            await Task.WhenAll(tracks, records);
+            var houses = Reference.GetHousesAsync();
+            var achievements = AchievementsData.GetForYearAsync(_selectedYear);
+            await Task.WhenAll(tracks, records, houses, achievements);
             _tracks = tracks.Result;
             _records = records.Result;
+            _houses = houses.Result;
+            _achievements = achievements.Result;
             _loadError = null;
         }
         catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)
