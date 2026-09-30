@@ -24,55 +24,43 @@
                 }
             </select>
         </div>
+        <div>
+            <label for="gender-filter" class="@Ui.Label">Gender</label>
+            <select id="gender-filter" class="@Ui.Select" @bind="_genderFilter">
+                <option value="">All genders</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+            </select>
+        </div>
+        @if (Auth.CanEdit)
+        {
+            <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add record")</Button>
+        }
     </div>
 
-    @if (_error is not null && _addSection is null && _editingId is null)
+    @if (_error is not null && !_showForm && _editingId is null)
     {
         <p role="alert" class="@Ui.ErrorBanner">@_error</p>
     }
 
-    @foreach (var (key, label) in Sections)
+    @if (Auth.CanEdit && _showForm)
     {
-        var sectionRecords = Filtered.Where(r => GenderKey(r.Students?.Gender) == key).ToList();
-        <div class="space-y-4" data-records-section="@key">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <h4 class="text-base font-semibold text-zinc-800 dark:text-zinc-100">@label</h4>
-                @if (Auth.CanEdit)
-                {
-                    <Button OnClick="() => ToggleAddForm(key)">@(_addSection == key ? "Cancel" : $"Add {key} record")</Button>
-                }
+        <Card>
+            <h3 class="font-medium text-zinc-900 dark:text-white">New sport record</h3>
+            <div class="mt-4">
+                @RecordFormFields(null, "Save record")
             </div>
-
-            @if (Auth.CanEdit && _addSection == key)
+            @if (_error is not null)
             {
-                <Card>
-                    <h3 class="font-medium text-zinc-900 dark:text-white">New @key sport record</h3>
-                    <div class="mt-4">
-                        @RecordFormFields(null, "Save record")
-                    </div>
-                    @if (_error is not null)
-                    {
-                        <p role="alert" class="mt-2 text-sm text-red-600 dark:text-red-300">@_error</p>
-                    }
-                </Card>
+                <p role="alert" class="mt-2 text-sm text-red-600 dark:text-red-300">@_error</p>
             }
-
-            @RecordsTable(sectionRecords, $"No {key} records for this filter.", $"{key} record(s)")
-        </div>
+        </Card>
     }
 
-    @{ var hiddenCount = Filtered.Count(r => GenderKey(r.Students?.Gender) is null); }
-    @if (hiddenCount > 0)
-    {
-        <p class="text-sm text-zinc-500 dark:text-zinc-400" data-records-hidden="@hiddenCount">
-            @(hiddenCount == 1 ? "1 record isn't" : $"{hiddenCount} records aren't") shown because the student's gender isn't set. Set it on the Students page.
-        </p>
-    }
+    @RecordsTable(Filtered, "No records for this filter.", "record(s)")
 </div>
 
 @code {
-    private static readonly (string Key, string Label)[] Sections = { ("male", "Male"), ("female", "Female") };
-
     [Parameter] public IReadOnlyList<SportRecord> Records { get; set; } = Array.Empty<SportRecord>();
     [Parameter] public IReadOnlyList<SportTrack> Tracks { get; set; } = Array.Empty<SportTrack>();
     [Parameter] public IReadOnlyList<int> Years { get; set; } = Array.Empty<int>();
@@ -81,9 +69,9 @@
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private string _trackFilter = "";
-    private string? _addSection;
+    private string _genderFilter = "";
+    private bool _showForm;
     private string? _editingId;
-    private string? _editingSection;
     private RecordForm _form = new();
     private StudentLookup? _lookup;
     private bool _lookupLoading;
@@ -91,10 +79,7 @@
     private string? _error;
     private bool _pending;
 
-    private bool LookupActive => _addSection is not null || _editingId is not null;
-
-    /// <summary>The section the open form belongs to; null when editing a record whose student has no gender.</summary>
-    private string? FormSection => _addSection ?? _editingSection;
+    private bool LookupActive => _showForm || _editingId is not null;
 
     private IReadOnlyList<int> YearOptions =>
         Years.Count > 0 ? Years : new[] { SelectedYear, SelectedYear - 1, SelectedYear - 2 };
@@ -104,25 +89,13 @@
     private static string? GenderKey(string? gender) =>
         gender?.Trim().ToLowerInvariant() is "male" or "female" ? gender.Trim().ToLowerInvariant() : null;
 
-    private static string SectionLabel(string key) => key == "male" ? "Male" : "Female";
-
-    /// <summary>Why this student can't go in the open form's section, or null when they can.</summary>
-    private string? GenderProblem(StudentLookup student)
-    {
-        var section = FormSection;
-        if (section is null) return null;
-        var gender = GenderKey(student.Gender);
-        if (gender is null) return "Set this student's gender on the Students page before adding a record.";
-        if (gender != section) return $"This student is {gender}. Add the record in the {SectionLabel(gender)} section.";
-        return null;
-    }
-
     private List<SportRecord> Filtered
     {
         get
         {
             IEnumerable<SportRecord> list = Records;
             if (_trackFilter.Length > 0) list = list.Where(r => r.TrackId == _trackFilter);
+            if (_genderFilter.Length > 0) list = list.Where(r => GenderKey(r.Students?.Gender) == _genderFilter);
             var byTrack = Comparer<string>.Create((a, b) => string.Compare(a, b, CultureInfo.CurrentCulture, CompareOptions.None));
             return list
                 .OrderBy(r => r.SportTracks?.Name ?? "", byTrack)
@@ -196,7 +169,7 @@
                 </table>
             </div>
             <p class="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
-                @rows.Count @countLabel for @SelectedYear@(_trackFilter.Length > 0 ? " · filtered by track" : "")
+                @rows.Count @countLabel for @SelectedYear@(_trackFilter.Length > 0 ? " · filtered by track" : "")@(_genderFilter.Length > 0 ? " · filtered by gender" : "")
             </p>
         </Card>
     };
@@ -204,7 +177,7 @@
     private RenderFragment RecordFormFields(SportRecord? record, string submitLabel) => __builder =>
     {
         var isEdit = record is not null;
-        var suffix = isEdit ? $"-{record!.Id}" : $"-new-{_addSection}";
+        var suffix = isEdit ? $"-{record!.Id}" : "-new";
         var track = SelectedFormTrack;
         var unitLabel = track is not null ? Formatting.TrackUnitLabel(track.Unit) : "value";
         var unit = track?.Unit?.ToLowerInvariant();
@@ -221,7 +194,6 @@
                 }
                 else if (_lookup is not null)
                 {
-                    var problem = GenderProblem(_lookup);
                     <p class="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
                         @_lookup.FullName
                         <span class="ml-1 text-xs text-zinc-500 dark:text-zinc-400">(@(string.IsNullOrWhiteSpace(_lookup.Gender) ? "gender not set" : _lookup.Gender.Trim()))</span>
@@ -230,10 +202,6 @@
                             <span class="ml-2"><HouseBadge Name="@(_lookup.Houses!.Name!)" /></span>
                         }
                     </p>
-                    @if (problem is not null)
-                    {
-                        <p class="mt-1 text-xs text-red-600 dark:text-red-300">@problem</p>
-                    }
                 }
                 else if (_form.StudentId.Trim().Length > 0)
                 {
@@ -288,11 +256,10 @@
         _lookup = null;
     }
 
-    private void ToggleAddForm(string section)
+    private void ToggleAddForm()
     {
-        _addSection = _addSection == section ? null : section;
+        _showForm = !_showForm;
         _editingId = null;
-        _editingSection = null;
         ResetFormState();
         _error = null;
     }
@@ -300,8 +267,7 @@
     private void StartEdit(SportRecord record)
     {
         _editingId = record.Id;
-        _editingSection = GenderKey(record.Students?.Gender);
-        _addSection = null;
+        _showForm = false;
         _error = null;
         _form = new RecordForm
         {
@@ -318,7 +284,6 @@
     private void CancelEdit()
     {
         _editingId = null;
-        _editingSection = null;
         ResetFormState();
         _error = null;
     }
@@ -404,12 +369,6 @@
         }
 
         _lookup = student;
-        var problem = GenderProblem(student);
-        if (problem is not null)
-        {
-            _error = problem;
-            return null;
-        }
 
         var others = existing.Where(r => r.Id != editingId).ToList();
         if (others.Any(r => string.Equals(r.Students?.StudentId, student.StudentId, StringComparison.OrdinalIgnoreCase)))
@@ -458,7 +417,7 @@
             _error = result.Error;
             return;
         }
-        _addSection = null;
+        _showForm = false;
         ResetFormState();
         await OnChanged.InvokeAsync();
     }
@@ -481,7 +440,6 @@
             return;
         }
         _editingId = null;
-        _editingSection = null;
         ResetFormState();
         await OnChanged.InvokeAsync();
     }
