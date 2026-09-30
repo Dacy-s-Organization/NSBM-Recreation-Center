@@ -114,18 +114,25 @@ export function CsvImportDialog({
         );
       }
 
+      const detail = (label: string, lines: string[]) =>
+        `${label}:\n${lines.slice(0, 10).join("\n")}${
+          lines.length > 10 ? `\n… and ${lines.length - 10} more` : ""
+        }`;
+      const studentImport = typeof importResult.filled === "number";
       const msg = [
         `Processed: ${importResult.success}`,
-        importResult.inserted ? `New: ${importResult.inserted}` : null,
-        importResult.updated ? `Updated: ${importResult.updated}` : null,
-        importResult.skipped ? `Skipped: ${importResult.skipped}` : null,
-        importResult.errors.length
-          ? `Errors:\n${importResult.errors.slice(0, 10).join("\n")}${
-              importResult.errors.length > 10
-                ? `\n… and ${importResult.errors.length - 10} more`
-                : ""
-            }`
+        studentImport || importResult.inserted
+          ? `New: ${importResult.inserted}`
           : null,
+        studentImport ? `Filled: ${importResult.filled}` : null,
+        studentImport ? `Already complete: ${importResult.unchanged ?? 0}` : null,
+        studentImport ? `Kept existing: ${importResult.kept ?? 0}` : null,
+        !studentImport && importResult.updated
+          ? `Updated: ${importResult.updated}`
+          : null,
+        importResult.skipped ? `Skipped: ${importResult.skipped}` : null,
+        importResult.notices?.length ? detail("Notes", importResult.notices) : null,
+        importResult.errors.length ? detail("Errors", importResult.errors) : null,
       ]
         .filter(Boolean)
         .join("\n");

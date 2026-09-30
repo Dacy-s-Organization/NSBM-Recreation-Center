@@ -126,5 +126,12 @@ public sealed class ImportResult
     public int Inserted { get; set; }
     public int Updated { get; set; }
     public int Skipped { get; set; }
+    /// <summary>Students whose empty fields were filled. Null unless this was a student import.</summary>
+    public int? Filled { get; set; }
+    /// <summary>Students that already had every supplied field. Null unless this was a student import.</summary>
+    public int? Unchanged { get; set; }
+    /// <summary>Students where the file disagreed and the stored value was kept.</summary>
+    public int? Kept { get; set; }
     public List<string> Errors { get; } = new();
+    public List<string> Notices { get; } = new();
 }

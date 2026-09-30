@@ -34,6 +34,12 @@ public sealed class PgQuery
         return this;
     }
 
+    public PgQuery IsNull(string column)
+    {
+        _params.Add($"{column}=is.null");
+        return this;
+    }
+
     public PgQuery In(string column, IEnumerable<string> values)
     {
         var list = string.Join(",", values.Select(v => $"\"{v.Replace("\\", "\\\\").Replace("\"", "\\\"")}\""));
@@ -171,6 +177,13 @@ public sealed class PostgrestClient
     public async Task UpdateAsync(PgQuery filter, object body)
     {
         await SendAsync(HttpMethod.Patch, filter.Table + filter.BuildQueryString(includeSelect: false), body, "return=minimal");
+    }
+
+    public async Task<List<T>> UpdateAsync<T>(PgQuery filter, object body, string select)
+    {
+        var path = filter.Table + filter.Select(select).BuildQueryString();
+        var json = await SendAsync(HttpMethod.Patch, path, body, "return=representation");
+        return JsonSerializer.Deserialize<List<T>>(json, Json.Options) ?? new List<T>();
     }
 
     public async Task DeleteAsync(PgQuery filter)

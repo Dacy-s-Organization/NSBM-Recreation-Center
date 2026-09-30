@@ -18,7 +18,14 @@ type ImportResult = {
   inserted: number;
   updated: number;
   skipped: number;
+  /** Students whose empty fields were filled. Set only by the student import. */
+  filled?: number;
+  /** Students that already had every supplied field. Set only by the student import. */
+  unchanged?: number;
+  /** Students where the file disagreed and the stored value was kept. */
+  kept?: number;
   errors: string[];
+  notices?: string[];
 };
 
 function emptyImportResult(): ImportResult {
@@ -44,13 +51,99 @@ type StudentRow = {
 type StudentExisting = {
   id: string;
   student_id: string | null;
+  full_name: string | null;
   serial_no: number | null;
   house_id: string | null;
   faculty: string | null;
   intake: string | null;
+  degree_programme: string | null;
+  university: string | null;
+  title: string | null;
+  gender: string | null;
+  nic: string | null;
+  mobile: string | null;
+  email: string | null;
 };
 
-function studentInsertPayload(row: StudentRow, houseId: string | null) {
+type StudentPayload = {
+  student_id: string | null;
+  full_name: string;
+  house_id: string | null;
+  serial_no: number | null;
+  faculty: string | null;
+  intake: string | null;
+  degree_programme: string | null;
+  university: string | null;
+  title: string | null;
+  gender: string | null;
+  nic: string | null;
+  mobile: string | null;
+  email: string | null;
+};
+
+const STUDENT_FILL_FIELDS = [
+  "full_name",
+  "house_id",
+  "serial_no",
+  "faculty",
+  "intake",
+  "degree_programme",
+  "university",
+  "title",
+  "gender",
+  "nic",
+  "mobile",
+  "email",
+] as const satisfies readonly (keyof StudentPayload)[];
+
+type StudentFillField = (typeof STUDENT_FILL_FIELDS)[number];
+
+const STUDENT_EXISTING_SELECT =
+  "id, student_id, full_name, serial_no, house_id, faculty, intake, degree_programme, university, title, gender, nic, mobile, email";
+
+function isEmptyStudentField(value: string | number | null | undefined) {
+  if (value == null) return true;
+  if (typeof value === "number") return Number.isNaN(value);
+  return value.trim() === "";
+}
+
+function studentFieldsEqual(
+  current: string | number | null | undefined,
+  incoming: string | number | null | undefined
+) {
+  if (typeof current === "number" || typeof incoming === "number") {
+    return current === incoming;
+  }
+  return (current ?? "").trim() === (incoming ?? "").trim();
+}
+
+function studentPayloadsMatch(a: StudentPayload, b: StudentPayload) {
+  return (
+    a.student_id === b.student_id &&
+    STUDENT_FILL_FIELDS.every((field) => studentFieldsEqual(a[field], b[field]))
+  );
+}
+
+/** Empty stored fields become the file value. A stored value is never replaced. */
+function studentFillPlan(existing: StudentExisting, incoming: StudentPayload) {
+  const patch: Partial<Record<StudentFillField, string | number>> = {};
+  const kept: StudentFillField[] = [];
+
+  for (const field of STUDENT_FILL_FIELDS) {
+    const next = incoming[field];
+    if (isEmptyStudentField(next)) continue;
+    const current = existing[field];
+    if (isEmptyStudentField(current)) {
+      patch[field] = next as string | number;
+      continue;
+    }
+    if (!studentFieldsEqual(current, next)) kept.push(field);
+  }
+
+  return { patch, kept };
+}
+
+function studentInsertPayload(row: StudentRow, houseId: string | null): StudentPayload {
   const serialRaw = row.serial_no?.trim();
   const serialNo = serialRaw ? parseInt(serialRaw, 10) : null;
 
@@ -103,17 +196,23 @@ export async function importStudents(
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
   }
   const supabase = auth.supabase;
-  const result = emptyImportResult();
+  const result: ImportResult = {
+    ...emptyImportResult(),
+    filled: 0,
+    unchanged: 0,
+    kept: 0,
+    notices: [],
+  };
+  const note = (message: string) => {
+    result.notices?.push(message);
+  };
 
   const { data: houses } = await supabase.from("houses").select("id, name");
   const houseMap = buildHouseIdMap(houses ?? []);
 
   const { data: existingRows, error: existingError } = await fetchAllPages<StudentExisting>(
     (from, to) =>
-      supabase
-        .from("students")
-        .select("id, student_id, serial_no, house_id, faculty, intake")
-        .range(from, to)
+      supabase.from("students").select(STUDENT_EXISTING_SELECT).range(from, to)
   );
 
   if (existingError) {
@@ -123,15 +222,27 @@ export async function importStudents(
 
   const byStudentId = new Map<string, StudentExisting>();
   const bySerialContext = new Map<string, StudentExisting>();
+  const ambiguousSerial = new Set<string>();
+
+  function indexSerial(row: StudentExisting) {
+    const key = serialContextKey(row.faculty, row.intake, row.serial_no);
+    if (!key || ambiguousSerial.has(key)) return;
+    if (bySerialContext.has(key)) {
+      bySerialContext.delete(key);
+      ambiguousSerial.add(key);
+      return;
+    }
+    bySerialContext.set(key, row);
+  }
 
   for (const row of existingRows) {
     if (row.student_id) byStudentId.set(row.student_id, row);
-    const key = serialContextKey(row.faculty, row.intake, row.serial_no);
-    if (key) bySerialContext.set(key, row);
+    indexSerial(row);
   }
 
-  const withId: ReturnType<typeof studentInsertPayload>[] = [];
-  const withoutId: ReturnType<typeof studentInsertPayload>[] = [];
+  type IncomingStudent = { line: number; payload: StudentPayload };
+  const incomingById = new Map<string, IncomingStudent>();
+  const incomingWithoutId: IncomingStudent[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -149,126 +260,126 @@ export async function importStudents(
     }
 
     const payload = studentInsertPayload(row, houseId);
-    const existingById = payload.student_id
-      ? byStudentId.get(payload.student_id)
-      : undefined;
-    const contextKey = serialContextKey(
-      payload.faculty,
-      payload.intake,
-      payload.serial_no
-    );
-    const existingBySerial = contextKey
-      ? bySerialContext.get(contextKey)
-      : undefined;
-    const existing = existingById ?? existingBySerial;
-
-    if (!payload.house_id && existing?.house_id) {
-      payload.house_id = existing.house_id;
-    }
-
     if (payload.student_id) {
-      withId.push(payload);
-    } else {
-      withoutId.push(payload);
-    }
-  }
-
-  // Last row wins when the same student_id appears twice in one CSV
-  const dedupedWithId = [
-    ...new Map(
-      withId
-        .filter((p) => p.student_id)
-        .map((p) => [p.student_id as string, p])
-    ).values(),
-  ];
-  if (dedupedWithId.length < withId.length) {
-    result.skipped += withId.length - dedupedWithId.length;
-  }
-
-  for (const batch of chunkArray(dedupedWithId, IMPORT_BATCH_SIZE)) {
-    let batchInserted = 0;
-    let batchUpdated = 0;
-    for (const payload of batch) {
-      if (payload.student_id && byStudentId.has(payload.student_id)) {
-        batchUpdated++;
+      const earlier = incomingById.get(payload.student_id);
+      if (!earlier) {
+        incomingById.set(payload.student_id, { line, payload });
+      } else if (studentPayloadsMatch(earlier.payload, payload)) {
+        result.skipped++;
       } else {
-        batchInserted++;
+        result.skipped++;
+        note(
+          `Row ${line}: Student ID ${payload.student_id} differs from row ${earlier.line}; the first row was kept.`
+        );
       }
-    }
-
-    const { data: upserted, error } = await supabase
-      .from("students")
-      .upsert(batch, {
-        onConflict: "student_id",
-        ignoreDuplicates: false,
-      })
-      .select("id, student_id, serial_no, house_id, faculty, intake");
-
-    if (error) {
-      result.errors.push(`Batch upsert: ${error.message}`);
     } else {
-      result.success += batch.length;
-      result.inserted += batchInserted;
-      result.updated += batchUpdated;
-      for (const row of upserted ?? []) {
-        const existing: StudentExisting = {
-          id: row.id,
-          student_id: row.student_id,
-          serial_no: row.serial_no,
-          house_id: row.house_id,
-          faculty: row.faculty,
-          intake: row.intake,
-        };
-        if (row.student_id) byStudentId.set(row.student_id, existing);
-        const key = serialContextKey(row.faculty, row.intake, row.serial_no);
-        if (key) bySerialContext.set(key, existing);
-      }
+      incomingWithoutId.push({ line, payload });
     }
   }
 
-  const toInsertNoId: ReturnType<typeof studentInsertPayload>[] = [];
-  const toUpdateNoId: {
-    id: string;
-    payload: ReturnType<typeof studentInsertPayload>;
+  const toInsert: StudentPayload[] = [];
+  const toFill: {
+    line: number;
+    existing: StudentExisting;
+    patch: Partial<Record<StudentFillField, string | number>>;
+    kept: StudentFillField[];
   }[] = [];
 
-  for (const payload of withoutId) {
-    const key = serialContextKey(
-      payload.faculty,
-      payload.intake,
-      payload.serial_no
-    );
-    const existing = key ? bySerialContext.get(key) : undefined;
-    if (existing?.id) {
-      toUpdateNoId.push({ id: existing.id, payload });
-    } else {
-      toInsertNoId.push(payload);
+  function queueExisting(line: number, existing: StudentExisting, payload: StudentPayload) {
+    const { patch, kept } = studentFillPlan(existing, payload);
+    const label = payload.student_id
+      ? `Student ${payload.student_id}`
+      : `Row ${line}`;
+    if (kept.length > 0) {
+      result.kept = (result.kept ?? 0) + 1;
+      note(`${label}: kept existing ${kept.join(", ")}`);
     }
+    if (Object.keys(patch).length === 0) {
+      if (kept.length === 0) result.unchanged = (result.unchanged ?? 0) + 1;
+      return;
+    }
+    toFill.push({ line, existing, patch, kept });
   }
 
-  for (const batch of chunkArray(toInsertNoId, IMPORT_BATCH_SIZE)) {
-    const { error } = await supabase.from("students").insert(batch);
+  for (const { line, payload } of incomingById.values()) {
+    const existing = byStudentId.get(payload.student_id as string);
+    if (existing) queueExisting(line, existing, payload);
+    else toInsert.push(payload);
+  }
+
+  for (const { line, payload } of incomingWithoutId) {
+    const key = serialContextKey(payload.faculty, payload.intake, payload.serial_no);
+    if (!key) {
+      result.skipped++;
+      note(`Row ${line}: no Student ID, so it was not imported.`);
+      continue;
+    }
+    if (ambiguousSerial.has(key)) {
+      result.skipped++;
+      note(
+        `Row ${line}: serial ${payload.serial_no} matches more than one student in ${payload.faculty} ${payload.intake}; skipped.`
+      );
+      continue;
+    }
+    const existing = bySerialContext.get(key);
+    if (!existing) {
+      result.skipped++;
+      note(`Row ${line}: no Student ID and no single matching student; skipped.`);
+      continue;
+    }
+    queueExisting(line, existing, payload);
+  }
+
+  async function insertPayload(payload: StudentPayload) {
+    const { error } = await supabase.from("students").insert(payload);
     if (error) {
-      result.errors.push(`Batch insert: ${error.message}`);
-    } else {
+      result.errors.push(
+        `Student ${payload.student_id ?? payload.full_name}: ${error.message}`
+      );
+      return;
+    }
+    result.success++;
+    result.inserted++;
+  }
+
+  for (const batch of chunkArray(toInsert, IMPORT_BATCH_SIZE)) {
+    const { error } = await supabase.from("students").insert(batch);
+    if (!error) {
       result.success += batch.length;
       result.inserted += batch.length;
+      continue;
+    }
+    for (const payload of batch) {
+      await insertPayload(payload);
     }
   }
 
-  for (const batch of chunkArray(toUpdateNoId, 20)) {
-    const results = await Promise.all(
-      batch.map(({ id, payload }) =>
-        supabase.from("students").update(payload).eq("id", id)
-      )
+  for (const batch of chunkArray(toFill, 20)) {
+    const applied = await Promise.all(
+      batch.map(async ({ existing, patch }) => {
+        let query = supabase.from("students").update(patch).eq("id", existing.id);
+        for (const column of Object.keys(patch)) {
+          query = query.is(column, null);
+        }
+        const { data, error } = await query.select("id");
+        const label = existing.student_id
+          ? `Student ${existing.student_id}`
+          : existing.full_name ?? existing.id;
+        if (error) {
+          result.errors.push(`${label}: ${error.message}`);
+          return false;
+        }
+        if (!data?.length) {
+          note(`${label}: fill was not applied because a field was no longer empty.`);
+          return false;
+        }
+        return true;
+      })
     );
-    for (const { error } of results) {
-      if (error) {
-        result.errors.push(`Update: ${error.message}`);
-      } else {
-        result.success++;
-        result.updated++;
-      }
+    for (const ok of applied) {
+      if (!ok) continue;
+      result.filled = (result.filled ?? 0) + 1;
+      result.success++;
     }
   }
 

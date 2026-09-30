@@ -8,10 +8,18 @@ internal sealed class StudentExisting
 {
     public string Id { get; set; } = "";
     public string? StudentId { get; set; }
+    public string? FullName { get; set; }
     public int? SerialNo { get; set; }
     public string? HouseId { get; set; }
     public string? Faculty { get; set; }
     public string? Intake { get; set; }
+    public string? DegreeProgramme { get; set; }
+    public string? University { get; set; }
+    public string? Title { get; set; }
+    public string? Gender { get; set; }
+    public string? Nic { get; set; }
+    public string? Mobile { get; set; }
+    public string? Email { get; set; }
 }
 
 internal sealed class StudentIdRow
@@ -43,7 +51,8 @@ public sealed class ImportService
 {
     public const int ImportBatchSize = 100;
     private const int UpdateConcurrency = 20;
-    private const string StudentExistingSelect = "id, student_id, serial_no, house_id, faculty, intake";
+    private const string StudentExistingSelect =
+        "id, student_id, full_name, serial_no, house_id, faculty, intake, degree_programme, university, title, gender, nic, mobile, email";
 
     private readonly PostgrestClient _db;
     private readonly AuthService _auth;
@@ -138,7 +147,7 @@ public sealed class ImportService
     public async Task<ImportResult> ImportStudentsAsync(IReadOnlyList<ImportPreviewRow> rows)
     {
         if (NotSignedIn() is { } denied) return denied;
-        var result = new ImportResult();
+        var result = new ImportResult { Filled = 0, Unchanged = 0, Kept = 0 };
 
         List<House> houses;
         List<StudentExisting> existingRows;
@@ -165,15 +174,15 @@ public sealed class ImportService
 
         var byStudentId = new Dictionary<string, StudentExisting>();
         var bySerialContext = new Dictionary<string, StudentExisting>();
+        var ambiguousSerial = new HashSet<string>();
         foreach (var row in existingRows)
         {
             if (!string.IsNullOrEmpty(row.StudentId)) byStudentId[row.StudentId] = row;
-            var key = SerialContextKey(row.Faculty, row.Intake, row.SerialNo);
-            if (key is not null) bySerialContext[key] = row;
+            IndexSerial(bySerialContext, ambiguousSerial, row);
         }
 
-        var withId = new List<StudentPayload>();
-        var withoutId = new List<StudentPayload>();
+        var incomingById = new Dictionary<string, (int Line, StudentPayload Payload)>();
+        var incomingWithoutId = new List<(int Line, StudentPayload Payload)>();
 
         for (var i = 0; i < rows.Count; i++)
         {
@@ -194,67 +203,82 @@ public sealed class ImportService
             }
 
             var payload = StudentInsertPayload(row, houseId);
-            StudentExisting? existing = null;
-            if (payload.StudentId is not null) byStudentId.TryGetValue(payload.StudentId, out existing);
-            if (existing is null)
+            if (payload.StudentId is not null)
             {
-                var contextKey = SerialContextKey(payload.Faculty, payload.Intake, payload.SerialNo);
-                if (contextKey is not null) bySerialContext.TryGetValue(contextKey, out existing);
-            }
-
-            if (payload.HouseId is null && existing?.HouseId is not null)
-                payload = payload with { HouseId = existing.HouseId };
-
-            if (payload.StudentId is not null) withId.Add(payload);
-            else withoutId.Add(payload);
-        }
-
-        // Last row wins when the same student_id appears twice in one CSV
-        var deduped = new Dictionary<string, StudentPayload>();
-        var order = new List<string>();
-        foreach (var p in withId)
-        {
-            if (!deduped.ContainsKey(p.StudentId!)) order.Add(p.StudentId!);
-            deduped[p.StudentId!] = p;
-        }
-        var dedupedWithId = order.Select(id => deduped[id]).ToList();
-        if (dedupedWithId.Count < withId.Count) result.Skipped += withId.Count - dedupedWithId.Count;
-
-        foreach (var batch in Chunk(dedupedWithId, ImportBatchSize))
-        {
-            var batchUpdated = batch.Count(p => byStudentId.ContainsKey(p.StudentId!));
-            var batchInserted = batch.Count - batchUpdated;
-            try
-            {
-                var upserted = await _db.UpsertAsync<StudentExisting>("students", batch, "student_id", StudentExistingSelect);
-                result.Success += batch.Count;
-                result.Inserted += batchInserted;
-                result.Updated += batchUpdated;
-                foreach (var row in upserted)
+                if (!incomingById.TryGetValue(payload.StudentId, out var earlier))
                 {
-                    if (!string.IsNullOrEmpty(row.StudentId)) byStudentId[row.StudentId] = row;
-                    var key = SerialContextKey(row.Faculty, row.Intake, row.SerialNo);
-                    if (key is not null) bySerialContext[key] = row;
+                    incomingById[payload.StudentId] = (line, payload);
+                }
+                else if (SameStudentPayload(earlier.Payload, payload))
+                {
+                    result.Skipped++;
+                }
+                else
+                {
+                    result.Skipped++;
+                    result.Notices.Add($"Row {line}: Student ID {payload.StudentId} differs from row {earlier.Line}; the first row was kept.");
                 }
             }
-            catch (PostgrestException ex)
+            else
             {
-                result.Errors.Add($"Batch upsert: {ex.Message}");
+                incomingWithoutId.Add((line, payload));
             }
         }
 
-        var toInsertNoId = new List<StudentPayload>();
-        var toUpdateNoId = new List<(string Id, StudentPayload Payload)>();
-        foreach (var payload in withoutId)
+        var toInsert = new List<StudentPayload>();
+        var toFill = new List<(StudentExisting Existing, Dictionary<string, object> Patch)>();
+
+        void QueueExisting(int line, StudentExisting existing, StudentPayload payload)
         {
-            var key = SerialContextKey(payload.Faculty, payload.Intake, payload.SerialNo);
-            if (key is not null && bySerialContext.TryGetValue(key, out var existing) && !string.IsNullOrEmpty(existing.Id))
-                toUpdateNoId.Add((existing.Id, payload));
-            else
-                toInsertNoId.Add(payload);
+            var kept = new List<string>();
+            var patch = StudentFillPatch(existing, payload, kept);
+            var label = payload.StudentId is not null ? $"Student {payload.StudentId}" : $"Row {line}";
+            if (kept.Count > 0)
+            {
+                result.Kept = (result.Kept ?? 0) + 1;
+                result.Notices.Add($"{label}: kept existing {string.Join(", ", kept)}");
+            }
+            if (patch.Count == 0)
+            {
+                if (kept.Count == 0) result.Unchanged = (result.Unchanged ?? 0) + 1;
+                return;
+            }
+            toFill.Add((existing, patch));
         }
 
-        foreach (var batch in Chunk(toInsertNoId, ImportBatchSize))
+        foreach (var (line, payload) in incomingById.Values)
+        {
+            if (payload.StudentId is not null && byStudentId.TryGetValue(payload.StudentId, out var existing))
+                QueueExisting(line, existing, payload);
+            else
+                toInsert.Add(payload);
+        }
+
+        foreach (var (line, payload) in incomingWithoutId)
+        {
+            var key = SerialContextKey(payload.Faculty, payload.Intake, payload.SerialNo);
+            if (key is null)
+            {
+                result.Skipped++;
+                result.Notices.Add($"Row {line}: no Student ID, so it was not imported.");
+                continue;
+            }
+            if (ambiguousSerial.Contains(key))
+            {
+                result.Skipped++;
+                result.Notices.Add($"Row {line}: serial {payload.SerialNo} matches more than one student in {payload.Faculty} {payload.Intake}; skipped.");
+                continue;
+            }
+            if (!bySerialContext.TryGetValue(key, out var existing))
+            {
+                result.Skipped++;
+                result.Notices.Add($"Row {line}: no Student ID and no single matching student; skipped.");
+                continue;
+            }
+            QueueExisting(line, existing, payload);
+        }
+
+        foreach (var batch in Chunk(toInsert, ImportBatchSize))
         {
             try
             {
@@ -262,17 +286,124 @@ public sealed class ImportService
                 result.Success += batch.Count;
                 result.Inserted += batch.Count;
             }
-            catch (PostgrestException ex)
+            catch (PostgrestException)
             {
-                result.Errors.Add($"Batch insert: {ex.Message}");
+                foreach (var payload in batch)
+                {
+                    try
+                    {
+                        await _db.InsertAsync("students", payload);
+                        result.Success++;
+                        result.Inserted++;
+                    }
+                    catch (PostgrestException ex)
+                    {
+                        result.Errors.Add($"Student {payload.StudentId ?? payload.FullName}: {ex.Message}");
+                    }
+                }
             }
         }
 
-        await RunUpdatesAsync(result, toUpdateNoId
-            .Select(u => (Func<Task>)(() => _db.UpdateAsync(PostgrestClient.From("students").Eq("id", u.Id), u.Payload)))
-            .ToList());
+        foreach (var batch in Chunk(toFill, UpdateConcurrency))
+        {
+            var outcomes = await Task.WhenAll(batch.Select(async item =>
+            {
+                var filter = PostgrestClient.From("students").Eq("id", item.Existing.Id);
+                foreach (var column in item.Patch.Keys) filter.IsNull(column);
+                try
+                {
+                    var updated = await _db.UpdateAsync<IdRow>(filter, item.Patch, "id");
+                    if (updated.Count == 0)
+                    {
+                        var label = string.IsNullOrEmpty(item.Existing.StudentId)
+                            ? item.Existing.FullName ?? item.Existing.Id
+                            : $"Student {item.Existing.StudentId}";
+                        return (Applied: false, Error: (string?)null, Note: $"{label}: fill was not applied because a field was no longer empty.");
+                    }
+                    return (Applied: true, Error: (string?)null, Note: (string?)null);
+                }
+                catch (PostgrestException ex)
+                {
+                    var label = item.Existing.StudentId ?? item.Existing.FullName ?? item.Existing.Id;
+                    return (Applied: false, Error: $"{label}: {ex.Message}", Note: (string?)null);
+                }
+            }));
+            foreach (var outcome in outcomes)
+            {
+                if (outcome.Error is not null) result.Errors.Add(outcome.Error);
+                if (outcome.Note is not null) result.Notices.Add(outcome.Note);
+                if (!outcome.Applied) continue;
+                result.Filled = (result.Filled ?? 0) + 1;
+                result.Success++;
+            }
+        }
 
         return result;
+    }
+
+    private static void IndexSerial(
+        Dictionary<string, StudentExisting> bySerial,
+        HashSet<string> ambiguous,
+        StudentExisting row)
+    {
+        var key = SerialContextKey(row.Faculty, row.Intake, row.SerialNo);
+        if (key is null || ambiguous.Contains(key)) return;
+        if (bySerial.ContainsKey(key))
+        {
+            bySerial.Remove(key);
+            ambiguous.Add(key);
+            return;
+        }
+        bySerial[key] = row;
+    }
+
+    private static bool SameStudentPayload(StudentPayload a, StudentPayload b) =>
+        a.StudentId == b.StudentId
+        && a.FullName == b.FullName
+        && a.HouseId == b.HouseId
+        && a.SerialNo == b.SerialNo
+        && a.Faculty == b.Faculty
+        && a.Intake == b.Intake
+        && a.DegreeProgramme == b.DegreeProgramme
+        && a.University == b.University
+        && a.Title == b.Title
+        && a.Gender == b.Gender
+        && a.Nic == b.Nic
+        && a.Mobile == b.Mobile
+        && a.Email == b.Email;
+
+    private static Dictionary<string, object> StudentFillPatch(
+        StudentExisting existing,
+        StudentPayload incoming,
+        List<string> kept)
+    {
+        var patch = new Dictionary<string, object>();
+        void Text(string column, string? current, string? next)
+        {
+            if (string.IsNullOrWhiteSpace(next)) return;
+            if (string.IsNullOrWhiteSpace(current)) patch[column] = next.Trim();
+            else if (!string.Equals(current.Trim(), next.Trim(), StringComparison.Ordinal)) kept.Add(column);
+        }
+        void Number(string column, int? current, int? next)
+        {
+            if (next is null) return;
+            if (current is null) patch[column] = next.Value;
+            else if (current != next) kept.Add(column);
+        }
+
+        Text("full_name", existing.FullName, incoming.FullName);
+        Text("house_id", existing.HouseId, incoming.HouseId);
+        Number("serial_no", existing.SerialNo, incoming.SerialNo);
+        Text("faculty", existing.Faculty, incoming.Faculty);
+        Text("intake", existing.Intake, incoming.Intake);
+        Text("degree_programme", existing.DegreeProgramme, incoming.DegreeProgramme);
+        Text("university", existing.University, incoming.University);
+        Text("title", existing.Title, incoming.Title);
+        Text("gender", existing.Gender, incoming.Gender);
+        Text("nic", existing.Nic, incoming.Nic);
+        Text("mobile", existing.Mobile, incoming.Mobile);
+        Text("email", existing.Email, incoming.Email);
+        return patch;
     }
 
     public async Task<ImportResult> ImportRecordsAsync(IReadOnlyList<ImportPreviewRow> rows)
