@@ -3,6 +3,7 @@
 @inject InventoryService InventoryData
 @inject AppState State
 @inject IJSRuntime JS
+@inject AuthService Auth
 
 @if (_items is null && _loadError is null)
 {
@@ -25,16 +26,19 @@ else
         }
 
         <div class="space-y-6">
+            @if (Auth.CanEdit)
+            {
             <div class="flex justify-end">
                 <Button OnClick="ToggleAdd">@(_showAdd ? "Cancel" : "Add item")</Button>
             </div>
+            }
 
             @if (_error is not null)
             {
                 <p role="alert" class="@Ui.ErrorBanner">@_error</p>
             }
 
-            @if (_showAdd)
+            @if (Auth.CanEdit && _showAdd)
             {
                 <Card>
                     <h3 class="font-medium text-zinc-900 dark:text-white">New inventory item</h3>
@@ -64,7 +68,10 @@ else
                                 <th class="@Ui.Th">Item</th>
                                 <th class="@Ui.Th">Quantity</th>
                                 <th class="@Ui.Th">Last updated</th>
+                                @if (Auth.CanEdit)
+                                {
                                 <th class="@Ui.Th">Actions</th>
+                                }
                             </tr>
                         </thead>
                         <tbody>
@@ -79,7 +86,7 @@ else
                                 @foreach (var item in _items)
                                 {
                                     <tr @key="item.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
-                                        @if (_editingId == item.Id && _editForm is not null)
+                                        @if (Auth.CanEdit && _editingId == item.Id && _editForm is not null)
                                         {
                                             <td colspan="4" class="px-4 py-3">
                                                 <form @onsubmit="HandleUpdate" class="flex flex-wrap items-end gap-3">
@@ -101,12 +108,15 @@ else
                                             <td class="px-4 py-3 font-medium text-zinc-900 dark:text-white">@item.Name</td>
                                             <td class="px-4 py-3">@item.Quantity</td>
                                             <td class="px-4 py-3 text-zinc-500 dark:text-zinc-400">@Ui.FormatDateTime(item.UpdatedAt)</td>
+                                            @if (Auth.CanEdit)
+                                            {
                                             <td class="px-4 py-3">
                                                 <div class="flex flex-wrap gap-2">
                                                     <Button Variant="ghost" OnClick="() => StartEdit(item)">Edit</Button>
                                                     <Button Variant="danger" OnClick="() => HandleDelete(item.Id, item.Name)" Disabled="_pending">Delete</Button>
                                                 </div>
                                             </td>
+                                            }
                                         }
                                     </tr>
                                 }

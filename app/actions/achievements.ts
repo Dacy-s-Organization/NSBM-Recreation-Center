@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { requireSuper } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_TYPE_BEST_PLAYER,
   type AchievementType,
 } from "@/lib/constants";
+import { resolveChosenSport } from "@/lib/sports";
 
 function parseAchievementType(raw: string): AchievementType | null {
   const t = raw.trim();
@@ -16,14 +18,12 @@ function parseAchievementType(raw: string): AchievementType | null {
   return null;
 }
 
-async function resolveBestPlayerUuid(
+async function resolveStudentUuid(
   supabase: Awaited<ReturnType<typeof createClient>>,
   studentIdText: string
-): Promise<{ uuid: string } | { error: string }> {
+): Promise<{ uuid: string | null } | { error: string }> {
   const sid = studentIdText.trim();
-  if (!sid) {
-    return { error: "Student ID is required for Best Player." };
-  }
+  if (!sid) return { uuid: null };
   const { data } = await supabase
     .from("students")
     .select("id")
@@ -37,7 +37,8 @@ async function resolveBestPlayerUuid(
 
 export async function addAchievement(formData: FormData) {
   const meetYear = parseInt(String(formData.get("meet_year") ?? ""), 10);
-  const sport = String(formData.get("sport") ?? "").trim();
+  const sportChoice = String(formData.get("sport") ?? "").trim();
+  const newSport = String(formData.get("new_sport") ?? "");
   const achievementType = parseAchievementType(
     String(formData.get("achievement_type") ?? "")
   );
@@ -45,21 +46,27 @@ export async function addAchievement(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const winnerStudentId = String(formData.get("winner_student_id") ?? "").trim();
 
-  if (!sport || !achievementType || Number.isNaN(meetYear)) {
+  if (!achievementType || Number.isNaN(meetYear)) {
     return { error: "Sport, achievement type, and year are required." };
   }
   if (!teamName) {
     return { error: "House (team) is required." };
   }
-
-  const supabase = await createClient();
-  let studentUuids: string[] = [];
-
-  if (achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER) {
-    const resolved = await resolveBestPlayerUuid(supabase, winnerStudentId);
-    if ("error" in resolved) return { error: resolved.error };
-    studentUuids = [resolved.uuid];
+  if (achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER && !winnerStudentId) {
+    return { error: "Student ID is required for Best Player." };
   }
+
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
+
+  const resolved = await resolveStudentUuid(supabase, winnerStudentId);
+  if ("error" in resolved) return { error: resolved.error };
+  const studentUuids = resolved.uuid ? [resolved.uuid] : [];
+
+  const sportResult = await resolveChosenSport(supabase, sportChoice, newSport);
+  if ("error" in sportResult) return { error: sportResult.error };
+  const sport = sportResult.name;
 
   const { data: achievement, error } = await supabase
     .from("sports_achievements")
@@ -92,7 +99,8 @@ export async function addAchievement(formData: FormData) {
 export async function updateAchievement(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
   const meetYear = parseInt(String(formData.get("meet_year") ?? ""), 10);
-  const sport = String(formData.get("sport") ?? "").trim();
+  const sportChoice = String(formData.get("sport") ?? "").trim();
+  const newSport = String(formData.get("new_sport") ?? "");
   const achievementType = parseAchievementType(
     String(formData.get("achievement_type") ?? "")
   );
@@ -100,21 +108,27 @@ export async function updateAchievement(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const winnerStudentId = String(formData.get("winner_student_id") ?? "").trim();
 
-  if (!id || !sport || !achievementType || Number.isNaN(meetYear)) {
+  if (!id || !achievementType || Number.isNaN(meetYear)) {
     return { error: "Sport, achievement type, and year are required." };
   }
   if (!teamName) {
     return { error: "House (team) is required." };
   }
-
-  const supabase = await createClient();
-  let studentUuids: string[] = [];
-
-  if (achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER) {
-    const resolved = await resolveBestPlayerUuid(supabase, winnerStudentId);
-    if ("error" in resolved) return { error: resolved.error };
-    studentUuids = [resolved.uuid];
+  if (achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER && !winnerStudentId) {
+    return { error: "Student ID is required for Best Player." };
   }
+
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
+
+  const resolved = await resolveStudentUuid(supabase, winnerStudentId);
+  if ("error" in resolved) return { error: resolved.error };
+  const studentUuids = resolved.uuid ? [resolved.uuid] : [];
+
+  const sportResult = await resolveChosenSport(supabase, sportChoice, newSport);
+  if ("error" in sportResult) return { error: sportResult.error };
+  const sport = sportResult.name;
 
   const { error } = await supabase
     .from("sports_achievements")
@@ -150,7 +164,9 @@ export async function deleteAchievement(id: string) {
     return { error: "Invalid achievement." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
   const { error } = await supabase.from("sports_achievements").delete().eq("id", id);
 
   if (error) return { error: error.message };

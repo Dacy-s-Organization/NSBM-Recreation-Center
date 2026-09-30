@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { requireSuper } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export async function addSportRecord(formData: FormData) {
@@ -19,7 +20,9 @@ export async function addSportRecord(formData: FormData) {
     return { error: "Please provide a valid year." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
 
   const { data: student, error: studentError } = await supabase
     .from("students")
@@ -63,7 +66,9 @@ export async function updateSportRecord(formData: FormData) {
     return { error: "Please provide a valid year." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
 
   const { data: student, error: studentError } = await supabase
     .from("students")
@@ -98,7 +103,9 @@ export async function deleteSportRecord(id: string) {
     return { error: "Invalid record." };
   }
 
-  const supabase = await createClient();
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
   const { error } = await supabase.from("sport_records").delete().eq("id", id);
 
   if (error) return { error: error.message };

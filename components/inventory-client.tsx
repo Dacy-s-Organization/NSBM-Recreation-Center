@@ -12,7 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 
-export function InventoryClient({ items }: { items: InventoryItem[] }) {
+export function InventoryClient({
+  items,
+  canEdit,
+}: {
+  items: InventoryItem[];
+  canEdit: boolean;
+}) {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,11 +57,13 @@ export function InventoryClient({ items }: { items: InventoryItem[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <Button type="button" onClick={() => setShowAdd(!showAdd)}>
-          {showAdd ? "Cancel" : "Add item"}
-        </Button>
-      </div>
+      {canEdit && (
+        <div className="flex justify-end">
+          <Button type="button" onClick={() => setShowAdd(!showAdd)}>
+            {showAdd ? "Cancel" : "Add item"}
+          </Button>
+        </div>
+      )}
 
       {error && (
         <p
@@ -66,7 +74,7 @@ export function InventoryClient({ items }: { items: InventoryItem[] }) {
         </p>
       )}
 
-      {showAdd && (
+      {canEdit && showAdd && (
         <Card>
           <h3 className="font-medium text-zinc-900 dark:text-white">New inventory item</h3>
           <form
@@ -98,20 +106,22 @@ export function InventoryClient({ items }: { items: InventoryItem[] }) {
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Item</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Quantity</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Last updated</th>
-                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
+                {canEdit && (
+                  <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={canEdit ? 4 : 3} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                     No inventory items yet.
                   </td>
                 </tr>
               ) : (
                 items.map((item) => (
                   <tr key={item.id} className="border-b border-zinc-100 last:border-0 dark:border-white/10">
-                    {editingId === item.id ? (
+                    {canEdit && editingId === item.id ? (
                       <td colSpan={4} className="px-4 py-3">
                         <form
                           action={handleUpdate}
@@ -151,6 +161,7 @@ export function InventoryClient({ items }: { items: InventoryItem[] }) {
                         <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
                           {new Date(item.updated_at).toLocaleString()}
                         </td>
+                        {canEdit && (
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-2">
                             <Button
@@ -170,6 +181,7 @@ export function InventoryClient({ items }: { items: InventoryItem[] }) {
                             </Button>
                           </div>
                         </td>
+                        )}
                       </>
                     )}
                   </tr>

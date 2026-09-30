@@ -1,6 +1,9 @@
 @inject TracksService TracksData
 @inject IJSRuntime JS
+@inject AuthService Auth
 
+@if (Auth.CanEdit)
+{
 <Button Variant="secondary" OnClick="() => _open = !_open">@(_open ? "Close tracks" : "Manage tracks")</Button>
 
 @if (_open)
@@ -73,6 +76,7 @@
             </table>
         </div>
     </Card>
+}
 }
 
 @code {

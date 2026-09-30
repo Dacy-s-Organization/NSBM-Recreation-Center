@@ -25,6 +25,7 @@ public sealed class AuthService
 
     public bool IsSignedIn => _session is not null;
     public string? UserEmail => _session?.UserEmail;
+    public bool CanEdit => string.Equals(_session?.Role, "super", StringComparison.Ordinal);
 
     /// <summary>Restores the saved session, refreshing it when the access token has expired.</summary>
     public async Task<bool> TryRestoreAsync()
@@ -83,6 +84,39 @@ public sealed class AuthService
         catch
         {
             /* the local session is already gone */
+        }
+    }
+
+    /// <summary>Creates a read-only MIC account. Only the super user may call this.</summary>
+    public async Task<string?> CreateStaffUserAsync(string email, string password)
+    {
+        if (!CanEdit) return "Only the super user can add accounts.";
+        var token = await GetAccessTokenAsync();
+        if (token is null) return "Not signed in.";
+
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"{_options.Url.TrimEnd('/')}/functions/v1/create-staff-user")
+            {
+                Content = JsonContent.Create(new { email, password }),
+            };
+            request.Headers.Add("apikey", _options.PublishableKey);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            using var response = await _http.SendAsync(request);
+            var body = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode) return ReadAuthError(body);
+
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
+            if (doc.RootElement.TryGetProperty("error", out var err) && err.ValueKind == JsonValueKind.String)
+                return err.GetString();
+            return null;
+        }
+        catch (HttpRequestException ex)
+        {
+            return ex.Message;
         }
     }
 

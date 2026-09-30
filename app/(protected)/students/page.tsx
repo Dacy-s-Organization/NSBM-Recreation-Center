@@ -4,6 +4,7 @@ import { StudentsClient } from "@/components/students-client";
 import { getFacultyCards, getIntakeCards } from "@/lib/data/students-nav";
 import { getHouses } from "@/lib/data/reference";
 import { getFacultyByCode, isNsbmFacultyCode } from "@/lib/faculties";
+import { getStaffRole } from "@/lib/supabase/auth";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
 import type { Student } from "@/lib/types/database";
 
@@ -20,6 +21,8 @@ export default async function StudentsPage({
   const intake = params.intake?.trim() ?? "";
 
   const supabase = await createClient();
+  const { role } = await getStaffRole();
+  const canEdit = role === "super";
   const houses = await getHouses();
 
   if (!faculty || !isNsbmFacultyCode(faculty)) {
@@ -27,12 +30,13 @@ export default async function StudentsPage({
 
     return (
       <div className="space-y-6">
-        <StudentsPageHeader />
+        <StudentsPageHeader canEdit={canEdit} />
         <StudentsClient
           view="faculties"
           facultyCards={facultyCards}
           houses={houses}
           students={[]}
+          canEdit={canEdit}
         />
       </div>
     );
@@ -45,7 +49,7 @@ export default async function StudentsPage({
 
     return (
       <div className="space-y-6">
-        <StudentsPageHeader faculty={faculty} facultyName={facultyInfo.name} />
+        <StudentsPageHeader faculty={faculty} facultyName={facultyInfo.name} canEdit={canEdit} />
         <StudentsClient
           view="intakes"
           facultyCards={[]}
@@ -54,6 +58,7 @@ export default async function StudentsPage({
           selectedFacultyName={facultyInfo.name}
           houses={houses}
           students={[]}
+          canEdit={canEdit}
         />
       </div>
     );
@@ -77,6 +82,7 @@ export default async function StudentsPage({
         faculty={faculty}
         facultyName={facultyInfo.name}
         intake={intake}
+        canEdit={canEdit}
       />
       <StudentsClient
         view="list"
@@ -87,6 +93,7 @@ export default async function StudentsPage({
         selectedIntake={intake}
         houses={houses}
         students={students}
+        canEdit={canEdit}
       />
     </div>
   );
@@ -96,10 +103,12 @@ function StudentsPageHeader({
   faculty,
   facultyName,
   intake,
+  canEdit,
 }: {
   faculty?: string;
   facultyName?: string;
   intake?: string;
+  canEdit: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -113,7 +122,7 @@ function StudentsPageHeader({
               : "Browse by faculty and batch, then manage student records."}
         </p>
       </div>
-      <CsvImportDialog type="students" />
+      {canEdit ? <CsvImportDialog type="students" /> : null}
     </div>
   );
 }

@@ -3,7 +3,10 @@
 @inject ImportService Importer
 @inject DesktopBridge Bridge
 @inject AppState State
+@inject AuthService Auth
 
+@if (Auth.CanEdit)
+{
 <Button Variant="secondary" OnClick="() => _open = true">@Label</Button>
 
 @if (_open)
@@ -85,6 +88,7 @@
             <pre class="mt-4 whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 text-xs text-zinc-800 dark:bg-white/5 dark:text-zinc-300">@_result</pre>
         }
     </Modal>
+}
 }
 
 @code {

@@ -61,6 +61,7 @@ public sealed class AchievementForm
     public string MeetYear { get; set; } = "";
     public string TeamName { get; set; } = "";
     public string WinnerStudentId { get; set; } = "";
+    public string NewSport { get; set; } = "";
     public string Notes { get; set; } = "";
 }
 
