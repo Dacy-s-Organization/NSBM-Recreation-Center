@@ -624,7 +624,7 @@ public sealed class ImportService
             var winners = new List<WinnerPayload>();
             for (var idx = 0; idx < inserted.Count && idx < batch.Count; idx++)
             {
-                if (batch[idx].WinnerUuid is { } winnerId) winners.Add(new WinnerPayload(inserted[idx].Id, winnerId));
+                if (batch[idx].WinnerUuid is { } winnerId) winners.Add(new WinnerPayload(inserted[idx].Id, winnerId, null));
             }
 
             foreach (var winnerBatch in Chunk(winners, ImportBatchSize))

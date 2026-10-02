@@ -43,6 +43,7 @@ public partial class App : Application
         services.AddSingleton<ReferenceService>();
         services.AddSingleton<DashboardService>();
         services.AddSingleton<StudentsService>();
+        services.AddSingleton<CertificateService>();
         services.AddSingleton<RecordsService>();
         services.AddSingleton<TracksService>();
         services.AddSingleton<AchievementsService>();

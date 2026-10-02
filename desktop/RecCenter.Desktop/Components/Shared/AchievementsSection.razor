@@ -4,6 +4,10 @@
 
 <div class="space-y-6">
     <div class="flex flex-wrap items-end gap-4">
+        <div class="min-w-[200px] flex-1 max-w-md">
+            <label for="achievement-search" class="@Ui.Label">Search achievements</label>
+            <input id="achievement-search" class="@Ui.Input" placeholder="Sport, type, house, winner, notes, reference…" @bind="_search" @bind:event="oninput" />
+        </div>
         <div>
             <label for="ach-year-filter" class="@Ui.Label">Year</label>
             <select id="ach-year-filter" class="@Ui.Select" value="@SelectedYear" @onchange="OnYearChanged">
@@ -45,6 +49,8 @@
                         <th class="@Ui.Th">Team</th>
                         <th class="@Ui.Th">Winners</th>
                         <th class="@Ui.Th">Notes</th>
+                        <th class="@Ui.Th">Reference no</th>
+                        <th class="@Ui.Th">Certificates</th>
                         @if (Auth.CanEdit)
                         {
                         <th class="@Ui.Th">Actions</th>
@@ -52,20 +58,20 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @if (Achievements.Count == 0)
+                    @if (Filtered.Count == 0)
                     {
                         <tr>
-                            <td colspan="@(Auth.CanEdit ? 6 : 5)" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">No achievements for @SelectedYear.</td>
+                            <td colspan="@(Auth.CanEdit ? 8 : 7)" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">No achievements for @SelectedYear.</td>
                         </tr>
                     }
                     else
                     {
-                        @foreach (var a in Achievements)
+                        @foreach (var a in Filtered)
                         {
                             <tr @key="a.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
                                 @if (Auth.CanEdit && _editingId == a.Id)
                                 {
-                                    <td colspan="6" class="px-4 py-3">
+                                    <td colspan="8" class="px-4 py-3">
                                         <p class="mb-3 font-medium text-zinc-900 dark:text-zinc-100">Edit achievement</p>
                                         <AchievementFormFields @key="a.Id" Achievement="a" Houses="Houses" DefaultYear="SelectedYear"
                                                                Pending="_pending" Error="_error" OnSubmit="HandleUpdate"
@@ -79,6 +85,8 @@
                                     <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">@(string.IsNullOrEmpty(a.TeamName) ? "—" : a.TeamName)</td>
                                     <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">@FormatWinners(a)</td>
                                     <td class="px-4 py-3 text-zinc-500 dark:text-zinc-400">@(string.IsNullOrEmpty(a.Notes) ? "—" : a.Notes)</td>
+                                    <td class="px-4 py-3 font-mono">@(a.CertificateReferences?.ReferenceNo ?? "—")</td>
+                                    <td class="px-4 py-3"><CertificateLinks Items="CertificateItems(a)" /></td>
                                     @if (Auth.CanEdit)
                                     {
                                     <td class="px-4 py-3">
@@ -96,9 +104,10 @@
             </table>
         </div>
         <p class="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
-            @Achievements.Count achievement(s) for @SelectedYear
+            @Filtered.Count achievement(s) for @SelectedYear@(_search.Trim().Length > 0 ? " · matching search" : "")
         </p>
     </Card>
+    <StudentDetailModal StudentId="_openStudentId" OnClose="() => _openStudentId = null" />
 </div>
 
 @code {
@@ -114,6 +123,32 @@
     private string? _editingId;
     private string? _error;
     private bool _pending;
+    private string _search = "";
+    private string? _openStudentId;
+
+    private List<SportsAchievement> Filtered
+    {
+        get
+        {
+            var q = _search.Trim();
+            if (q.Length == 0) return Achievements.ToList();
+            return Achievements.Where(a =>
+            {
+                var winners = a.SportsAchievementWinners ?? new List<AchievementWinner>();
+                var winnerText = string.Join(" ", winners.Select(w => $"{w.Students?.FullName} {w.Students?.StudentId}"));
+                return Contains(a.Sport, q) || Contains(a.AchievementType, q) || Contains(a.TeamName, q)
+                    || Contains(winnerText, q) || Contains(a.Notes, q) || Contains(a.CertificateReferences?.ReferenceNo, q);
+            }).ToList();
+        }
+    }
+
+    private static bool Contains(string? value, string query) =>
+        !string.IsNullOrEmpty(value) && value.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+    private static IReadOnlyList<CertificateLinks.CertificateLinkItem> CertificateItems(SportsAchievement achievement) =>
+        (achievement.CertificateReferences?.IssuedCertificates ?? new List<IssuedCertificateMeta>())
+            .Select(file => new CertificateLinks.CertificateLinkItem { Id = file.Id, FileName = file.FileName })
+            .ToList();
 
     private Task OnYearChanged(ChangeEventArgs e)
     {
@@ -121,18 +156,35 @@
         return year is null ? Task.CompletedTask : OnYearSelected.InvokeAsync(year.Value);
     }
 
-    private static string FormatWinners(SportsAchievement a)
+    private RenderFragment FormatWinners(SportsAchievement a) => __builder =>
     {
         var winners = a.SportsAchievementWinners;
-        if (winners is null || winners.Count == 0) return "—";
-        return string.Join(", ", winners.Select(w =>
+        if (winners is null || winners.Count == 0)
         {
+            <span>—</span>
+            return;
+        }
+        var first = true;
+        foreach (var w in winners)
+        {
+            if (!first) { <span>, </span> }
+            first = false;
             var name = w.Students?.FullName;
             var studentId = w.Students?.StudentId;
-            if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(studentId)) return $"{name} ({studentId})";
-            return name ?? studentId ?? "?";
-        }));
-    }
+            var place = string.IsNullOrEmpty(w.Place) ? "" : $"{w.Place} ";
+            var label = !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(studentId)
+                ? $"{place}{name} ({studentId})"
+                : $"{place}{name ?? studentId ?? "?"}";
+            if (string.IsNullOrEmpty(studentId))
+            {
+                <span>@label</span>
+            }
+            else
+            {
+                <button type="button" class="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300" @onclick="() => _openStudentId = studentId">@label</button>
+            }
+        }
+    };
 
     private void ToggleAddForm()
     {

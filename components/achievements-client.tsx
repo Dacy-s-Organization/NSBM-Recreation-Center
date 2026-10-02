@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   addAchievement,
   deleteAchievement,
   updateAchievement,
 } from "@/app/actions/achievements";
+import { lookupStudentByStudentId } from "@/app/actions/records";
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_TYPE_BEST_PLAYER,
+  ACHIEVEMENT_TYPE_CHAMPION,
   NEW_SPORT_VALUE,
   type AchievementType,
 } from "@/lib/constants";
@@ -19,6 +21,79 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import { CertificateFields, CertificateList } from "@/components/certificate-viewer";
+import { StudentDetailDialog, StudentTextButton } from "@/components/student-detail-dialog";
+import { certificateOf } from "@/lib/certificates";
+
+const PLACES = ["1st", "2nd", "3rd"] as const;
+
+function PlaceStudentRow({
+  index,
+  place,
+  studentId,
+  onPlace,
+  onStudentId,
+  onRemove,
+}: {
+  index: number;
+  place: string;
+  studentId: string;
+  onPlace: (place: string) => void;
+  onStudentId: (studentId: string) => void;
+  onRemove: () => void;
+}) {
+  const [hint, setHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!studentId.trim()) {
+      setHint(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const result = await lookupStudentByStudentId(studentId);
+      if (cancelled) return;
+      if (!result) setHint("Student not found");
+      else {
+        const row = result as { full_name?: string; nic?: string | null };
+        setHint(`${row.full_name ?? "Student"}${row.nic ? ` · NIC ${row.nic}` : " · NIC not stored"}`);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [studentId]);
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-[8rem_1fr_auto]">
+      <Select name="place" value={place} onChange={(e) => onPlace(e.target.value)} aria-label={`Place ${index + 1}`}>
+        {PLACES.map((value) => (
+          <option key={value} value={value}>
+            {value}
+          </option>
+        ))}
+      </Select>
+      <div>
+        <Input
+          name="place_student_id"
+          value={studentId}
+          onChange={(e) => onStudentId(e.target.value)}
+          placeholder="Student ID"
+          aria-label={`Student ID for place ${index + 1}`}
+        />
+        {hint && (
+          <p className={`mt-1 text-xs ${hint === "Student not found" ? "text-red-600" : "text-emerald-700 dark:text-emerald-400"}`}>
+            {hint}
+          </p>
+        )}
+      </div>
+      <Button type="button" variant="ghost" onClick={onRemove}>
+        Remove
+      </Button>
+    </div>
+  );
+}
 
 function houseNameForAchievement(
   achievement: SportsAchievement | undefined,
@@ -62,10 +137,24 @@ function AchievementForm({
   const initialType = (achievement?.achievement_type as AchievementType) ?? "";
   const [achievementType, setAchievementType] = useState(initialType);
   const [sportChoice, setSportChoice] = useState(achievement?.sport ?? "");
+  const [places, setPlaces] = useState(() => {
+    const winners = achievement?.sports_achievement_winners ?? [];
+    if (achievement?.achievement_type !== ACHIEVEMENT_TYPE_CHAMPION || winners.length === 0) {
+      return [{ place: "1st", studentId: "" }];
+    }
+    return winners.map((winner) => ({
+      place: winner.place && (PLACES as readonly string[]).includes(winner.place) ? winner.place : "1st",
+      studentId: winner.students?.student_id ?? "",
+    }));
+  });
   const existingWinnerId =
-    achievement?.sports_achievement_winners?.[0]?.students?.student_id ?? "";
+    achievement?.achievement_type === ACHIEVEMENT_TYPE_CHAMPION
+      ? ""
+      : (achievement?.sports_achievement_winners?.[0]?.students?.student_id ?? "");
   const studentRequired = achievementType === ACHIEVEMENT_TYPE_BEST_PLAYER;
+  const champion = achievementType === ACHIEVEMENT_TYPE_CHAMPION;
   const options = sportChoices(sports, achievement?.sport);
+  const linked = achievement ? certificateOf(achievement) : null;
 
   return (
     <form action={onSubmit} className="grid gap-4 sm:grid-cols-2">
@@ -142,20 +231,51 @@ function AchievementForm({
           ))}
         </Select>
       </div>
-      <div className="sm:col-span-2">
-        <Label>{studentRequired ? "Best Player student ID" : "Student ID (optional)"}</Label>
-        <Input
-          name="winner_student_id"
-          required={studentRequired}
-          defaultValue={existingWinnerId}
-          placeholder="e.g. 2024001"
-        />
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-          {studentRequired
-            ? "Enter one student ID for this house's Best Player award."
-            : "Enter a student ID for a personal achievement. Leave blank for a team result."}
-        </p>
-      </div>
+      {champion ? (
+        <div className="sm:col-span-2 space-y-3">
+          <Label>Places</Label>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Name and NIC come from the student record. Several students can share the same place.
+          </p>
+          {places.map((row, index) => (
+            <PlaceStudentRow
+              key={`${index}-${row.place}`}
+              index={index}
+              place={row.place}
+              studentId={row.studentId}
+              onPlace={(place) =>
+                setPlaces((current) => current.map((item, i) => (i === index ? { ...item, place } : item)))
+              }
+              onStudentId={(studentId) =>
+                setPlaces((current) => current.map((item, i) => (i === index ? { ...item, studentId } : item)))
+              }
+              onRemove={() => setPlaces((current) => current.filter((_, i) => i !== index))}
+            />
+          ))}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setPlaces((current) => [...current, { place: "1st", studentId: "" }])}
+          >
+            Add place
+          </Button>
+        </div>
+      ) : (
+        <div className="sm:col-span-2">
+          <Label>{studentRequired ? "Best Player student ID" : "Student ID (optional)"}</Label>
+          <Input
+            name="winner_student_id"
+            required={studentRequired}
+            defaultValue={existingWinnerId}
+            placeholder="e.g. 2024001"
+          />
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            {studentRequired
+              ? "Enter one student ID for this house's Best Player award."
+              : "Enter a student ID for a personal achievement. Leave blank for a team result."}
+          </p>
+        </div>
+      )}
       <div className="sm:col-span-2">
         <Label>Notes (optional)</Label>
         <Input
@@ -164,6 +284,11 @@ function AchievementForm({
           placeholder="Any extra info"
         />
       </div>
+      <CertificateFields
+        idPrefix={isEdit ? `achievement-${achievement!.id}` : "achievement-new"}
+        referenceNo={linked?.reference_no}
+        existing={isEdit ? (linked?.issued_certificates ?? []) : undefined}
+      />
       <div className="flex flex-wrap gap-2 sm:col-span-2">
         <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : submitLabel}
@@ -201,13 +326,28 @@ export function AchievementsClient({
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [openStudentId, setOpenStudentId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     setYearFilter(selectedYear);
   }, [selectedYear]);
 
-  const filtered = achievements;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return achievements;
+    return achievements.filter((achievement) => {
+      const winners = achievement.sports_achievement_winners ?? [];
+      const winnerText = winners
+        .map((winner) => `${winner.students?.full_name ?? ""} ${winner.students?.student_id ?? ""}`)
+        .join(" ");
+      const reference = certificateOf(achievement)?.reference_no ?? "";
+      return [achievement.sport, achievement.achievement_type, achievement.team_name, winnerText, achievement.notes, reference].some(
+        (value) => (value ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [achievements, query]);
 
   function handleAdd(formData: FormData) {
     setError(null);
@@ -243,22 +383,35 @@ export function AchievementsClient({
     });
   }
 
-  function formatWinners(a: SportsAchievement): string {
+  function formatWinners(a: SportsAchievement) {
     const winners = a.sports_achievement_winners;
     if (!winners?.length) return "—";
-    return winners
-      .map((w) => {
-        const name = w.students?.full_name;
-        const studentId = w.students?.student_id;
-        if (name && studentId) return `${name} (${studentId})`;
-        return name ?? studentId ?? "?";
-      })
-      .join(", ");
+    return winners.map((winner, index) => {
+      const name = winner.students?.full_name;
+      const studentId = winner.students?.student_id;
+      const place = winner.place ? `${winner.place} ` : "";
+      const label = name && studentId ? `${place}${name} (${studentId})` : `${place}${name ?? studentId ?? "?"}`;
+      return (
+        <span key={`${studentId ?? index}`}>
+          {index > 0 ? ", " : ""}
+          <StudentTextButton studentId={studentId} label={label.trim()} onOpen={setOpenStudentId} />
+        </span>
+      );
+    });
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end gap-4">
+        <div className="min-w-[200px] flex-1 max-w-md">
+          <Label htmlFor="achievement-search">Search achievements</Label>
+          <Input
+            id="achievement-search"
+            placeholder="Sport, type, house, winner, notes, reference…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
         <div>
           <Label htmlFor="ach-year-filter">Year</Label>
           <Select
@@ -324,6 +477,8 @@ export function AchievementsClient({
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Team</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Winners</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Notes</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Reference no</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Certificates</th>
                 {canEdit && (
                   <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
                 )}
@@ -332,7 +487,7 @@ export function AchievementsClient({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={canEdit ? 6 : 5} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={canEdit ? 8 : 7} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                     No achievements for {yearFilter}.
                   </td>
                 </tr>
@@ -343,7 +498,7 @@ export function AchievementsClient({
                     className="border-b border-zinc-100 last:border-0 dark:border-white/10"
                   >
                     {canEdit && editingId === a.id ? (
-                      <td colSpan={6} className="px-4 py-3">
+                      <td colSpan={8} className="px-4 py-3">
                         <p className="mb-3 font-medium text-zinc-900 dark:text-zinc-100">
                           Edit achievement
                         </p>
@@ -377,6 +532,10 @@ export function AchievementsClient({
                         </td>
                         <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
                           {a.notes || "—"}
+                        </td>
+                        <td className="px-4 py-3 font-mono">{certificateOf(a)?.reference_no ?? "—"}</td>
+                        <td className="px-4 py-3">
+                          <CertificateList certificates={certificateOf(a)?.issued_certificates ?? []} />
                         </td>
                         {canEdit && (
                         <td className="px-4 py-3">
@@ -413,8 +572,10 @@ export function AchievementsClient({
         </div>
         <p className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
           {filtered.length} achievement(s) for {yearFilter}
+          {query.trim() ? " · matching search" : ""}
         </p>
       </Card>
+      <StudentDetailDialog studentId={openStudentId} onClose={() => setOpenStudentId(null)} />
     </div>
   );
 }

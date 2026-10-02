@@ -1,3 +1,5 @@
+import type { CertificateReference } from "@/lib/certificates";
+
 export type House = {
   id: string;
   name: string;
@@ -38,6 +40,7 @@ export type SportRecord = {
   recorded_at: string;
   students?: Pick<Student, "student_id" | "full_name"> | null;
   sport_tracks?: SportTrack | null;
+  certificate_references?: CertificateReference | CertificateReference[] | null;
 };
 
 export type InventoryItem = {
@@ -49,7 +52,8 @@ export type InventoryItem = {
 
 export type SportsAchievementWinner = {
   student_id: string;
-  students?: Pick<Student, "student_id" | "full_name"> | null;
+  place?: string | null;
+  students?: Pick<Student, "student_id" | "full_name" | "nic"> | null;
 };
 
 export type SportsAchievement = {
@@ -61,4 +65,5 @@ export type SportsAchievement = {
   notes: string | null;
   created_at: string;
   sports_achievement_winners?: SportsAchievementWinner[];
+  certificate_references?: CertificateReference | CertificateReference[] | null;
 };

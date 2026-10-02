@@ -156,6 +156,16 @@ public sealed class PostgrestClient
         return slash >= 0 && int.TryParse(range[(slash + 1)..], out var n) ? n : 0;
     }
 
+    public Task<string> RpcAsync(string function, object args) =>
+        SendAsync(HttpMethod.Post, "rpc/" + function, args, null);
+
+    public async Task<T?> RpcAsync<T>(string function, object args)
+    {
+        var json = await RpcAsync(function, args);
+        if (string.IsNullOrWhiteSpace(json) || json is "[]" or "null") return default;
+        return JsonSerializer.Deserialize<T>(json, Json.Options);
+    }
+
     public async Task InsertAsync(string table, object body)
     {
         await SendAsync(HttpMethod.Post, table, body, "return=minimal");

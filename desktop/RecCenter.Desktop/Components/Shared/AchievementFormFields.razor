@@ -42,18 +42,71 @@
             }
         </select>
     </div>
-    <div class="sm:col-span-2">
-        <label class="@Ui.Label">@(_form.AchievementType == AchievementTypes.BestPlayer ? "Best Player student ID" : "Student ID (optional)")</label>
-        <input class="@Ui.Input" required="@(_form.AchievementType == AchievementTypes.BestPlayer)" placeholder="e.g. 2024001" @bind="_form.WinnerStudentId" />
-        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            @(_form.AchievementType == AchievementTypes.BestPlayer
-                ? "Enter one student ID for this house's Best Player award."
-                : "Enter a student ID for a personal achievement. Leave blank for a team result.")
-        </p>
-    </div>
+    @if (_form.AchievementType == AchievementTypes.Champion)
+    {
+        <div class="sm:col-span-2 space-y-3">
+            <label class="@Ui.Label">Places</label>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400">Name and NIC come from the student record. Several students can share the same place.</p>
+            @for (var i = 0; i < _places.Count; i++)
+            {
+                var index = i;
+                <div class="grid gap-2 sm:grid-cols-[8rem_1fr_auto]">
+                    <select class="@Ui.Select" @bind="_places[index].Place">
+                        <option value="1st">1st</option>
+                        <option value="2nd">2nd</option>
+                        <option value="3rd">3rd</option>
+                    </select>
+                    <div>
+                        <input class="@Ui.Input" placeholder="Student ID" @bind="_places[index].StudentId" @bind:event="oninput" @bind:after="() => LookupPlace(index)" />
+                        @if (_hints.TryGetValue(index, out var hint))
+                        {
+                            <p class="mt-1 text-xs @(hint == "Student not found" ? "text-red-600" : "text-emerald-700 dark:text-emerald-400")">@hint</p>
+                        }
+                    </div>
+                    <Button Variant="ghost" OnClick="() => RemovePlace(index)">Remove</Button>
+                </div>
+            }
+            <Button Variant="secondary" OnClick="AddPlace">Add place</Button>
+        </div>
+    }
+    else
+    {
+        <div class="sm:col-span-2">
+            <label class="@Ui.Label">@(_form.AchievementType == AchievementTypes.BestPlayer ? "Best Player student ID" : "Student ID (optional)")</label>
+            <input class="@Ui.Input" required="@(_form.AchievementType == AchievementTypes.BestPlayer)" placeholder="e.g. 2024001" @bind="_form.WinnerStudentId" />
+            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                @(_form.AchievementType == AchievementTypes.BestPlayer
+                    ? "Enter one student ID for this house's Best Player award."
+                    : "Enter a student ID for a personal achievement. Leave blank for a team result.")
+            </p>
+        </div>
+    }
     <div class="sm:col-span-2">
         <label class="@Ui.Label">Notes (optional)</label>
         <input class="@Ui.Input" placeholder="Any extra info" @bind="_form.Notes" />
+    </div>
+    <div class="sm:col-span-2">
+        <label class="@Ui.Label">Reference no</label>
+        <input class="@Ui.Input" placeholder="AA00001" @bind="_form.ReferenceNo" />
+        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Leave blank and the next AA number is assigned. Type one only when the certificate was already issued.</p>
+    </div>
+    <div class="sm:col-span-2">
+        <label class="@Ui.Label">Certificates</label>
+        <InputFile OnChange="OnCertificateFiles" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/heif,image/heic,.jpg,.jpeg,.png,.webp,.gif,.heif,.heic" />
+        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Jpeg, png, webp, gif, or heif. Each file must be 4 MB or smaller.</p>
+        @if (Achievement?.CertificateReferences?.IssuedCertificates is { Count: > 0 } existing)
+        {
+            <div class="mt-2 space-y-1">
+                <p class="text-sm text-zinc-600 dark:text-zinc-300">Remove on save</p>
+                @foreach (var file in existing)
+                {
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked="@_form.RemoveCertificateIds.Contains(file.Id)" @onchange="e => ToggleRemove(file.Id, e)" />
+                        @file.FileName
+                    </label>
+                }
+            </div>
+        }
     </div>
     <div class="flex flex-wrap gap-2 sm:col-span-2">
         <Button Type="submit" Disabled="Pending">@(Pending ? "Saving…" : SubmitLabel)</Button>
@@ -70,6 +123,7 @@
 
 @code {
     [Inject] private AchievementsService AchievementsData { get; set; } = default!;
+    [Inject] private RecordsService RecordsData { get; set; } = default!;
 
     [Parameter] public SportsAchievement? Achievement { get; set; }
     [Parameter] public IReadOnlyList<House> Houses { get; set; } = Array.Empty<House>();
@@ -83,6 +137,9 @@
     private AchievementForm _form = new();
     private string _sportChoice = "";
     private List<Sport> _sports = new();
+    private List<PlaceEntry> _places = new() { new() };
+    private readonly Dictionary<int, string> _hints = new();
+    private readonly Dictionary<int, CancellationTokenSource> _lookups = new();
 
     private IEnumerable<string> SportOptions
     {
@@ -107,9 +164,20 @@
             AchievementType = a?.AchievementType ?? "",
             MeetYear = (a?.MeetYear ?? DefaultYear).ToString(CultureInfo.InvariantCulture),
             TeamName = HouseNameFor(a),
-            WinnerStudentId = a?.SportsAchievementWinners?.FirstOrDefault()?.Students?.StudentId ?? "",
+            WinnerStudentId = a?.AchievementType == AchievementTypes.Champion
+                ? ""
+                : a?.SportsAchievementWinners?.FirstOrDefault()?.Students?.StudentId ?? "",
             Notes = a?.Notes ?? "",
+            ReferenceNo = a?.CertificateReferences?.ReferenceNo ?? "",
         };
+        if (a?.AchievementType == AchievementTypes.Champion && a.SportsAchievementWinners is { Count: > 0 })
+        {
+            _places = a.SportsAchievementWinners.Select(w => new PlaceEntry
+            {
+                Place = w.Place is "1st" or "2nd" or "3rd" ? w.Place : "1st",
+                StudentId = w.Students?.StudentId ?? "",
+            }).ToList();
+        }
         try
         {
             _sports = await AchievementsData.ListSportsAsync();
@@ -126,9 +194,87 @@
         return Houses.FirstOrDefault(h => h.Name == a.TeamName)?.Name ?? a.TeamName;
     }
 
+    private void AddPlace() => _places.Add(new PlaceEntry());
+
+    private void RemovePlace(int index)
+    {
+        if (index >= 0 && index < _places.Count) _places.RemoveAt(index);
+        _hints.Clear();
+    }
+
+    private void ToggleRemove(string id, ChangeEventArgs e)
+    {
+        var on = e.Value is bool b && b;
+        if (on)
+        {
+            if (!_form.RemoveCertificateIds.Contains(id)) _form.RemoveCertificateIds.Add(id);
+        }
+        else _form.RemoveCertificateIds.Remove(id);
+    }
+
+    private async Task OnCertificateFiles(InputFileChangeEventArgs e)
+    {
+        _form.Uploads.Clear();
+        foreach (var file in e.GetMultipleFiles(8))
+        {
+            if (file.Size > CertificateService.MaxBytes) return;
+            await using var stream = file.OpenReadStream(CertificateService.MaxBytes);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            _form.Uploads.Add(new CertificateUpload
+            {
+                FileName = file.Name,
+                ContentType = file.ContentType,
+                Bytes = memory.ToArray(),
+            });
+        }
+    }
+
+    private void LookupPlace(int index)
+    {
+        if (_lookups.Remove(index, out var previous))
+        {
+            previous.Cancel();
+            previous.Dispose();
+        }
+        var cts = new CancellationTokenSource();
+        _lookups[index] = cts;
+        _ = RunPlaceLookup(index, cts.Token);
+    }
+
+    private async Task RunPlaceLookup(int index, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(400, token);
+            if (index >= _places.Count) return;
+            var studentId = _places[index].StudentId;
+            if (studentId.Trim().Length == 0)
+            {
+                _hints.Remove(index);
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+            var result = await RecordsData.LookupStudentAsync(studentId);
+            if (token.IsCancellationRequested) return;
+            _hints[index] = result is null
+                ? "Student not found"
+                : $"{result.FullName}{(string.IsNullOrWhiteSpace(result.Nic) ? " · NIC not stored" : $" · NIC {result.Nic}")}";
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+        catch (Exception ex) when (ex is PostgrestException or HttpRequestException)
+        {
+            _hints[index] = "Student not found";
+        }
+    }
+
     private Task Submit()
     {
         _form.Sport = _sportChoice;
+        _form.Places = _places;
         return OnSubmit.InvokeAsync(_form);
     }
 }

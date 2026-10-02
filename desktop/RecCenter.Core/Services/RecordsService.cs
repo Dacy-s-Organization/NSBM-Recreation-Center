@@ -13,14 +13,20 @@ public sealed class RecordsService
     public const int RecordsLimit = 500;
 
     private readonly PostgrestClient _db;
+    private readonly CertificateService _certificates;
 
-    public RecordsService(PostgrestClient db) => _db = db;
+    public RecordsService(PostgrestClient db, CertificateService certificates)
+    {
+        _db = db;
+        _certificates = certificates;
+    }
 
     public Task<List<SportRecord>> GetForYearAsync(int year) =>
         _db.GetAsync<SportRecord>(PostgrestClient.From("sport_records")
             .Select(@"id, student_id, track_id, year, value, recorded_at,
                       students(student_id, full_name, gender),
-                      sport_tracks(name, unit, lower_is_better)")
+                      sport_tracks(name, unit, lower_is_better),
+                      certificate_references(reference_no, issued_certificates(id, file_name, content_type))")
             .Eq("year", year)
             .Order("recorded_at", ascending: false)
             .Limit(RecordsLimit));
@@ -29,14 +35,15 @@ public sealed class RecordsService
         _db.GetAsync<SportRecord>(PostgrestClient.From("sport_records")
             .Select(@"id, student_id, track_id, year, value, recorded_at,
                       students(student_id, full_name, gender),
-                      sport_tracks(name, unit, lower_is_better)")
+                      sport_tracks(name, unit, lower_is_better),
+                      certificate_references(reference_no, issued_certificates(id, file_name, content_type))")
             .Eq("track_id", trackId)
             .Eq("year", year));
 
     public async Task<StudentLookup?> LookupStudentAsync(string studentId)
     {
         return await _db.MaybeSingleAsync<StudentLookup>(PostgrestClient.From("students")
-            .Select("student_id, full_name, gender, houses(name)")
+            .Select("student_id, full_name, gender, nic, houses(name)")
             .Eq("student_id", studentId.Trim()));
     }
 
@@ -77,15 +84,24 @@ public sealed class RecordsService
         var studentUuid = await FindStudentUuidAsync(v.StudentIdText);
         if (studentUuid is null) return ActionResult.Fail("Student not found. Add them first or check the ID.");
 
+        List<IdRow> inserted;
         try
         {
-            await _db.InsertAsync("sport_records", new RecordPayload(studentUuid, v.TrackId, v.Year, v.Value));
+            inserted = await _db.InsertAsync<IdRow>("sport_records", new RecordPayload(studentUuid, v.TrackId, v.Year, v.Value), "id");
         }
         catch (PostgrestException ex)
         {
             return ActionResult.Fail(DuplicateMessage(ex));
         }
-        return await DeleteReplacedAsync(replaceIds);
+        if (inserted.Count == 0) return ActionResult.Fail("The record could not be saved.");
+
+        var settled = await _certificates.SettleAsync("sport_record_id", inserted[0].Id, form.ReferenceNo, deleteEntryOnFailure: true, "sport_records");
+        if (settled.Error is not null) return ActionResult.Fail(settled.Error);
+        var fileError = await _certificates.StoreAsync(settled.Reference!, form.Uploads);
+        var replaced = await DeleteReplacedAsync(replaceIds);
+        if (fileError is not null)
+            return ActionResult.Fail($"The record was saved as {settled.Reference}, but a certificate could not be stored: {fileError}");
+        return replaced;
     }
 
     /// <param name="replaceIds">Records to remove once the edit is saved.</param>
@@ -97,16 +113,26 @@ public sealed class RecordsService
         var studentUuid = await FindStudentUuidAsync(v.StudentIdText);
         if (studentUuid is null) return ActionResult.Fail("Student not found. Check the ID.");
 
+        var id = form.Id.Trim();
+        var settled = await _certificates.SettleAsync("sport_record_id", id, form.ReferenceNo, deleteEntryOnFailure: false, "sport_records");
+        if (settled.Error is not null) return ActionResult.Fail(settled.Error);
+
         try
         {
-            await _db.UpdateAsync(PostgrestClient.From("sport_records").Eq("id", form.Id.Trim()),
+            await _db.UpdateAsync(PostgrestClient.From("sport_records").Eq("id", id),
                 new RecordPayload(studentUuid, v.TrackId, v.Year, v.Value));
         }
         catch (PostgrestException ex)
         {
             return ActionResult.Fail(DuplicateMessage(ex));
         }
-        return await DeleteReplacedAsync(replaceIds);
+
+        var removeError = await _certificates.RemoveAsync(form.RemoveCertificateIds);
+        if (removeError is not null) return ActionResult.Fail(removeError);
+        var fileError = await _certificates.StoreAsync(settled.Reference!, form.Uploads);
+        var replaced = await DeleteReplacedAsync(replaceIds);
+        if (fileError is not null) return ActionResult.Fail(fileError);
+        return replaced;
     }
 
     private static string DuplicateMessage(PostgrestException ex) =>
