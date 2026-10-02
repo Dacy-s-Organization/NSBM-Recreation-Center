@@ -1,0 +1,85 @@
+@inject CertificateService Certificates
+
+@if (Items.Count == 0)
+{
+    <span class="text-zinc-400">—</span>
+}
+else
+{
+    <div class="flex flex-col items-start gap-1">
+        @foreach (var file in Items)
+        {
+            <button type="button" class="text-left text-sm text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+                    @onclick="() => Open(file.Id)">
+                @file.FileName@(string.IsNullOrEmpty(file.ReferenceNo) ? "" : $" ({file.ReferenceNo})")
+            </button>
+        }
+    </div>
+}
+
+@if (_open)
+{
+    <Modal TrapKeyboard="true" CloseOnBackdrop="true" OnClose="Close" PanelClass="max-w-3xl">
+        <div class="mb-3 flex items-center justify-between gap-3">
+            <p class="font-medium text-zinc-900 dark:text-white">@(_image?.FileName ?? "Certificate")</p>
+            <Button Variant="secondary" OnClick="Close">Close</Button>
+        </div>
+        @if (_loading)
+        {
+            <p class="text-sm text-zinc-500">Loading certificate…</p>
+        }
+        @if (_error is not null)
+        {
+            <p class="text-sm text-red-600">@_error</p>
+        }
+        @if (_image is not null && CertificateService.CanPreview(_image.ContentType))
+        {
+            <img src="@DataUrl" alt="@_image.FileName" class="max-h-[70vh] w-full object-contain" />
+        }
+        else if (_image is not null)
+        {
+            <p class="text-sm text-zinc-600 dark:text-zinc-300">This image format opens as a download.</p>
+        }
+        @if (_image is not null)
+        {
+            <a class="mt-3 inline-block text-sm text-sky-700 underline dark:text-sky-300" href="@DataUrl" download="@_image.FileName">Download</a>
+        }
+    </Modal>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<CertificateLinkItem> Items { get; set; } = Array.Empty<CertificateLinkItem>();
+
+    private bool _open;
+    private bool _loading;
+    private string? _error;
+    private CertificateImage? _image;
+
+    private string DataUrl => _image is null ? "" : $"data:{_image.ContentType};base64,{_image.ImageBase64}";
+
+    private async Task Open(string id)
+    {
+        _open = true;
+        _loading = true;
+        _error = null;
+        _image = null;
+        var result = await Certificates.GetImageAsync(id);
+        _image = result.Image;
+        _error = result.Error;
+        _loading = false;
+    }
+
+    private void Close()
+    {
+        _open = false;
+        _image = null;
+        _error = null;
+    }
+
+    public sealed class CertificateLinkItem
+    {
+        public string Id { get; set; } = "";
+        public string FileName { get; set; } = "";
+        public string? ReferenceNo { get; set; }
+    }
+}

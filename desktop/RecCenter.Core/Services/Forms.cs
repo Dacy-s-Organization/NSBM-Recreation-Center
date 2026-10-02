@@ -44,6 +44,15 @@ public sealed class RecordForm
     public string TrackId { get; set; } = "";
     public string Value { get; set; } = "";
     public string Year { get; set; } = "";
+    public string ReferenceNo { get; set; } = "";
+    public List<Models.CertificateUpload> Uploads { get; } = new();
+    public List<string> RemoveCertificateIds { get; } = new();
+}
+
+public sealed class PlaceEntry
+{
+    public string Place { get; set; } = "1st";
+    public string StudentId { get; set; } = "";
 }
 
 public sealed class TrackForm
@@ -63,6 +72,10 @@ public sealed class AchievementForm
     public string WinnerStudentId { get; set; } = "";
     public string NewSport { get; set; } = "";
     public string Notes { get; set; } = "";
+    public string ReferenceNo { get; set; } = "";
+    public List<PlaceEntry> Places { get; set; } = new();
+    public List<Models.CertificateUpload> Uploads { get; } = new();
+    public List<string> RemoveCertificateIds { get; } = new();
 }
 
 public sealed class InventoryForm

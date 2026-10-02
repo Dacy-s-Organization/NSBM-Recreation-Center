@@ -8,13 +8,18 @@ internal sealed record AchievementPayload(int MeetYear, string Sport, string Ach
 
 internal sealed record SportInsert(string Name, int SortOrder);
 
-internal sealed record WinnerPayload(string AchievementId, string StudentId);
+internal sealed record WinnerPayload(string AchievementId, string StudentId, string? Place);
 
 public sealed class AchievementsService
 {
     private readonly PostgrestClient _db;
+    private readonly CertificateService _certificates;
 
-    public AchievementsService(PostgrestClient db) => _db = db;
+    public AchievementsService(PostgrestClient db, CertificateService certificates)
+    {
+        _db = db;
+        _certificates = certificates;
+    }
 
     public Task<List<Sport>> ListSportsAsync() =>
         _db.GetAsync<Sport>(PostgrestClient.From("sports").Select("id, name, sort_order").Order("sort_order").Order("name"));
@@ -96,7 +101,8 @@ public sealed class AchievementsService
     public Task<List<SportsAchievement>> GetForYearAsync(int year) =>
         _db.GetAsync<SportsAchievement>(PostgrestClient.From("sports_achievements")
             .Select(@"id, meet_year, sport, achievement_type, team_name, notes, created_at,
-                      sports_achievement_winners(student_id, students(student_id, full_name))")
+                      sports_achievement_winners(student_id, place, students(student_id, full_name, nic)),
+                      certificate_references(reference_no, issued_certificates(id, file_name, content_type))")
             .Eq("meet_year", year)
             .Order("created_at", ascending: false));
 
@@ -144,30 +150,43 @@ public sealed class AchievementsService
         var (error, payload) = Parse(form, requireId: false);
         if (error is not null) return ActionResult.Fail(error);
 
-        if (payload!.AchievementType == AchievementTypes.BestPlayer && form.WinnerStudentId.Trim().Length == 0)
-            return ActionResult.Fail("Student ID is required for Best Player.");
-
-        var student = await ResolveStudentAsync(form.WinnerStudentId);
-        if (student.Error is not null) return ActionResult.Fail(student.Error);
-        var winnerUuid = student.Uuid;
+        var winners = await WinnersFromFormAsync(form, payload!.AchievementType);
+        if (winners.Error is not null) return ActionResult.Fail(winners.Error);
 
         var sport = await ResolveSportAsync(form);
         if (sport.Error is not null) return ActionResult.Fail(sport.Error);
         payload = payload with { Sport = sport.Name! };
 
+        List<IdRow> inserted;
         try
         {
-            var inserted = await _db.InsertAsync<IdRow>("sports_achievements", payload, "id");
-            if (winnerUuid is not null && inserted.Count > 0)
-            {
-                await _db.InsertAsync("sports_achievement_winners", new WinnerPayload(inserted[0].Id, winnerUuid));
-            }
-            return ActionResult.Ok;
+            inserted = await _db.InsertAsync<IdRow>("sports_achievements", payload, "id");
         }
         catch (PostgrestException ex)
         {
             return ActionResult.Fail(ex.Message);
         }
+        if (inserted.Count == 0) return ActionResult.Fail("The achievement could not be saved.");
+
+        var settled = await _certificates.SettleAsync("sports_achievement_id", inserted[0].Id, form.ReferenceNo, deleteEntryOnFailure: true, "sports_achievements");
+        if (settled.Error is not null) return ActionResult.Fail(settled.Error);
+
+        if (winners.Rows.Count > 0)
+        {
+            try
+            {
+                await _db.InsertAsync("sports_achievement_winners", winners.Rows.Select(row => new WinnerPayload(inserted[0].Id, row.StudentId, row.Place)).ToList());
+            }
+            catch (PostgrestException ex)
+            {
+                return ActionResult.Fail(ex.Message);
+            }
+        }
+
+        var fileError = await _certificates.StoreAsync(settled.Reference!, form.Uploads);
+        if (fileError is not null)
+            return ActionResult.Fail($"The achievement was saved as {settled.Reference}, but a certificate could not be stored: {fileError}");
+        return ActionResult.Ok;
     }
 
     public async Task<ActionResult> UpdateAsync(AchievementForm form)
@@ -176,12 +195,11 @@ public sealed class AchievementsService
         if (error is not null) return ActionResult.Fail(error);
         var id = form.Id.Trim();
 
-        if (payload!.AchievementType == AchievementTypes.BestPlayer && form.WinnerStudentId.Trim().Length == 0)
-            return ActionResult.Fail("Student ID is required for Best Player.");
+        var winners = await WinnersFromFormAsync(form, payload!.AchievementType);
+        if (winners.Error is not null) return ActionResult.Fail(winners.Error);
 
-        var student = await ResolveStudentAsync(form.WinnerStudentId);
-        if (student.Error is not null) return ActionResult.Fail(student.Error);
-        var winnerUuid = student.Uuid;
+        var settled = await _certificates.SettleAsync("sports_achievement_id", id, form.ReferenceNo, deleteEntryOnFailure: false, "sports_achievements");
+        if (settled.Error is not null) return ActionResult.Fail(settled.Error);
 
         var sport = await ResolveSportAsync(form);
         if (sport.Error is not null) return ActionResult.Fail(sport.Error);
@@ -205,18 +223,59 @@ public sealed class AchievementsService
             /* the web action ignores this result too */
         }
 
-        if (winnerUuid is not null)
+        if (winners.Rows.Count > 0)
         {
             try
             {
-                await _db.InsertAsync("sports_achievement_winners", new WinnerPayload(id, winnerUuid));
+                await _db.InsertAsync("sports_achievement_winners", winners.Rows.Select(row => new WinnerPayload(id, row.StudentId, row.Place)).ToList());
             }
             catch (PostgrestException ex)
             {
                 return ActionResult.Fail(ex.Message);
             }
         }
+
+        var removeError = await _certificates.RemoveAsync(form.RemoveCertificateIds);
+        if (removeError is not null) return ActionResult.Fail(removeError);
+        var fileError = await _certificates.StoreAsync(settled.Reference!, form.Uploads);
+        if (fileError is not null) return ActionResult.Fail(fileError);
         return ActionResult.Ok;
+    }
+
+    private async Task<(List<(string StudentId, string? Place)> Rows, string? Error)> WinnersFromFormAsync(AchievementForm form, string type)
+    {
+        if (type == AchievementTypes.BestPlayer)
+        {
+            if (form.WinnerStudentId.Trim().Length == 0)
+                return (new(), "Student ID is required for Best Player.");
+            var student = await ResolveStudentAsync(form.WinnerStudentId);
+            if (student.Error is not null) return (new(), student.Error);
+            return student.Uuid is null ? (new(), "Student ID is required for Best Player.") : (new() { (student.Uuid, null) }, null);
+        }
+
+        if (type != AchievementTypes.Champion)
+        {
+            var student = await ResolveStudentAsync(form.WinnerStudentId);
+            if (student.Error is not null) return (new(), student.Error);
+            return student.Uuid is null ? (new(), null) : (new() { (student.Uuid, null) }, null);
+        }
+
+        var rows = new List<(string StudentId, string? Place)>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in form.Places)
+        {
+            var studentIdText = entry.StudentId.Trim();
+            if (studentIdText.Length == 0) continue;
+            if (entry.Place is not ("1st" or "2nd" or "3rd"))
+                return (new(), "Each champion place must be 1st, 2nd, or 3rd.");
+            var student = await ResolveStudentAsync(studentIdText);
+            if (student.Error is not null) return (new(), student.Error);
+            if (student.Uuid is null) continue;
+            if (!seen.Add(student.Uuid))
+                return (new(), $"Student {studentIdText} is listed more than once.");
+            rows.Add((student.Uuid, entry.Place));
+        }
+        return (rows, null);
     }
 
     public async Task<ActionResult> DeleteAsync(string id)

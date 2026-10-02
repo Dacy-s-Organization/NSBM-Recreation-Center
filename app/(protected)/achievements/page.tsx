@@ -31,7 +31,8 @@ export default async function AchievementsPage({
         .select(
           `id, student_id, track_id, year, value, recorded_at,
          students(student_id, full_name),
-         sport_tracks(name, unit, lower_is_better)`
+         sport_tracks(name, unit, lower_is_better),
+         certificate_references(reference_no, issued_certificates(id, file_name, content_type))`
         )
         .eq("year", selectedYear)
         .order("recorded_at", { ascending: false })
@@ -40,7 +41,8 @@ export default async function AchievementsPage({
         .from("sports_achievements")
         .select(
           `id, meet_year, sport, achievement_type, team_name, notes, created_at,
-         sports_achievement_winners(student_id, students(student_id, full_name))`
+         sports_achievement_winners(student_id, place, students(student_id, full_name, nic)),
+         certificate_references(reference_no, issued_certificates(id, file_name, content_type))`
         )
         .eq("meet_year", selectedYear)
         .order("created_at", { ascending: false }),

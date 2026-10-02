@@ -17,6 +17,9 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { HouseBadge } from "@/components/house-badge";
+import { CertificateFields, CertificateList } from "@/components/certificate-viewer";
+import { StudentDetailDialog, StudentTextButton } from "@/components/student-detail-dialog";
+import { certificateOf } from "@/lib/certificates";
 
 type LookupResult = {
   student_id: string;
@@ -49,6 +52,8 @@ export function RecordsClient({
   const [lookup, setLookup] = useState<LookupResult | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [openStudentId, setOpenStudentId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const lookupActive = showForm || editingId !== null;
@@ -83,6 +88,15 @@ export function RecordsClient({
   const filtered = useMemo(() => {
     let list = records;
     if (trackId) list = list.filter((r) => r.track_id === trackId);
+    const q = query.trim().toLowerCase();
+    if (q) {
+      list = list.filter((r) => {
+        const reference = certificateOf(r)?.reference_no ?? "";
+        return [r.students?.student_id, r.students?.full_name, r.sport_tracks?.name, reference].some(
+          (value) => (value ?? "").toLowerCase().includes(q)
+        );
+      });
+    }
     return [...list].sort((a, b) => {
       const trackA = a.sport_tracks?.name ?? "";
       const trackB = b.sport_tracks?.name ?? "";
@@ -91,7 +105,7 @@ export function RecordsClient({
       if (lowerBetter) return Number(a.value) - Number(b.value);
       return Number(b.value) - Number(a.value);
     });
-  }, [records, trackId]);
+  }, [records, trackId, query]);
 
   function handleAdd(formData: FormData) {
     setError(null);
@@ -197,6 +211,9 @@ export function RecordsClient({
         ? "0.01"
         : "any";
 
+    const reference = record ? certificateOf(record)?.reference_no : undefined;
+    const certificates = record ? certificateOf(record)?.issued_certificates ?? [] : [];
+
     return (
       <form action={onSubmit} className="grid gap-4 sm:grid-cols-2">
         {isEdit && <input type="hidden" name="id" value={record!.id} />}
@@ -261,6 +278,11 @@ export function RecordsClient({
             defaultValue={record?.year ?? defaultYear}
           />
         </div>
+        <CertificateFields
+          idPrefix={isEdit ? `record-${record!.id}` : "record-new"}
+          referenceNo={reference}
+          existing={isEdit ? certificates : undefined}
+        />
         <div className="flex flex-wrap gap-2 sm:col-span-2">
           <Button type="submit" disabled={pending}>
             {pending ? "Saving…" : submitLabel}
@@ -295,6 +317,15 @@ export function RecordsClient({
               </option>
             ))}
           </Select>
+        </div>
+        <div className="min-w-[200px] flex-1 max-w-md">
+          <Label htmlFor="record-search">Search records</Label>
+          <Input
+            id="record-search"
+            placeholder="Student ID, name, track, reference…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
         </div>
         <div>
           <Label htmlFor="track-filter">Track</Label>
@@ -358,6 +389,8 @@ export function RecordsClient({
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Track</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Record</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Date</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Reference no</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Certificates</th>
                 {canEdit && (
                   <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Actions</th>
                 )}
@@ -366,7 +399,7 @@ export function RecordsClient({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={canEdit ? 6 : 5} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={canEdit ? 8 : 7} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                     No records for this filter.
                   </td>
                 </tr>
@@ -374,7 +407,7 @@ export function RecordsClient({
                 filtered.map((r) => (
                   <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-white/10">
                     {canEdit && editingId === r.id ? (
-                      <td colSpan={6} className="px-4 py-3">
+                      <td colSpan={8} className="px-4 py-3">
                         <p className="mb-3 font-medium text-zinc-900 dark:text-white">Edit record</p>
                         <RecordFormFields
                           record={r}
@@ -386,15 +419,29 @@ export function RecordsClient({
                     ) : (
                       <>
                         <td className="px-4 py-3 font-mono">
-                          {r.students?.student_id ?? "—"}
+                          <StudentTextButton
+                            studentId={r.students?.student_id}
+                            label={r.students?.student_id ?? "—"}
+                            onOpen={setOpenStudentId}
+                          />
                         </td>
-                        <td className="px-4 py-3">{r.students?.full_name}</td>
+                        <td className="px-4 py-3">
+                          <StudentTextButton
+                            studentId={r.students?.student_id}
+                            label={r.students?.full_name ?? "—"}
+                            onOpen={setOpenStudentId}
+                          />
+                        </td>
                         <td className="px-4 py-3">{r.sport_tracks?.name}</td>
                         <td className="px-4 py-3 font-medium">
                           {formatRecordValue(Number(r.value), r.sport_tracks)}
                         </td>
                         <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
                           {new Date(r.recorded_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 font-mono">{certificateOf(r)?.reference_no ?? "—"}</td>
+                        <td className="px-4 py-3">
+                          <CertificateList certificates={certificateOf(r)?.issued_certificates ?? []} />
                         </td>
                         {canEdit && (
                           <td className="px-4 py-3">
@@ -428,8 +475,10 @@ export function RecordsClient({
         <p className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
           {filtered.length} record(s) for {year}
           {trackId ? ` · filtered by track` : ""}
+          {query.trim() ? ` · matching search` : ""}
         </p>
       </Card>
+      <StudentDetailDialog studentId={openStudentId} onClose={() => setOpenStudentId(null)} />
     </div>
   );
 }

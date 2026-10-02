@@ -1,0 +1,75 @@
+@inject CertificateService Certificates
+
+@if (!string.IsNullOrEmpty(StudentId))
+{
+    <Modal TrapKeyboard="true" CloseOnBackdrop="true" OnClose="OnClose" PanelClass="max-w-lg">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Student details</h3>
+            <Button Variant="secondary" OnClick="OnClose">Close</Button>
+        </div>
+        @if (_loading)
+        {
+            <p class="text-sm text-zinc-500">Loading…</p>
+        }
+        @if (_error is not null)
+        {
+            <p class="text-sm text-red-600">@_error</p>
+        }
+        @if (_student is not null)
+        {
+            <dl class="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-sm">
+                <dt class="text-zinc-500">Student ID</dt><dd>@Display(_student.StudentId)</dd>
+                <dt class="text-zinc-500">Name</dt><dd>@Display(_student.FullName)</dd>
+                <dt class="text-zinc-500">Title</dt><dd>@Display(_student.Title)</dd>
+                <dt class="text-zinc-500">Gender</dt><dd>@Display(_student.Gender)</dd>
+                <dt class="text-zinc-500">Faculty</dt><dd>@Display(_student.Faculty)</dd>
+                <dt class="text-zinc-500">Intake</dt><dd>@Display(_student.Intake)</dd>
+                <dt class="text-zinc-500">Degree</dt><dd>@Display(_student.DegreeProgramme)</dd>
+                <dt class="text-zinc-500">University</dt><dd>@Display(_student.University)</dd>
+                <dt class="text-zinc-500">House</dt><dd>@Display(_student.Houses?.Name)</dd>
+                <dt class="text-zinc-500">NIC</dt><dd>@Display(_student.Nic)</dd>
+                <dt class="text-zinc-500">Mobile</dt><dd>@Display(_student.Mobile)</dd>
+                <dt class="text-zinc-500">Email</dt><dd>@Display(_student.Email)</dd>
+                <dt class="text-zinc-500">Certificates</dt>
+                <dd>
+                    <CertificateLinks Items="_certificates" />
+                </dd>
+            </dl>
+        }
+    </Modal>
+}
+
+@code {
+    [Parameter] public string? StudentId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Student? _student;
+    private List<CertificateLinks.CertificateLinkItem> _certificates = new();
+    private string? _error;
+    private bool _loading;
+    private string? _loadedFor;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (StudentId == _loadedFor) return;
+        _loadedFor = StudentId;
+        _student = null;
+        _certificates = new();
+        _error = null;
+        if (string.IsNullOrEmpty(StudentId)) return;
+
+        _loading = true;
+        var result = await Certificates.GetStudentAsync(StudentId);
+        _student = result.Student;
+        _error = result.Error;
+        _certificates = result.Certificates.Select(file => new CertificateLinks.CertificateLinkItem
+        {
+            Id = file.Id,
+            FileName = file.FileName,
+            ReferenceNo = file.ReferenceNo,
+        }).ToList();
+        _loading = false;
+    }
+
+    private static string Display(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+}

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSuper } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
+import { removeCertificateFiles, settleReference, storeCertificateFiles } from "@/app/actions/certificates";
 
 export async function addSportRecord(formData: FormData) {
   const studentIdText = String(formData.get("student_id") ?? "").trim();
@@ -34,18 +35,37 @@ export async function addSportRecord(formData: FormData) {
     return { error: "Student not found. Add them first or check the ID." };
   }
 
-  const { error } = await supabase.from("sport_records").insert({
-    student_id: student.id,
-    track_id: trackId,
-    year,
-    value,
-  });
+  const { data: created, error } = await supabase
+    .from("sport_records")
+    .insert({
+      student_id: student.id,
+      track_id: trackId,
+      year,
+      value,
+    })
+    .select("id")
+    .single();
 
-  if (error) {
-    return { error: error.message };
+  if (error || !created) {
+    return { error: error?.message ?? "The record could not be saved." };
   }
 
+  const settled = await settleReference(
+    supabase,
+    "sport_record_id",
+    created.id,
+    String(formData.get("reference_no") ?? "")
+  );
+  if ("error" in settled) {
+    await supabase.from("sport_records").delete().eq("id", created.id);
+    return { error: settled.error };
+  }
+
+  const fileError = await storeCertificateFiles(supabase, settled.reference, formData);
   revalidatePath("/achievements", "page");
+  if (fileError) {
+    return { error: `The record was saved as ${settled.reference}, but a certificate could not be stored: ${fileError}` };
+  }
   return { success: true };
 }
 
@@ -80,6 +100,14 @@ export async function updateSportRecord(formData: FormData) {
     return { error: "Student not found. Check the ID." };
   }
 
+  const settled = await settleReference(
+    supabase,
+    "sport_record_id",
+    id,
+    String(formData.get("reference_no") ?? "")
+  );
+  if ("error" in settled) return { error: settled.error };
+
   const { error } = await supabase
     .from("sport_records")
     .update({
@@ -94,7 +122,11 @@ export async function updateSportRecord(formData: FormData) {
     return { error: error.message };
   }
 
+  const removeError = await removeCertificateFiles(supabase, formData);
+  if (removeError) return { error: removeError };
+  const fileError = await storeCertificateFiles(supabase, settled.reference, formData);
   revalidatePath("/achievements", "page");
+  if (fileError) return { error: fileError };
   return { success: true };
 }
 
@@ -118,7 +150,7 @@ export async function lookupStudentByStudentId(studentId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("students")
-    .select("student_id, full_name, houses(name)")
+    .select("student_id, full_name, nic, houses(name)")
     .eq("student_id", studentId.trim())
     .maybeSingle();
 
