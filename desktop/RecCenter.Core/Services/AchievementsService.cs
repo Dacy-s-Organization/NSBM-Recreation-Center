@@ -140,7 +140,6 @@ public sealed class AchievementsService
 
         if ((requireId && form.Id.Trim().Length == 0) || sport.Length == 0 || type is null || meetYear is null)
             return ("Sport, achievement type, and year are required.", null);
-        if (teamName is null) return ("House (team) is required.", null);
 
         return (null, new AchievementPayload(meetYear.Value, sport, type, teamName, notes));
     }

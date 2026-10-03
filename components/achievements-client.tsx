@@ -16,6 +16,7 @@ import {
   type AchievementType,
 } from "@/lib/constants";
 import type { House, SportsAchievement } from "@/lib/types/database";
+import { blankCell, downloadCsv, toCsv } from "@/lib/csv";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -216,20 +217,17 @@ function AchievementForm({
       </div>
       <div>
         <Label>House (team)</Label>
-        <Select
-          name="team_name"
-          required
-          defaultValue={houseNameForAchievement(achievement, houses)}
-        >
-          <option value="" disabled>
-            Select house
-          </option>
+        <Select name="team_name" defaultValue={houseNameForAchievement(achievement, houses)}>
+          <option value="">No house</option>
           {houses.map((h) => (
             <option key={h.id} value={h.name}>
               {h.name}
             </option>
           ))}
         </Select>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Optional. Leave blank when the result is not for a house.
+        </p>
       </div>
       {champion ? (
         <div className="sm:col-span-2 space-y-3">
@@ -349,6 +347,28 @@ export function AchievementsClient({
     });
   }, [achievements, query]);
 
+  function winnerText(achievement: SportsAchievement) {
+    return (achievement.sports_achievement_winners ?? [])
+      .map((winner) => {
+        const place = winner.place ? `${winner.place} ` : "";
+        const name = winner.students?.full_name ?? "";
+        const studentId = winner.students?.student_id ?? "";
+        if (name && studentId) return `${place}${name} (${studentId})`;
+        return `${place}${name || studentId}`.trim();
+      })
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  function openSavedYear(formData: FormData) {
+    const saved = parseInt(String(formData.get("meet_year") ?? ""), 10);
+    if (!Number.isNaN(saved) && saved !== selectedYear) {
+      router.push(`/achievements?year=${saved}`);
+    } else {
+      router.refresh();
+    }
+  }
+
   function handleAdd(formData: FormData) {
     setError(null);
     startTransition(async () => {
@@ -357,6 +377,7 @@ export function AchievementsClient({
       else {
         setShowForm(false);
         setError(null);
+        openSavedYear(formData);
       }
     });
   }
@@ -369,6 +390,7 @@ export function AchievementsClient({
       else {
         setEditingId(null);
         setError(null);
+        openSavedYear(formData);
       }
     });
   }
@@ -430,6 +452,29 @@ export function AchievementsClient({
             ))}
           </Select>
         </div>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={filtered.length === 0}
+          onClick={() => {
+            downloadCsv(
+              `sports-achievements-${yearFilter}.csv`,
+              toCsv(
+                ["Sport", "Achievement", "Team", "Winners", "Notes", "Reference no"],
+                filtered.map((achievement) => [
+                  blankCell(achievement.sport),
+                  blankCell(achievement.achievement_type),
+                  blankCell(achievement.team_name),
+                  winnerText(achievement),
+                  blankCell(achievement.notes),
+                  blankCell(certificateOf(achievement)?.reference_no),
+                ])
+              )
+            );
+          }}
+        >
+          Export
+        </Button>
         {canEdit && (
           <Button
             type="button"

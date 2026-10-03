@@ -2,6 +2,7 @@
 @inject RecordsService RecordsData
 @inject IJSRuntime JS
 @inject AuthService Auth
+@inject DesktopBridge Bridge
 
 <div class="space-y-8">
     <div class="flex flex-wrap items-end gap-4">
@@ -24,10 +25,6 @@
                 }
             </select>
         </div>
-        <div class="min-w-[200px] flex-1 max-w-md">
-            <label for="record-search" class="@Ui.Label">Search records</label>
-            <input id="record-search" class="@Ui.Input" placeholder="Student ID, name, track, reference…" @bind="_search" @bind:event="oninput" />
-        </div>
         <div>
             <label for="gender-filter" class="@Ui.Label">Gender</label>
             <select id="gender-filter" class="@Ui.Select" @bind="_genderFilter">
@@ -36,6 +33,11 @@
                 <option value="female">Female</option>
             </select>
         </div>
+        <div class="min-w-[200px] flex-1 max-w-md">
+            <label for="record-search" class="@Ui.Label">Search records</label>
+            <input id="record-search" class="@Ui.Input" placeholder="Student ID, name, track, reference…" @bind="_search" @bind:event="oninput" />
+        </div>
+        <Button Variant="secondary" Disabled="@(Filtered.Count == 0)" OnClick="ExportFiltered">Export</Button>
         @if (Auth.CanEdit)
         {
             <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add record")</Button>
@@ -514,8 +516,9 @@
             return;
         }
         _showForm = false;
+        var savedYear = Formatting.ParseIntLoose(_form.Year);
         ResetFormState();
-        await OnChanged.InvokeAsync();
+        await FollowSavedYear(savedYear);
     }
 
     private async Task HandleUpdate()
@@ -536,8 +539,37 @@
             return;
         }
         _editingId = null;
+        var savedYear = Formatting.ParseIntLoose(_form.Year);
         ResetFormState();
-        await OnChanged.InvokeAsync();
+        await FollowSavedYear(savedYear);
+    }
+
+    private async Task FollowSavedYear(int? savedYear)
+    {
+        if (savedYear is not null && savedYear.Value != SelectedYear)
+            await OnYearSelected.InvokeAsync(savedYear.Value);
+        else
+            await OnChanged.InvokeAsync();
+    }
+
+    private void ExportFiltered()
+    {
+        var rows = Filtered;
+        var trackName = Tracks.FirstOrDefault(track => track.Id == _trackFilter)?.Name;
+        var csv = CsvText.Build(
+            new[] { "Student ID", "Name", "Track", "Record", "Date", "Reference no" },
+            rows.Select(record => (IEnumerable<string?>)new[]
+            {
+                CsvText.Blank(record.Students?.StudentId),
+                CsvText.Blank(record.Students?.FullName),
+                CsvText.Blank(record.SportTracks?.Name),
+                Formatting.RecordValue(record.Value, record.SportTracks),
+                Ui.FormatDate(record.RecordedAt),
+                CsvText.Blank(record.CertificateReferences?.ReferenceNo),
+            }));
+        Bridge.SaveTextFile(
+            $"athletic-records-{SelectedYear}-{CsvText.FileSlug(trackName)}-{CsvText.FileSlug(string.IsNullOrEmpty(_genderFilter) ? "all-genders" : _genderFilter)}.csv",
+            csv);
     }
 
     private async Task HandleDelete(string id)

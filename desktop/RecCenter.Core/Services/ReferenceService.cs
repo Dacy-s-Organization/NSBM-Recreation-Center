@@ -14,6 +14,19 @@ public sealed class ReferenceService
 
     public Task<List<SportTrack>> GetSportTracksAsync() =>
         _db.GetAsync<SportTrack>(PostgrestClient.From("sport_tracks").Select("id, name, unit, lower_is_better").Order("name"));
+
+    public async Task<List<int>> GetAchievementYearsAsync()
+    {
+        try
+        {
+            var rows = await _db.RpcAsync<List<YearRow>>("achievement_years", new { });
+            return rows?.Select(row => row.Year).Where(year => year > 0).Distinct().ToList() ?? new List<int>();
+        }
+        catch (PostgrestException)
+        {
+            return new List<int>();
+        }
+    }
 }
 
 public sealed class DashboardService

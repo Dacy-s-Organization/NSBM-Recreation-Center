@@ -34,13 +34,14 @@
     </div>
     <div>
         <label class="@Ui.Label">House (team)</label>
-        <select class="@Ui.Select" required @bind="_form.TeamName">
-            <option value="" disabled>Select house</option>
+        <select class="@Ui.Select" @bind="_form.TeamName">
+            <option value="">No house</option>
             @foreach (var h in Houses)
             {
                 <option value="@h.Name">@h.Name</option>
             }
         </select>
+        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Optional. Leave blank when the result is not for a house.</p>
     </div>
     @if (_form.AchievementType == AchievementTypes.Champion)
     {

@@ -32,7 +32,7 @@ public static class ImportConfig
         [ImportType.Inventory] =
             "Columns: item_name, quantity. Existing items are updated by name.",
         [ImportType.Achievements] =
-            "Required: meet_year, sport, achievement_type, team_name (house). Best Player requires winner_student_id. Other types may include winner_student_id. A sport that is not already listed is added. Types: Champion Team, Best Player.",
+            "Required: meet_year, sport, achievement_type. team_name (house) is optional. Best Player requires winner_student_id. Other types may include winner_student_id. A sport that is not already listed is added. Types: Champion Team, Best Player.",
     };
 
     public static readonly IReadOnlyDictionary<ImportType, ImportTemplate> Templates = new Dictionary<ImportType, ImportTemplate>
@@ -61,7 +61,7 @@ public static class ImportConfig
         [ImportType.Students] = Array.Empty<string>(),
         [ImportType.Records] = new[] { "student_id", "track_name", "value", "year" },
         [ImportType.Inventory] = new[] { "item_name", "quantity" },
-        [ImportType.Achievements] = new[] { "meet_year", "sport", "achievement_type", "team_name" },
+        [ImportType.Achievements] = new[] { "meet_year", "sport", "achievement_type" },
     };
 
     public static IReadOnlyList<string> PreviewLabels(ImportType type)

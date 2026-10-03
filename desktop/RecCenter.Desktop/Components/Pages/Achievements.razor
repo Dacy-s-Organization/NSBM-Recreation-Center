@@ -109,6 +109,13 @@ else
             _records = records.Result;
             _houses = houses.Result;
             _achievements = achievements.Result;
+            var storedYears = await Reference.GetAchievementYearsAsync();
+            _years = storedYears
+                .Append(_selectedYear)
+                .Append(DateTime.Now.Year)
+                .Distinct()
+                .OrderByDescending(year => year)
+                .ToList();
             _loadError = null;
         }
         catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)

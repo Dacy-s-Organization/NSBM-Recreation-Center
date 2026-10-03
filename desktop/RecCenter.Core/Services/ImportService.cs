@@ -559,19 +559,23 @@ public sealed class ImportService
             var sport = row.Get("sport").Trim();
             var achievementType = AchievementTypes.Parse(row.Get("achievement_type"));
             var teamNameRaw = row.Get("team_name").Trim();
-            var teamName = Houses.ResolveName(teamNameRaw);
             var notes = FormText.NullIfEmpty(row.Get("notes"));
             var winnerStudentId = row.Get("winner_student_id").Trim();
 
-            if (meetYear is null || sport.Length == 0 || achievementType is null || teamNameRaw.Length == 0)
+            if (meetYear is null || sport.Length == 0 || achievementType is null)
             {
                 result.Errors.Add($"Row {line}: invalid or incomplete row");
                 continue;
             }
-            if (teamName is null)
+            string? teamName = null;
+            if (teamNameRaw.Length > 0)
             {
-                result.Errors.Add($"Row {line}: unknown house \"{row.Get("team_name")}\"");
-                continue;
+                teamName = Houses.ResolveName(teamNameRaw);
+                if (teamName is null)
+                {
+                    result.Errors.Add($"Row {line}: unknown house \"{row.Get("team_name")}\"");
+                    continue;
+                }
             }
 
             string? winnerUuid = null;

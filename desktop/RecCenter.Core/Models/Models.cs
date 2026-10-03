@@ -9,6 +9,11 @@ public sealed class House
     public string Name { get; set; } = "";
 }
 
+public sealed class YearRow
+{
+    public int Year { get; set; }
+}
+
 public sealed class NameRef
 {
     public string? Name { get; set; }
