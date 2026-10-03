@@ -53,21 +53,27 @@ export function AppNav() {
           aria-label="Main"
           className="flex flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5"
         >
-          {links.map((link) => (
+          {links.map((link) => {
+            const active =
+              link.href === "/"
+                ? pathname === "/"
+                : pathname === link.href || pathname.startsWith(`${link.href}/`);
+            return (
             <Link
               key={link.href}
               href={link.href}
-              aria-current={pathname === link.href ? "page" : undefined}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "rounded-full px-3.5 py-1.5 text-sm font-medium transition",
-                pathname === link.href
+                active
                   ? "bg-emerald-500 text-zinc-950 shadow-sm dark:bg-emerald-400"
                   : "text-zinc-600 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white"
               )}
             >
               {link.label}
             </Link>
-          ))}
+            );
+          })}
         </nav>
         <div className="flex items-center gap-2">
           <ThemeToggle />

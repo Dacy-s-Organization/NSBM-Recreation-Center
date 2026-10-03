@@ -8,8 +8,9 @@ import {
   type CertificateImage,
   type IssuedCertificateMeta,
 } from "@/lib/certificates";
+import { ACHIEVEMENT_SECTIONS, type CertificateParentColumn } from "@/lib/achievement-sections";
 
-type ParentColumn = "sport_record_id" | "sports_achievement_id";
+type ParentColumn = CertificateParentColumn;
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -137,17 +138,21 @@ export async function getStudentDetail(
 
   if (error || !student) return { error: "Student not found." };
 
-  const [{ data: records }, { data: wins }] = await Promise.all([
-    supabase.from("sport_records").select("id").eq("student_id", student.id),
-    supabase.from("sports_achievement_winners").select("achievement_id").eq("student_id", student.id),
-  ]);
-
-  const recordIds = (records ?? []).map((row) => row.id);
-  const achievementIds = (wins ?? []).map((row) => row.achievement_id);
-  const filters = [
-    recordIds.length ? `sport_record_id.in.(${recordIds.join(",")})` : "",
-    achievementIds.length ? `sports_achievement_id.in.(${achievementIds.join(",")})` : "",
-  ].filter(Boolean);
+  const sectionFilters = await Promise.all(
+    Object.values(ACHIEVEMENT_SECTIONS).map(async (config) => {
+      const [{ data: records }, { data: wins }] = await Promise.all([
+        supabase.from(config.recordsTable).select("id").eq("student_id", student.id),
+        supabase.from(config.winnersTable).select("achievement_id").eq("student_id", student.id),
+      ]);
+      const recordIds = (records ?? []).map((row) => row.id);
+      const achievementIds = (wins ?? []).map((row) => row.achievement_id);
+      return [
+        recordIds.length ? `${config.recordRefColumn}.in.(${recordIds.join(",")})` : "",
+        achievementIds.length ? `${config.achievementRefColumn}.in.(${achievementIds.join(",")})` : "",
+      ];
+    })
+  );
+  const filters = sectionFilters.flat().filter(Boolean);
 
   let certificates: StudentDetail["certificates"] = [];
   if (filters.length > 0) {
