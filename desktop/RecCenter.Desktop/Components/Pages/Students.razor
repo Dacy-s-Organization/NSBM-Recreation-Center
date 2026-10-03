@@ -6,6 +6,7 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject AuthService Auth
+@inject DesktopBridge Bridge
 
 @if (_loading)
 {
@@ -111,6 +112,7 @@ else
                         {
                             <Button Variant="ghost" OnClick="ClearFilters">Clear filters</Button>
                         }
+                        <Button Variant="secondary" Disabled="@(filtered.Count == 0)" OnClick="ExportFiltered">Export</Button>
                         @if (Auth.CanEdit)
                         {
                             <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add student")</Button>
@@ -475,6 +477,17 @@ else
     };
 
     private static string OrDash(string? value) => string.IsNullOrEmpty(value) ? "—" : value;
+
+    private void ExportFiltered()
+    {
+        var houseName = _houses.FirstOrDefault(house => house.Id == _houseFilter)?.Name;
+        var csv = CsvText.Build(
+            StudentColumns.All.Select(column => column.Label),
+            Filtered.Select(student => StudentColumns.All.Select(column => (string?)CsvText.Blank(CellText(student, column.Key)))));
+        Bridge.SaveTextFile(
+            $"students-{CsvText.FileSlug(_intake)}-{CsvText.FileSlug(string.IsNullOrEmpty(houseName) ? "all-houses" : houseName)}-{CsvText.FileSlug(string.IsNullOrEmpty(_genderFilter) ? "all-genders" : _genderFilter)}.csv",
+            csv);
+    }
 
     private static string ColumnHeaderClass(string key) => key switch
     {

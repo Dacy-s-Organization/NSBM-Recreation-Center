@@ -592,7 +592,7 @@ export async function importAchievements(
       meet_year: number;
       sport: string;
       achievement_type: AchievementType;
-      team_name: string;
+      team_name: string | null;
       notes: string | null;
     };
     winnerStudentUuid: string | null;
@@ -607,17 +607,20 @@ export async function importAchievements(
     const sport = row.sport?.trim() ?? "";
     const achievementType = parseAchievementType(row.achievement_type ?? "");
     const teamNameRaw = row.team_name?.trim() ?? "";
-    const teamName = resolveHouseName(teamNameRaw);
     const notes = row.notes?.trim() || null;
     const winnerStudentId = row.winner_student_id?.trim() ?? "";
 
-    if (Number.isNaN(meetYear) || !sport || !achievementType || !teamNameRaw) {
+    if (Number.isNaN(meetYear) || !sport || !achievementType) {
       result.errors.push(`Row ${line}: invalid or incomplete row`);
       continue;
     }
-    if (!teamName) {
-      result.errors.push(`Row ${line}: unknown house "${row.team_name}"`);
-      continue;
+    let teamName: string | null = null;
+    if (teamNameRaw) {
+      teamName = resolveHouseName(teamNameRaw);
+      if (!teamName) {
+        result.errors.push(`Row ${line}: unknown house "${row.team_name}"`);
+        continue;
+      }
     }
 
     let winnerStudentUuid: string | null = null;

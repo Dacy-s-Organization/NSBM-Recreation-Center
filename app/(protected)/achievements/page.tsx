@@ -21,7 +21,7 @@ export default async function AchievementsPage({
   const supabase = await createClient();
   const { role } = await getStaffRole();
   const canEdit = role === "super";
-  const [tracks, houses, sports, { data: records }, { data: achievements }] =
+  const [tracks, houses, sports, { data: records }, { data: achievements }, yearsResult] =
     await Promise.all([
       getSportTracks(),
       getHouses(),
@@ -30,7 +30,7 @@ export default async function AchievementsPage({
         .from("sport_records")
         .select(
           `id, student_id, track_id, year, value, recorded_at,
-         students(student_id, full_name),
+         students(student_id, full_name, gender),
          sport_tracks(name, unit, lower_is_better),
          certificate_references(reference_no, issued_certificates(id, file_name, content_type))`
         )
@@ -46,16 +46,13 @@ export default async function AchievementsPage({
         )
         .eq("meet_year", selectedYear)
         .order("created_at", { ascending: false }),
+      supabase.rpc("achievement_years"),
     ]);
 
-  const years = [
-    selectedYear,
-    selectedYear - 1,
-    selectedYear - 2,
-    defaultYear,
-  ]
-    .filter((y, i, arr) => arr.indexOf(y) === i)
-    .sort((a, b) => b - a);
+  const storedYears = ((yearsResult.data ?? []) as { year: number }[])
+    .map((row) => Number(row.year))
+    .filter((year) => Number.isInteger(year));
+  const years = [...new Set([...storedYears, selectedYear, defaultYear])].sort((a, b) => b - a);
 
   return (
     <div className="space-y-10">

@@ -77,7 +77,7 @@ const REQUIRED_COLUMNS: Record<ImportType, string[]> = {
   students: [],
   records: ["student_id", "track_name", "value", "year"],
   inventory: ["item_name", "quantity"],
-  achievements: ["meet_year", "sport", "achievement_type", "team_name"],
+  achievements: ["meet_year", "sport", "achievement_type"],
 };
 
 export function downloadImportTemplate(type: ImportType) {

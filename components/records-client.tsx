@@ -20,6 +20,7 @@ import { HouseBadge } from "@/components/house-badge";
 import { CertificateFields, CertificateList } from "@/components/certificate-viewer";
 import { StudentDetailDialog, StudentTextButton } from "@/components/student-detail-dialog";
 import { certificateOf } from "@/lib/certificates";
+import { blankCell, csvFileSlug, downloadCsv, toCsv } from "@/lib/csv";
 
 type LookupResult = {
   student_id: string;
@@ -53,7 +54,12 @@ export function RecordsClient({
   const [lookupLoading, setLookupLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [genderFilter, setGenderFilter] = useState("");
   const [openStudentId, setOpenStudentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setYear(selectedYear);
+  }, [selectedYear]);
   const [pending, startTransition] = useTransition();
 
   const lookupActive = showForm || editingId !== null;
@@ -88,6 +94,9 @@ export function RecordsClient({
   const filtered = useMemo(() => {
     let list = records;
     if (trackId) list = list.filter((r) => r.track_id === trackId);
+    if (genderFilter) {
+      list = list.filter((r) => (r.students?.gender ?? "").trim().toLowerCase() === genderFilter);
+    }
     const q = query.trim().toLowerCase();
     if (q) {
       list = list.filter((r) => {
@@ -105,7 +114,16 @@ export function RecordsClient({
       if (lowerBetter) return Number(a.value) - Number(b.value);
       return Number(b.value) - Number(a.value);
     });
-  }, [records, trackId, query]);
+  }, [records, trackId, genderFilter, query]);
+
+  function openSavedYear(formData: FormData) {
+    const saved = parseInt(String(formData.get("year") ?? ""), 10);
+    if (!Number.isNaN(saved) && saved !== selectedYear) {
+      router.push(`/achievements?year=${saved}`);
+    } else {
+      router.refresh();
+    }
+  }
 
   function handleAdd(formData: FormData) {
     setError(null);
@@ -117,6 +135,7 @@ export function RecordsClient({
         setStudentIdInput("");
         setFormTrackId("");
         setLookup(null);
+        openSavedYear(formData);
       }
     });
   }
@@ -131,6 +150,7 @@ export function RecordsClient({
         setStudentIdInput("");
         setFormTrackId("");
         setLookup(null);
+        openSavedYear(formData);
       }
     });
   }
@@ -342,6 +362,42 @@ export function RecordsClient({
             ))}
           </Select>
         </div>
+        <div>
+          <Label htmlFor="gender-filter">Gender</Label>
+          <Select
+            id="gender-filter"
+            value={genderFilter}
+            onChange={(e) => setGenderFilter(e.target.value)}
+          >
+            <option value="">All genders</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </Select>
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={filtered.length === 0}
+          onClick={() => {
+            const trackName = tracks.find((track) => track.id === trackId)?.name ?? "";
+            downloadCsv(
+              `athletic-records-${year}-${csvFileSlug(trackName)}-${csvFileSlug(genderFilter || "all-genders")}.csv`,
+              toCsv(
+                ["Student ID", "Name", "Track", "Record", "Date", "Reference no"],
+                filtered.map((record) => [
+                  blankCell(record.students?.student_id),
+                  blankCell(record.students?.full_name),
+                  blankCell(record.sport_tracks?.name),
+                  formatRecordValue(Number(record.value), record.sport_tracks),
+                  record.recorded_at ? new Date(record.recorded_at).toLocaleDateString() : "",
+                  blankCell(certificateOf(record)?.reference_no),
+                ])
+              )
+            );
+          }}
+        >
+          Export
+        </Button>
         {canEdit && (
           <Button
             type="button"
@@ -475,6 +531,7 @@ export function RecordsClient({
         <p className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
           {filtered.length} record(s) for {year}
           {trackId ? ` · filtered by track` : ""}
+          {genderFilter ? ` · filtered by gender` : ""}
           {query.trim() ? ` · matching search` : ""}
         </p>
       </Card>

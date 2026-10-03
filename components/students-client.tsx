@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import { blankCell, csvFileSlug, downloadCsv, toCsv } from "@/lib/csv";
 
 type StudentsView = "faculties" | "intakes" | "list";
 type StudentColumn = (typeof STUDENT_TABLE_COLUMNS)[number];
@@ -394,6 +395,25 @@ export function StudentsClient({
               Clear filters
             </Button>
           )}
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={filtered.length === 0}
+            onClick={() => {
+              const houseName = houses.find((house) => house.id === houseFilter)?.name ?? "";
+              downloadCsv(
+                `students-${csvFileSlug(selectedIntake || "all")}-${csvFileSlug(houseName || "all-houses")}-${csvFileSlug(genderFilter || "all-genders")}.csv`,
+                toCsv(
+                  STUDENT_TABLE_COLUMNS.map((column) => column.label),
+                  filtered.map((student) =>
+                    STUDENT_TABLE_COLUMNS.map((column) => blankCell(cellText(student, column.key)))
+                  )
+                )
+              );
+            }}
+          >
+            Export
+          </Button>
           {canEdit && (
             <Button
               type="button"

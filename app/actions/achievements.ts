@@ -100,9 +100,6 @@ export async function addAchievement(formData: FormData) {
   if (!achievementType || Number.isNaN(meetYear)) {
     return { error: "Sport, achievement type, and year are required." };
   }
-  if (!teamName) {
-    return { error: "House (team) is required." };
-  }
 
   const gate = await requireSuper();
   if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
@@ -174,9 +171,6 @@ export async function updateAchievement(formData: FormData) {
 
   if (!id || !achievementType || Number.isNaN(meetYear)) {
     return { error: "Sport, achievement type, and year are required." };
-  }
-  if (!teamName) {
-    return { error: "House (team) is required." };
   }
 
   const gate = await requireSuper();

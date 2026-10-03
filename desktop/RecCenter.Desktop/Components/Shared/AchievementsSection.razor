@@ -1,6 +1,7 @@
 @inject AchievementsService AchievementsData
 @inject IJSRuntime JS
 @inject AuthService Auth
+@inject DesktopBridge Bridge
 
 <div class="space-y-6">
     <div class="flex flex-wrap items-end gap-4">
@@ -17,6 +18,7 @@
                 }
             </select>
         </div>
+        <Button Variant="secondary" Disabled="@(Filtered.Count == 0)" OnClick="ExportFiltered">Export</Button>
         @if (Auth.CanEdit)
         {
             <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add achievement")</Button>
@@ -220,7 +222,7 @@
         }
         _showForm = false;
         _error = null;
-        await OnChanged.InvokeAsync();
+        await FollowSavedYear(form);
     }
 
     private async Task HandleUpdate(AchievementForm form)
@@ -236,7 +238,47 @@
         }
         _editingId = null;
         _error = null;
-        await OnChanged.InvokeAsync();
+        await FollowSavedYear(form);
+    }
+
+    private async Task FollowSavedYear(AchievementForm form)
+    {
+        var savedYear = Formatting.ParseIntLoose(form.MeetYear);
+        if (savedYear is not null && savedYear.Value != SelectedYear)
+            await OnYearSelected.InvokeAsync(savedYear.Value);
+        else
+            await OnChanged.InvokeAsync();
+    }
+
+    private static string WinnersText(SportsAchievement achievement)
+    {
+        var winners = achievement.SportsAchievementWinners;
+        if (winners is null || winners.Count == 0) return "";
+        return string.Join(", ", winners.Select(winner =>
+        {
+            var name = winner.Students?.FullName;
+            var studentId = winner.Students?.StudentId;
+            var place = string.IsNullOrEmpty(winner.Place) ? "" : $"{winner.Place} ";
+            if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(studentId))
+                return $"{place}{name} ({studentId})";
+            return $"{place}{name ?? studentId ?? ""}".Trim();
+        }).Where(text => text.Length > 0));
+    }
+
+    private void ExportFiltered()
+    {
+        var csv = CsvText.Build(
+            new[] { "Sport", "Achievement", "Team", "Winners", "Notes", "Reference no" },
+            Filtered.Select(achievement => (IEnumerable<string?>)new[]
+            {
+                CsvText.Blank(achievement.Sport),
+                CsvText.Blank(achievement.AchievementType),
+                CsvText.Blank(achievement.TeamName),
+                WinnersText(achievement),
+                CsvText.Blank(achievement.Notes),
+                CsvText.Blank(achievement.CertificateReferences?.ReferenceNo),
+            }));
+        Bridge.SaveTextFile($"sports-achievements-{SelectedYear}.csv", csv);
     }
 
     private async Task HandleDelete(string id, string sport)

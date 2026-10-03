@@ -38,7 +38,7 @@ export type SportRecord = {
   year: number;
   value: number;
   recorded_at: string;
-  students?: Pick<Student, "student_id" | "full_name"> | null;
+  students?: Pick<Student, "student_id" | "full_name" | "gender"> | null;
   sport_tracks?: SportTrack | null;
   certificate_references?: CertificateReference | CertificateReference[] | null;
 };
