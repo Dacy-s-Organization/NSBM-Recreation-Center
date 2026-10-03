@@ -14,8 +14,8 @@ export default async function InventoryPage() {
     .order("name");
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <InventoryClient
+      header={
         <div>
           <h2 className="text-2xl font-semibold text-zinc-900 dark:text-white">Inventory</h2>
           <p className="mt-1 text-zinc-600 dark:text-zinc-400">
@@ -24,9 +24,10 @@ export default async function InventoryPage() {
               : "Track equipment quantities."}
           </p>
         </div>
-        {canEdit ? <CsvImportDialog type="inventory" /> : null}
-      </div>
-      <InventoryClient items={(items ?? []) as InventoryItem[]} canEdit={canEdit} />
-    </div>
+      }
+      importAction={canEdit ? <CsvImportDialog type="inventory" /> : null}
+      items={(items ?? []) as InventoryItem[]}
+      canEdit={canEdit}
+    />
   );
 }
