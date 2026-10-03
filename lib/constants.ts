@@ -27,11 +27,28 @@ export const DEFAULT_HOUSE_STYLE = {
   border: "border-zinc-200 dark:border-zinc-700",
 };
 
-export const ACHIEVEMENT_TYPES = ["Champion Team", "Best Player"] as const;
-export type AchievementType = (typeof ACHIEVEMENT_TYPES)[number];
+export const OTHER_SPORT_ACHIEVEMENT_TYPES = [
+  "Champion Team",
+  "2nd Place",
+  "3rd Place",
+  "Best Player",
+] as const;
+export const ATHLETICS_ACHIEVEMENT_TYPES = ["1st Place", "2nd Place", "3rd Place"] as const;
+/** Types accepted by the achievements CSV import, which only creates other-sport rows. */
+export const ACHIEVEMENT_TYPES = OTHER_SPORT_ACHIEVEMENT_TYPES;
+export type AchievementType =
+  | (typeof OTHER_SPORT_ACHIEVEMENT_TYPES)[number]
+  | (typeof ATHLETICS_ACHIEVEMENT_TYPES)[number];
 
 export const ACHIEVEMENT_TYPE_CHAMPION: AchievementType = "Champion Team";
 export const ACHIEVEMENT_TYPE_BEST_PLAYER: AchievementType = "Best Player";
+
+export type AchievementCategory = "athletics" | "other";
+export const ATHLETICS_SPORT_NAME = "Athletics";
+
+export function achievementTypesFor(category: AchievementCategory): readonly AchievementType[] {
+  return category === "athletics" ? ATHLETICS_ACHIEVEMENT_TYPES : OTHER_SPORT_ACHIEVEMENT_TYPES;
+}
 
 export const NEW_SPORT_VALUE = "__new__";
 

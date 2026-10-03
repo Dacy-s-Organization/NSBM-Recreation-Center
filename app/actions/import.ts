@@ -12,6 +12,7 @@ import { normalizeFacultyCode } from "@/lib/faculties";
 import { requireSuper } from "@/lib/supabase/auth";
 import { ensureImportedSports } from "@/lib/sports";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
+import { ACHIEVEMENT_SECTIONS, parseSection } from "@/lib/achievement-sections";
 
 type ImportResult = {
   success: number;
@@ -388,8 +389,13 @@ export async function importStudents(
 }
 
 export async function importRecords(
-  rows: { student_id: string; track_name: string; value: string; year: string }[]
+  rows: { student_id: string; track_name: string; value: string; year: string }[],
+  rawSection: string
 ): Promise<ImportResult> {
+  const section = parseSection(rawSection);
+  if (!section) return { ...emptyImportResult(), errors: ["Unknown achievement section."] };
+  const recordsTable = ACHIEVEMENT_SECTIONS[section].recordsTable;
+
   const auth = await requireSuper();
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
@@ -430,7 +436,7 @@ export async function importRecords(
     year: number;
   }>((from, to) =>
     supabase
-      .from("sport_records")
+      .from(recordsTable)
       .select("id, student_id, track_id, year")
       .range(from, to)
   );
@@ -513,7 +519,7 @@ export async function importRecords(
   }
 
   for (const batch of chunkArray(toInsert, IMPORT_BATCH_SIZE)) {
-    const { error } = await supabase.from("sport_records").insert(batch);
+    const { error } = await supabase.from(recordsTable).insert(batch);
     if (error) {
       result.errors.push(`Batch insert: ${error.message}`);
     } else {
@@ -525,7 +531,7 @@ export async function importRecords(
   for (const batch of chunkArray(toUpdate, 20)) {
     const results = await Promise.all(
       batch.map((item) =>
-        supabase.from("sport_records").update({ value: item.value }).eq("id", item.id)
+        supabase.from(recordsTable).update({ value: item.value }).eq("id", item.id)
       )
     );
     for (const { error } of results) {
@@ -560,8 +566,13 @@ function parseAchievementType(raw: string): AchievementType | null {
 }
 
 export async function importAchievements(
-  rows: AchievementImportRow[]
+  rows: AchievementImportRow[],
+  rawSection: string
 ): Promise<ImportResult> {
+  const section = parseSection(rawSection);
+  if (!section) return { ...emptyImportResult(), errors: ["Unknown achievement section."] };
+  const { achievementsTable, winnersTable } = ACHIEVEMENT_SECTIONS[section];
+
   const auth = await requireSuper();
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
@@ -663,7 +674,7 @@ export async function importAchievements(
 
   for (const batch of chunkArray(prepared, IMPORT_BATCH_SIZE)) {
     const { data: inserted, error } = await supabase
-      .from("sports_achievements")
+      .from(achievementsTable)
       .insert(batch.map((p) => p.achievement))
       .select("id");
 
@@ -683,7 +694,7 @@ export async function importAchievements(
     if (winners.length > 0) {
       for (const winnerBatch of chunkArray(winners, IMPORT_BATCH_SIZE)) {
         const { error: winnerError } = await supabase
-          .from("sports_achievement_winners")
+          .from(winnersTable)
           .insert(winnerBatch);
         if (winnerError) {
           result.errors.push(`Winners batch: ${winnerError.message}`);

@@ -2,6 +2,11 @@ import Link from "next/link";
 import { AddUserDialog } from "@/components/add-user-dialog";
 import { createClient } from "@/lib/supabase/server";
 import { getStaffRole } from "@/lib/supabase/auth";
+import {
+  ACHIEVEMENT_SECTIONS,
+  DEFAULT_ACHIEVEMENT_SECTION,
+  recordsPath,
+} from "@/lib/achievement-sections";
 import { Card } from "@/components/ui/card";
 
 export default async function DashboardPage() {
@@ -10,22 +15,21 @@ export default async function DashboardPage() {
   const canEdit = role === "super";
   const year = new Date().getFullYear();
 
-  const [
-    { count: studentCount },
-    { count: recordCount },
-    { count: inventoryCount },
-  ] = await Promise.all([
+  const [{ count: studentCount }, { count: inventoryCount }, ...recordCounts] = await Promise.all([
     supabase.from("students").select("*", { count: "exact", head: true }),
-    supabase
-      .from("sport_records")
-      .select("*", { count: "exact", head: true })
-      .eq("year", year),
     supabase.from("inventory_items").select("*", { count: "exact", head: true }),
+    ...Object.values(ACHIEVEMENT_SECTIONS).map((config) =>
+      supabase
+        .from(config.recordsTable)
+        .select("*", { count: "exact", head: true })
+        .eq("year", year)
+    ),
   ]);
+  const recordCount = recordCounts.reduce((sum, { count }) => sum + (count ?? 0), 0);
 
   const stats = [
     { label: "Students", value: studentCount ?? 0, href: "/students", accent: "bg-emerald-600 dark:bg-emerald-400" },
-    { label: `Records (${year})`, value: recordCount ?? 0, href: "/achievements", accent: "bg-brand-navy" },
+    { label: `Records (${year})`, value: recordCount, href: recordsPath(DEFAULT_ACHIEVEMENT_SECTION), accent: "bg-brand-navy" },
     { label: "Inventory items", value: inventoryCount ?? 0, href: "/inventory", accent: "bg-brand-cyan" },
   ];
 

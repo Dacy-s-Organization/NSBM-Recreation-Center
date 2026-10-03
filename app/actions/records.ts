@@ -3,9 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { requireSuper } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
+import { ACHIEVEMENT_SECTIONS, parseSection } from "@/lib/achievement-sections";
 import { removeCertificateFiles, settleReference, storeCertificateFiles } from "@/app/actions/certificates";
 
+const INVALID_SECTION = "Unknown achievement section.";
+
 export async function addSportRecord(formData: FormData) {
+  const section = parseSection(formData.get("section"));
+  if (!section) return { error: INVALID_SECTION };
+  const config = ACHIEVEMENT_SECTIONS[section];
+
   const studentIdText = String(formData.get("student_id") ?? "").trim();
   const trackId = String(formData.get("track_id") ?? "").trim();
   const valueRaw = String(formData.get("value") ?? "").trim();
@@ -36,7 +43,7 @@ export async function addSportRecord(formData: FormData) {
   }
 
   const { data: created, error } = await supabase
-    .from("sport_records")
+    .from(config.recordsTable)
     .insert({
       student_id: student.id,
       track_id: trackId,
@@ -52,17 +59,17 @@ export async function addSportRecord(formData: FormData) {
 
   const settled = await settleReference(
     supabase,
-    "sport_record_id",
+    config.recordRefColumn,
     created.id,
     String(formData.get("reference_no") ?? "")
   );
   if ("error" in settled) {
-    await supabase.from("sport_records").delete().eq("id", created.id);
+    await supabase.from(config.recordsTable).delete().eq("id", created.id);
     return { error: settled.error };
   }
 
   const fileError = await storeCertificateFiles(supabase, settled.reference, formData);
-  revalidatePath("/achievements", "page");
+  revalidatePath("/achievements", "layout");
   if (fileError) {
     return { error: `The record was saved as ${settled.reference}, but a certificate could not be stored: ${fileError}` };
   }
@@ -70,6 +77,10 @@ export async function addSportRecord(formData: FormData) {
 }
 
 export async function updateSportRecord(formData: FormData) {
+  const section = parseSection(formData.get("section"));
+  if (!section) return { error: INVALID_SECTION };
+  const config = ACHIEVEMENT_SECTIONS[section];
+
   const id = String(formData.get("id") ?? "").trim();
   const studentIdText = String(formData.get("student_id") ?? "").trim();
   const trackId = String(formData.get("track_id") ?? "").trim();
@@ -102,14 +113,14 @@ export async function updateSportRecord(formData: FormData) {
 
   const settled = await settleReference(
     supabase,
-    "sport_record_id",
+    config.recordRefColumn,
     id,
     String(formData.get("reference_no") ?? "")
   );
   if ("error" in settled) return { error: settled.error };
 
   const { error } = await supabase
-    .from("sport_records")
+    .from(config.recordsTable)
     .update({
       student_id: student.id,
       track_id: trackId,
@@ -125,24 +136,29 @@ export async function updateSportRecord(formData: FormData) {
   const removeError = await removeCertificateFiles(supabase, formData);
   if (removeError) return { error: removeError };
   const fileError = await storeCertificateFiles(supabase, settled.reference, formData);
-  revalidatePath("/achievements", "page");
+  revalidatePath("/achievements", "layout");
   if (fileError) return { error: fileError };
   return { success: true };
 }
 
-export async function deleteSportRecord(id: string) {
+export async function deleteSportRecord(id: string, rawSection: string) {
   if (!id?.trim()) {
     return { error: "Invalid record." };
   }
+  const section = parseSection(rawSection);
+  if (!section) return { error: INVALID_SECTION };
 
   const gate = await requireSuper();
   if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
   const supabase = gate.supabase;
-  const { error } = await supabase.from("sport_records").delete().eq("id", id);
+  const { error } = await supabase
+    .from(ACHIEVEMENT_SECTIONS[section].recordsTable)
+    .delete()
+    .eq("id", id);
 
   if (error) return { error: error.message };
 
-  revalidatePath("/achievements", "page");
+  revalidatePath("/achievements", "layout");
   return { success: true };
 }
 

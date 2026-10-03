@@ -18,15 +18,23 @@ import {
   validateImportRow,
 } from "@/lib/import-config";
 import { refreshAppData } from "@/app/actions/refresh";
+import {
+  ACHIEVEMENT_SECTIONS,
+  DEFAULT_ACHIEVEMENT_SECTION,
+  type AchievementSection,
+} from "@/lib/achievement-sections";
 import { Button } from "@/components/ui/button";
 
 export function CsvImportDialog({
   type,
   label = "Import CSV",
+  section = DEFAULT_ACHIEVEMENT_SECTION,
 }: {
   type: ImportType;
   label?: string;
+  section?: AchievementSection;
 }) {
+  const sectioned = type === "records" || type === "achievements";
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<ImportPreviewRow[]>([]);
   const [result, setResult] = useState<string | null>(null);
@@ -92,7 +100,8 @@ export function CsvImportDialog({
             track_name: String(r.track_name),
             value: String(r.value),
             year: String(r.year),
-          }))
+          })),
+          section
         );
       } else if (type === "inventory") {
         importResult = await importInventory(
@@ -110,7 +119,8 @@ export function CsvImportDialog({
             team_name: String(r.team_name),
             winner_student_id: String(r.winner_student_id ?? ""),
             notes: String(r.notes ?? ""),
-          }))
+          })),
+          section
         );
       }
 
@@ -171,6 +181,7 @@ export function CsvImportDialog({
               <div>
                 <h3 id="csv-import-title" className="font-medium text-zinc-900 dark:text-white">
                   {label}
+                  {sectioned ? ` (${ACHIEVEMENT_SECTIONS[section].label})` : ""}
                 </h3>
                 <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
                   {IMPORT_DESCRIPTIONS[type]}
