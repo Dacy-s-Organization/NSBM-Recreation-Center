@@ -48,6 +48,8 @@ export type InventoryItem = {
   name: string;
   quantity: number;
   updated_at: string;
+  phase: string;
+  category: string;
 };
 
 export type SportsAchievementWinner = {

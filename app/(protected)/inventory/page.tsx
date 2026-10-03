@@ -10,7 +10,7 @@ export default async function InventoryPage() {
   const canEdit = role === "super";
   const { data: items } = await supabase
     .from("inventory_items")
-    .select("id, name, quantity, updated_at")
+    .select("id, name, quantity, updated_at, phase, category")
     .order("name");
 
   return (

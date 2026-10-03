@@ -720,11 +720,16 @@ export async function importInventory(
   const supabase = auth.supabase;
   const result = emptyImportResult();
 
+  const importPhase = "phase_01";
+  const importCategory = "rec";
+
   const { data: existing, error: existingError } = await fetchAllPages<{
     id: string;
     name: string;
+    phase: string;
+    category: string;
   }>((from, to) =>
-    supabase.from("inventory_items").select("id, name").range(from, to)
+    supabase.from("inventory_items").select("id, name, phase, category").range(from, to)
   );
 
   if (existingError) {
@@ -732,11 +737,14 @@ export async function importInventory(
     return result;
   }
 
+  const inventoryKey = (phase: string, category: string, name: string) =>
+    `${phase}\0${category}\0${name.toLowerCase()}`;
+
   const existingMap = new Map(
-    existing.map((e) => [e.name.toLowerCase(), e.id])
+    existing.map((e) => [inventoryKey(e.phase, e.category, e.name), e.id])
   );
 
-  const toInsert: { name: string; quantity: number }[] = [];
+  const toInsert: { name: string; quantity: number; phase: string; category: string }[] = [];
   const toUpdate: { id: string; quantity: number }[] = [];
 
   for (let i = 0; i < rows.length; i++) {
@@ -754,18 +762,22 @@ export async function importInventory(
       continue;
     }
 
-    const key = name.toLowerCase();
+    const key = inventoryKey(importPhase, importCategory, name);
     const existingId = existingMap.get(key);
     if (existingId && !existingId.startsWith("pending-")) {
       const updateIdx = toUpdate.findIndex((u) => u.id === existingId);
       if (updateIdx >= 0) toUpdate[updateIdx] = { id: existingId, quantity };
       else toUpdate.push({ id: existingId, quantity });
     } else if (existingId?.startsWith("pending-")) {
-      const insertIdx = toInsert.findIndex((item) => item.name.toLowerCase() === key);
-      if (insertIdx >= 0) toInsert[insertIdx] = { name, quantity };
+      const insertIdx = toInsert.findIndex(
+        (item) => item.name.toLowerCase() === name.toLowerCase()
+      );
+      if (insertIdx >= 0) {
+        toInsert[insertIdx] = { name, quantity, phase: importPhase, category: importCategory };
+      }
       result.skipped++;
     } else {
-      toInsert.push({ name, quantity });
+      toInsert.push({ name, quantity, phase: importPhase, category: importCategory });
       existingMap.set(key, `pending-${name}`);
     }
   }
@@ -774,12 +786,12 @@ export async function importInventory(
     const { data, error } = await supabase
       .from("inventory_items")
       .insert(batch)
-      .select("id, name");
+      .select("id, name, phase, category");
     if (error) {
       result.errors.push(`Batch insert: ${error.message}`);
     } else {
       data?.forEach((item) =>
-        existingMap.set(item.name.toLowerCase(), item.id)
+        existingMap.set(inventoryKey(item.phase, item.category, item.name), item.id)
       );
       result.success += batch.length;
       result.inserted += batch.length;
