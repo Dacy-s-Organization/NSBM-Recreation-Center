@@ -370,6 +370,15 @@ export function RecordsClient({
         </div>
       </div>
       <div className="flex flex-wrap items-end gap-4">
+        <div className="min-w-[200px] flex-1 max-w-md">
+          <Label htmlFor="record-search">Search records</Label>
+          <Input
+            id="record-search"
+            placeholder="Student ID, name, track, reference…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
         <div>
           <Label htmlFor="year-filter">Year</Label>
           <Select
@@ -387,15 +396,6 @@ export function RecordsClient({
               </option>
             ))}
           </Select>
-        </div>
-        <div className="min-w-[200px] flex-1 max-w-md">
-          <Label htmlFor="record-search">Search records</Label>
-          <Input
-            id="record-search"
-            placeholder="Student ID, name, track, reference…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
         </div>
         <div>
           <Label htmlFor="track-filter">Track</Label>
