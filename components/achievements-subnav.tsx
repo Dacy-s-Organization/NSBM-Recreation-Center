@@ -18,7 +18,7 @@ export function AchievementsSubnav() {
   return (
     <nav
       aria-label="Achievement sections"
-      className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5"
+      className="flex w-fit flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5"
     >
       {ACHIEVEMENT_SECTION_KEYS.map((section) => {
         const href = achievementsPath(section);
@@ -30,9 +30,9 @@ export function AchievementsSubnav() {
             href={onRecords ? recordsPath(section, year) : achievementsPath(section, year)}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-md px-4 py-2 text-sm font-medium transition",
+              "rounded-full px-4 py-1.5 text-sm font-medium transition",
               active
-                ? "bg-brand-navy text-white shadow-sm dark:bg-emerald-400 dark:text-zinc-950"
+                ? "bg-emerald-500 text-zinc-950 shadow-sm dark:bg-emerald-400"
                 : "text-zinc-600 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white"
             )}
           >
