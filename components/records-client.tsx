@@ -17,10 +17,12 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { HouseBadge } from "@/components/house-badge";
+import { FormModal } from "@/components/form-modal";
 import { CertificateFields, CertificateList } from "@/components/certificate-viewer";
 import { StudentDetailDialog, StudentTextButton } from "@/components/student-detail-dialog";
 import { certificateOf } from "@/lib/certificates";
 import { blankCell, csvFileSlug, downloadCsv, toCsv } from "@/lib/csv";
+import { recordsPath, type AchievementSection } from "@/lib/achievement-sections";
 
 type LookupResult = {
   student_id: string;
@@ -29,6 +31,9 @@ type LookupResult = {
 } | null;
 
 export function RecordsClient({
+  section,
+  title,
+  headerActions,
   records,
   tracks,
   years,
@@ -36,6 +41,9 @@ export function RecordsClient({
   selectedYear,
   canEdit,
 }: {
+  section: AchievementSection;
+  title: string;
+  headerActions?: React.ReactNode;
   records: SportRecord[];
   tracks: SportTrack[];
   years: number[];
@@ -119,7 +127,7 @@ export function RecordsClient({
   function openSavedYear(formData: FormData) {
     const saved = parseInt(String(formData.get("year") ?? ""), 10);
     if (!Number.isNaN(saved) && saved !== selectedYear) {
-      router.push(`/achievements?year=${saved}`);
+      router.push(recordsPath(section, saved));
     } else {
       router.refresh();
     }
@@ -164,7 +172,8 @@ export function RecordsClient({
     setLookup(null);
   }
 
-  function cancelEdit() {
+  function closeForm() {
+    setShowForm(false);
     setEditingId(null);
     setStudentIdInput("");
     setFormTrackId("");
@@ -172,15 +181,42 @@ export function RecordsClient({
     setError(null);
   }
 
+  function openAdd() {
+    closeForm();
+    setShowForm(true);
+  }
+
   function handleDelete(id: string) {
     if (!window.confirm("Delete this sport record?")) return;
     setError(null);
     startTransition(async () => {
-      const result = await deleteSportRecord(id);
+      const result = await deleteSportRecord(id, section);
       if (result.error) setError(result.error);
-      else if (editingId === id) cancelEdit();
+      else if (editingId === id) closeForm();
     });
   }
+
+  function exportCsv() {
+    const trackName = tracks.find((track) => track.id === trackId)?.name ?? "";
+    downloadCsv(
+      `athletic-records-${section}-${year}-${csvFileSlug(trackName)}-${csvFileSlug(genderFilter || "all-genders")}.csv`,
+      toCsv(
+        ["Student ID", "Name", "Track", "Record", "Year", "Date added", "Reference no"],
+        filtered.map((record) => [
+          blankCell(record.students?.student_id),
+          blankCell(record.students?.full_name),
+          blankCell(record.sport_tracks?.name),
+          formatRecordValue(Number(record.value), record.sport_tracks),
+          String(record.year),
+          record.recorded_at ? new Date(record.recorded_at).toLocaleDateString() : "",
+          blankCell(certificateOf(record)?.reference_no),
+        ])
+      )
+    );
+  }
+
+  const editingRecord = editingId ? records.find((r) => r.id === editingId) ?? null : null;
+  const formOpen = showForm || editingRecord !== null;
 
   const selectedFormTrack = useMemo(
     () => tracks.find((t) => t.id === formTrackId),
@@ -212,7 +248,7 @@ export function RecordsClient({
     return null;
   }
 
-  function RecordFormFields({
+  function renderRecordForm({
     record,
     onSubmit,
     submitLabel,
@@ -236,6 +272,7 @@ export function RecordsClient({
 
     return (
       <form action={onSubmit} className="grid gap-4 sm:grid-cols-2">
+        <input type="hidden" name="section" value={section} />
         {isEdit && <input type="hidden" name="id" value={record!.id} />}
         <div>
           <Label htmlFor={isEdit ? `student_id-${record!.id}` : "student_id"}>
@@ -307,11 +344,10 @@ export function RecordsClient({
           <Button type="submit" disabled={pending}>
             {pending ? "Saving…" : submitLabel}
           </Button>
-          {isEdit && (
-            <Button type="button" variant="secondary" onClick={cancelEdit}>
-              Cancel
-            </Button>
-          )}
+          <Button type="button" variant="secondary" onClick={closeForm}>
+            Cancel
+          </Button>
+          {error && <p className="w-full text-sm text-red-600 dark:text-red-300">{error}</p>}
         </div>
       </form>
     );
@@ -319,25 +355,21 @@ export function RecordsClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-4">
-        <div>
-          <Label htmlFor="year-filter">Year</Label>
-          <Select
-            id="year-filter"
-            value={year}
-            onChange={(e) => {
-              const y = parseInt(e.target.value, 10);
-              setYear(y);
-              router.push(`/achievements?year=${y}`);
-            }}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <h3 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">{title}</h3>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={filtered.length === 0}
+            onClick={exportCsv}
           >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </Select>
+            Export
+          </Button>
+          {headerActions}
         </div>
+      </div>
+      <div className="flex flex-wrap items-end gap-4">
         <div className="min-w-[200px] flex-1 max-w-md">
           <Label htmlFor="record-search">Search records</Label>
           <Input
@@ -346,6 +378,24 @@ export function RecordsClient({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+        </div>
+        <div>
+          <Label htmlFor="year-filter">Year</Label>
+          <Select
+            id="year-filter"
+            value={year}
+            onChange={(e) => {
+              const y = parseInt(e.target.value, 10);
+              setYear(y);
+              router.push(recordsPath(section, y));
+            }}
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </Select>
         </div>
         <div>
           <Label htmlFor="track-filter">Track</Label>
@@ -374,49 +424,14 @@ export function RecordsClient({
             <option value="female">Female</option>
           </Select>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={filtered.length === 0}
-          onClick={() => {
-            const trackName = tracks.find((track) => track.id === trackId)?.name ?? "";
-            downloadCsv(
-              `athletic-records-${year}-${csvFileSlug(trackName)}-${csvFileSlug(genderFilter || "all-genders")}.csv`,
-              toCsv(
-                ["Student ID", "Name", "Track", "Record", "Date", "Reference no"],
-                filtered.map((record) => [
-                  blankCell(record.students?.student_id),
-                  blankCell(record.students?.full_name),
-                  blankCell(record.sport_tracks?.name),
-                  formatRecordValue(Number(record.value), record.sport_tracks),
-                  record.recorded_at ? new Date(record.recorded_at).toLocaleDateString() : "",
-                  blankCell(certificateOf(record)?.reference_no),
-                ])
-              )
-            );
-          }}
-        >
-          Export
-        </Button>
         {canEdit && (
-          <Button
-            type="button"
-            className="ml-auto"
-            onClick={() => {
-              setShowForm(!showForm);
-              setEditingId(null);
-              setStudentIdInput("");
-              setFormTrackId("");
-              setLookup(null);
-              setError(null);
-            }}
-          >
-            {showForm ? "Cancel" : "Add record"}
+          <Button type="button" className="ml-auto" onClick={openAdd}>
+            Add record
           </Button>
         )}
       </div>
 
-      {error && (
+      {error && !formOpen && (
         <p
           role="alert"
           className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
@@ -425,15 +440,25 @@ export function RecordsClient({
         </p>
       )}
 
-      {canEdit && showForm && (
-        <Card>
-          <h3 className="font-medium text-zinc-900 dark:text-white">New sport record</h3>
-          <div className="mt-4">
-            <RecordFormFields onSubmit={handleAdd} submitLabel="Save record" />
-          </div>
-          {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
-        </Card>
-      )}
+      <FormModal
+        open={canEdit && showForm}
+        title="New sport record"
+        titleId="new-record-title"
+        onClose={closeForm}
+      >
+        {renderRecordForm({ onSubmit: handleAdd, submitLabel: "Save record" })}
+      </FormModal>
+
+      <FormModal
+        open={canEdit && editingRecord !== null}
+        title={`Edit record — ${editingRecord?.students?.student_id ?? editingRecord?.students?.full_name ?? ""}`}
+        titleId="edit-record-title"
+        onClose={closeForm}
+      >
+        {editingRecord
+          ? renderRecordForm({ record: editingRecord, onSubmit: handleUpdate, submitLabel: "Save changes" })
+          : null}
+      </FormModal>
 
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
@@ -462,18 +487,6 @@ export function RecordsClient({
               ) : (
                 filtered.map((r) => (
                   <tr key={r.id} className="border-b border-zinc-100 last:border-0 dark:border-white/10">
-                    {canEdit && editingId === r.id ? (
-                      <td colSpan={8} className="px-4 py-3">
-                        <p className="mb-3 font-medium text-zinc-900 dark:text-white">Edit record</p>
-                        <RecordFormFields
-                          record={r}
-                          onSubmit={handleUpdate}
-                          submitLabel="Save changes"
-                        />
-                        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
-                      </td>
-                    ) : (
-                      <>
                         <td className="px-4 py-3 font-mono">
                           <StudentTextButton
                             studentId={r.students?.student_id}
@@ -520,8 +533,6 @@ export function RecordsClient({
                             </div>
                           </td>
                         )}
-                      </>
-                    )}
                   </tr>
                 ))
               )}

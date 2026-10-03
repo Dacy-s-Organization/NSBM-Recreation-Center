@@ -31,7 +31,7 @@ export async function addSportTrack(formData: FormData) {
     return { error: error.message };
   }
 
-  revalidatePath("/achievements", "page");
+  revalidatePath("/achievements", "layout");
   return { success: true };
 }
 
@@ -54,6 +54,6 @@ export async function deleteSportTrack(id: string) {
     return { error: error.message };
   }
 
-  revalidatePath("/achievements", "page");
+  revalidatePath("/achievements", "layout");
   return { success: true };
 }
