@@ -10,9 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export function TracksManager({ tracks }: { tracks: SportTrack[] }) {
   const [open, setOpen] = useState(false);
+  const [deletingTrack, setDeletingTrack] = useState<SportTrack | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -31,13 +33,23 @@ export function TracksManager({ tracks }: { tracks: SportTrack[] }) {
     });
   }
 
-  function handleDelete(track: SportTrack) {
-    if (!window.confirm(`Delete track "${track.name}"?`)) return;
+  function closeDelete() {
+    if (pending) return;
+    setDeletingTrack(null);
+    setError(null);
+  }
+
+  function confirmDelete() {
+    if (!deletingTrack) return;
+    const id = deletingTrack.id;
     setError(null);
     startTransition(async () => {
-      const result = await deleteSportTrack(track.id);
+      const result = await deleteSportTrack(id);
       if (result.error) setError(result.error);
-      else router.refresh();
+      else {
+        setDeletingTrack(null);
+        router.refresh();
+      }
     });
   }
 
@@ -126,7 +138,10 @@ export function TracksManager({ tracks }: { tracks: SportTrack[] }) {
                         <Button
                           type="button"
                           variant="danger"
-                          onClick={() => handleDelete(t)}
+                          onClick={() => {
+                            setDeletingTrack(t);
+                            setError(null);
+                          }}
                           disabled={pending}
                         >
                           Delete
@@ -140,6 +155,21 @@ export function TracksManager({ tracks }: { tracks: SportTrack[] }) {
           </div>
         </Card>
       )}
+      <ConfirmDialog
+        open={deletingTrack !== null}
+        title="Delete track?"
+        titleId="delete-track-title"
+        description={
+          <>
+            <span className="font-medium text-zinc-900 dark:text-white">{deletingTrack?.name}</span>{" "}
+            will be permanently removed. This cannot be undone.
+          </>
+        }
+        pending={pending}
+        error={deletingTrack ? error : null}
+        onConfirm={confirmDelete}
+        onClose={closeDelete}
+      />
     </>
   );
 }

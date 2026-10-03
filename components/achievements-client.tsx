@@ -26,6 +26,7 @@ import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { CertificateFields, CertificateList } from "@/components/certificate-viewer";
 import { FormModal } from "@/components/form-modal";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { StudentDetailDialog, StudentTextButton } from "@/components/student-detail-dialog";
 import { certificateOf } from "@/lib/certificates";
 import { achievementsPath, type AchievementSection } from "@/lib/achievement-sections";
@@ -431,6 +432,7 @@ export function AchievementsClient({
   const [categoryFilter, setCategoryFilter] = useState<AchievementCategory | "">("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingAchievement, setDeletingAchievement] = useState<SportsAchievement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sportFilter, setSportFilter] = useState("");
@@ -533,13 +535,23 @@ export function AchievementsClient({
     });
   }
 
-  function handleDelete(achievement: SportsAchievement) {
-    if (!window.confirm(`Delete sports achievement for ${labelOf(achievement)}?`)) return;
+  function closeDelete() {
+    if (pending) return;
+    setDeletingAchievement(null);
+    setError(null);
+  }
+
+  function confirmDelete() {
+    if (!deletingAchievement) return;
+    const achievement = deletingAchievement;
     setError(null);
     startTransition(async () => {
       const result = await deleteAchievement(achievement.id, section);
       if (result.error) setError(result.error);
-      else if (editingId === achievement.id) closeForm();
+      else {
+        setDeletingAchievement(null);
+        if (editingId === achievement.id) closeForm();
+      }
     });
   }
 
@@ -799,7 +811,10 @@ export function AchievementsClient({
                           <Button
                             type="button"
                             variant="danger"
-                            onClick={() => handleDelete(a)}
+                            onClick={() => {
+                              setDeletingAchievement(a);
+                              setError(null);
+                            }}
                             disabled={pending}
                           >
                             Delete
@@ -820,6 +835,24 @@ export function AchievementsClient({
         </p>
       </Card>
       <StudentDetailDialog studentId={openStudentId} onClose={() => setOpenStudentId(null)} />
+      <ConfirmDialog
+        open={canEdit && deletingAchievement !== null}
+        title="Delete achievement?"
+        titleId="delete-achievement-title"
+        description={
+          <>
+            The achievement for{" "}
+            <span className="font-medium text-zinc-900 dark:text-white">
+              {deletingAchievement ? labelOf(deletingAchievement) : "this entry"}
+            </span>{" "}
+            will be permanently removed. This cannot be undone.
+          </>
+        }
+        pending={pending}
+        error={deletingAchievement ? error : null}
+        onConfirm={confirmDelete}
+        onClose={closeDelete}
+      />
     </div>
   );
 }

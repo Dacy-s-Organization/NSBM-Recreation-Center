@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { FormModal } from "@/components/form-modal";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export function InventoryClient({
   header,
@@ -191,6 +192,7 @@ function InventorySection({
 }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingItem, setDeletingItem] = useState<InventoryItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [pending, startTransition] = useTransition();
@@ -234,13 +236,23 @@ function InventorySection({
     });
   }
 
-  function handleDelete(item: InventoryItem) {
-    if (!window.confirm(`Delete inventory item "${item.name}"?`)) return;
+  function closeDelete() {
+    if (pending) return;
+    setDeletingItem(null);
+    setError(null);
+  }
+
+  function confirmDelete() {
+    if (!deletingItem) return;
+    const item = deletingItem;
     setError(null);
     startTransition(async () => {
       const result = await deleteInventoryItem(item.id);
       if (result.error) setError(result.error);
-      else if (editingId === item.id) closeForm();
+      else {
+        setDeletingItem(null);
+        if (editingId === item.id) closeForm();
+      }
     });
   }
 
@@ -388,7 +400,10 @@ function InventorySection({
                           <Button
                             type="button"
                             variant="danger"
-                            onClick={() => handleDelete(item)}
+                            onClick={() => {
+                              setDeletingItem(item);
+                              setError(null);
+                            }}
                             disabled={pending}
                           >
                             Delete
@@ -407,6 +422,22 @@ function InventorySection({
           {query.trim() ? " · matching search" : ""}
         </p>
       </Card>
+
+      <ConfirmDialog
+        open={canEdit && deletingItem !== null}
+        title="Delete item?"
+        titleId={`delete-inventory-title-${slug}`}
+        description={
+          <>
+            <span className="font-medium text-zinc-900 dark:text-white">{deletingItem?.name}</span>{" "}
+            will be permanently removed from {title}. This cannot be undone.
+          </>
+        }
+        pending={pending}
+        error={deletingItem ? error : null}
+        onConfirm={confirmDelete}
+        onClose={closeDelete}
+      />
     </section>
   );
 }

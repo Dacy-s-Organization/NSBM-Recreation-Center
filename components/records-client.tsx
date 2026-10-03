@@ -18,6 +18,7 @@ import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { HouseBadge } from "@/components/house-badge";
 import { FormModal } from "@/components/form-modal";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { CertificateFields, CertificateList } from "@/components/certificate-viewer";
 import { StudentDetailDialog, StudentTextButton } from "@/components/student-detail-dialog";
 import { certificateOf } from "@/lib/certificates";
@@ -57,6 +58,7 @@ export function RecordsClient({
   const [formTrackId, setFormTrackId] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState<SportRecord | null>(null);
   const [studentIdInput, setStudentIdInput] = useState("");
   const [lookup, setLookup] = useState<LookupResult | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -186,13 +188,23 @@ export function RecordsClient({
     setShowForm(true);
   }
 
-  function handleDelete(id: string) {
-    if (!window.confirm("Delete this sport record?")) return;
+  function closeDelete() {
+    if (pending) return;
+    setDeletingRecord(null);
+    setError(null);
+  }
+
+  function confirmDelete() {
+    if (!deletingRecord) return;
+    const id = deletingRecord.id;
     setError(null);
     startTransition(async () => {
       const result = await deleteSportRecord(id, section);
       if (result.error) setError(result.error);
-      else if (editingId === id) closeForm();
+      else {
+        setDeletingRecord(null);
+        if (editingId === id) closeForm();
+      }
     });
   }
 
@@ -525,7 +537,10 @@ export function RecordsClient({
                               <Button
                                 type="button"
                                 variant="danger"
-                                onClick={() => handleDelete(r.id)}
+                                onClick={() => {
+                                  setDeletingRecord(r);
+                                  setError(null);
+                                }}
                                 disabled={pending}
                               >
                                 Delete
@@ -547,6 +562,28 @@ export function RecordsClient({
         </p>
       </Card>
       <StudentDetailDialog studentId={openStudentId} onClose={() => setOpenStudentId(null)} />
+      <ConfirmDialog
+        open={canEdit && deletingRecord !== null}
+        title="Delete record?"
+        titleId="delete-record-title"
+        description={
+          <>
+            The{" "}
+            <span className="font-medium text-zinc-900 dark:text-white">
+              {deletingRecord?.sport_tracks?.name ?? "sport"}
+            </span>{" "}
+            record for{" "}
+            <span className="font-medium text-zinc-900 dark:text-white">
+              {deletingRecord?.students?.full_name ?? "this student"}
+            </span>{" "}
+            will be permanently removed. This cannot be undone.
+          </>
+        }
+        pending={pending}
+        error={deletingRecord ? error : null}
+        onConfirm={confirmDelete}
+        onClose={closeDelete}
+      />
     </div>
   );
 }
