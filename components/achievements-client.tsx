@@ -27,6 +27,8 @@ import { Card } from "@/components/ui/card";
 import { CertificateFields, CertificateList } from "@/components/certificate-viewer";
 import { FormModal } from "@/components/form-modal";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { TableLoadingOverlay } from "@/components/table-loading-overlay";
+import { useAppliedFilters } from "@/lib/use-applied-filters";
 import { StudentDetailDialog, StudentTextButton } from "@/components/student-detail-dialog";
 import { certificateOf } from "@/lib/certificates";
 import { achievementsPath, type AchievementSection } from "@/lib/achievement-sections";
@@ -438,6 +440,7 @@ export function AchievementsClient({
   const [sportFilter, setSportFilter] = useState("");
   const [openStudentId, setOpenStudentId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [navPending, startNav] = useTransition();
 
   useEffect(() => {
     setYearFilter(selectedYear);
@@ -467,11 +470,21 @@ export function AchievementsClient({
     );
   }, [activeCategory, tracks, sports, inCategory]);
 
+  const { applied, filtering } = useAppliedFilters({
+    category: activeCategory,
+    sport: sportFilter,
+    query,
+  });
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const bySport = sportFilter
-      ? inCategory.filter((a) => labelOf(a).toLowerCase() === sportFilter.toLowerCase())
-      : inCategory;
+    const byCategory = applied.category
+      ? achievements.filter((a) => categoryOf(a) === applied.category)
+      : achievements;
+    const sport = applied.sport.toLowerCase();
+    const bySport = sport
+      ? byCategory.filter((a) => labelOf(a).toLowerCase() === sport)
+      : byCategory;
+    const q = applied.query.trim().toLowerCase();
     if (!q) return bySport;
     return bySport.filter((achievement) => {
       const winners = achievement.sports_achievement_winners ?? [];
@@ -483,7 +496,7 @@ export function AchievementsClient({
         (value) => (value ?? "").toLowerCase().includes(q)
       );
     });
-  }, [inCategory, query, sportFilter]);
+  }, [achievements, applied]);
 
   function winnerText(achievement: SportsAchievement) {
     return (achievement.sports_achievement_winners ?? [])
@@ -642,7 +655,7 @@ export function AchievementsClient({
             onChange={(e) => {
               const y = parseInt(e.target.value, 10);
               setYearFilter(y);
-              router.push(achievementsPath(section, y));
+              startNav(() => router.push(achievementsPath(section, y)));
             }}
           >
             {years.map((y) => (
@@ -747,7 +760,8 @@ export function AchievementsClient({
         ) : null}
       </FormModal>
 
-      <Card className="overflow-hidden p-0">
+      <Card className="relative overflow-hidden p-0" aria-busy={navPending || filtering}>
+        {(navPending || filtering) && <TableLoadingOverlay />}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-white/5">

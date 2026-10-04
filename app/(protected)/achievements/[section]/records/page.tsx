@@ -40,7 +40,7 @@ export default async function AthleticRecordsPage({
       .eq("year", selectedYear)
       .order("recorded_at", { ascending: false })
       .limit(RECORDS_LIMIT),
-    getSectionYears(supabase, section, selectedYear, defaultYear),
+    getSectionYears(supabase, section, "records", selectedYear, defaultYear),
   ]);
 
   return (

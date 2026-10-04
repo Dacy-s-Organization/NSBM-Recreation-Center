@@ -47,7 +47,7 @@ export default async function AchievementSectionPage({
       )
       .eq("meet_year", selectedYear)
       .order("created_at", { ascending: false }),
-    getSectionYears(supabase, section, selectedYear, defaultYear),
+    getSectionYears(supabase, section, "achievements", selectedYear, defaultYear),
   ]);
 
   return (

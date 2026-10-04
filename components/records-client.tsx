@@ -19,6 +19,8 @@ import { Card } from "@/components/ui/card";
 import { HouseBadge } from "@/components/house-badge";
 import { FormModal } from "@/components/form-modal";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { TableLoadingOverlay } from "@/components/table-loading-overlay";
+import { useAppliedFilters } from "@/lib/use-applied-filters";
 import { CertificateFields, CertificateList } from "@/components/certificate-viewer";
 import { StudentDetailDialog, StudentTextButton } from "@/components/student-detail-dialog";
 import { certificateOf } from "@/lib/certificates";
@@ -66,11 +68,8 @@ export function RecordsClient({
   const [query, setQuery] = useState("");
   const [genderFilter, setGenderFilter] = useState("");
   const [openStudentId, setOpenStudentId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setYear(selectedYear);
-  }, [selectedYear]);
   const [pending, startTransition] = useTransition();
+  const [navPending, startNav] = useTransition();
 
   const lookupActive = showForm || editingId !== null;
 
@@ -101,13 +100,17 @@ export function RecordsClient({
     };
   }, [studentIdInput, lookupActive]);
 
+  const { applied, filtering } = useAppliedFilters({ trackId, genderFilter, query });
+
   const filtered = useMemo(() => {
     let list = records;
-    if (trackId) list = list.filter((r) => r.track_id === trackId);
-    if (genderFilter) {
-      list = list.filter((r) => (r.students?.gender ?? "").trim().toLowerCase() === genderFilter);
+    if (applied.trackId) list = list.filter((r) => r.track_id === applied.trackId);
+    if (applied.genderFilter) {
+      list = list.filter(
+        (r) => (r.students?.gender ?? "").trim().toLowerCase() === applied.genderFilter
+      );
     }
-    const q = query.trim().toLowerCase();
+    const q = applied.query.trim().toLowerCase();
     if (q) {
       list = list.filter((r) => {
         const reference = certificateOf(r)?.reference_no ?? "";
@@ -124,7 +127,7 @@ export function RecordsClient({
       if (lowerBetter) return Number(a.value) - Number(b.value);
       return Number(b.value) - Number(a.value);
     });
-  }, [records, trackId, genderFilter, query]);
+  }, [records, applied]);
 
   function openSavedYear(formData: FormData) {
     const saved = parseInt(String(formData.get("year") ?? ""), 10);
@@ -399,7 +402,7 @@ export function RecordsClient({
             onChange={(e) => {
               const y = parseInt(e.target.value, 10);
               setYear(y);
-              router.push(recordsPath(section, y));
+              startNav(() => router.push(recordsPath(section, y)));
             }}
           >
             {yearOptions.map((y) => (
@@ -472,7 +475,8 @@ export function RecordsClient({
           : null}
       </FormModal>
 
-      <Card className="overflow-hidden p-0">
+      <Card className="relative overflow-hidden p-0" aria-busy={navPending || filtering}>
+        {(navPending || filtering) && <TableLoadingOverlay />}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-white/5">

@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { getStaffRole } from "@/lib/supabase/auth";
-import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { InventoryClient } from "@/components/inventory-client";
 import type { InventoryItem } from "@/lib/types/database";
 
@@ -25,7 +24,6 @@ export default async function InventoryPage() {
           </p>
         </div>
       }
-      importAction={canEdit ? <CsvImportDialog type="inventory" /> : null}
       items={(items ?? []) as InventoryItem[]}
       canEdit={canEdit}
     />

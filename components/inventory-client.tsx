@@ -24,12 +24,10 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export function InventoryClient({
   header,
-  importAction,
   items,
   canEdit,
 }: {
   header: React.ReactNode;
-  importAction?: React.ReactNode;
   items: InventoryItem[];
   canEdit: boolean;
 }) {
@@ -104,10 +102,6 @@ export function InventoryClient({
           items={items.filter(
             (item) => item.phase === phase && item.category === activeCategory.id
           )}
-          // CSV import updates Phase 01 Rec Inventory by item name.
-          headerActions={
-            phase === "phase_01" && activeCategory.id === "rec" ? importAction : null
-          }
           canEdit={canEdit}
         />
       </div>
@@ -180,14 +174,12 @@ function InventorySection({
   phase,
   category,
   items,
-  headerActions,
   canEdit,
 }: {
   title: string;
   phase: InventoryPhase;
   category: InventoryCategory;
   items: InventoryItem[];
-  headerActions?: React.ReactNode;
   canEdit: boolean;
 }) {
   const [showForm, setShowForm] = useState(false);
@@ -283,7 +275,6 @@ function InventorySection({
           >
             Export
           </Button>
-          {headerActions}
         </div>
       </div>
 
