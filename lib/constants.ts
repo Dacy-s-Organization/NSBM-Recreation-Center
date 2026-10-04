@@ -29,6 +29,7 @@ export const DEFAULT_HOUSE_STYLE = {
 
 export const OTHER_SPORT_ACHIEVEMENT_TYPES = [
   "Champion Team",
+  "1st Place",
   "2nd Place",
   "3rd Place",
   "Best Player",
