@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { normalizeFacultyCode } from "@/lib/faculties";
 import { getStudentDetail, type StudentDetail } from "@/app/actions/certificates";
 import { CertificateList } from "@/components/certificate-viewer";
 import { Button } from "@/components/ui/button";
@@ -20,12 +22,21 @@ const FIELDS: { key: Exclude<keyof StudentDetail, "certificates">; label: string
   { key: "email", label: "Email" },
 ];
 
+export function studentBatchHref(faculty: string | null | undefined, intake: string | null | undefined) {
+  const code = normalizeFacultyCode(faculty ?? "");
+  const batch = intake?.trim();
+  if (!code || !batch) return null;
+  return `/students?faculty=${encodeURIComponent(code)}&intake=${encodeURIComponent(batch)}`;
+}
+
 export function StudentDetailDialog({
   studentId,
   onClose,
+  showBatchLink = false,
 }: {
   studentId: string | null;
   onClose: () => void;
+  showBatchLink?: boolean;
 }) {
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +61,8 @@ export function StudentDetailDialog({
 
   if (!studentId) return null;
 
+  const batchHref = showBatchLink && student ? studentBatchHref(student.faculty, student.intake) : null;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -63,9 +76,20 @@ export function StudentDetailDialog({
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">Student details</h3>
-          <Button type="button" variant="secondary" onClick={onClose}>
-            Close
-          </Button>
+          <div className="flex items-center gap-2">
+            {batchHref && (
+              <Link
+                href={batchHref}
+                onClick={onClose}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-white/10"
+              >
+                View batch
+              </Link>
+            )}
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+          </div>
         </div>
         {loading && <p className="text-sm text-zinc-500">Loading…</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}

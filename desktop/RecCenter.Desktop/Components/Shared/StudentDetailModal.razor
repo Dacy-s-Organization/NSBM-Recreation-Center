@@ -5,7 +5,14 @@
     <Modal TrapKeyboard="true" CloseOnBackdrop="true" OnClose="OnClose" PanelClass="max-w-lg">
         <div class="mb-4 flex items-center justify-between gap-3">
             <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Student details</h3>
-            <Button Variant="secondary" OnClick="OnClose">Close</Button>
+            <div class="flex items-center gap-2">
+                @if (ShowBatchLink && BatchHref(_student?.Faculty, _student?.Intake) is { } batchHref)
+                {
+                    <a href="@batchHref" @onclick="OnClose"
+                       class="rounded-lg px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-white/10">View batch</a>
+                }
+                <Button Variant="secondary" OnClick="OnClose">Close</Button>
+            </div>
         </div>
         @if (_loading)
         {
@@ -42,6 +49,15 @@
 @code {
     [Parameter] public string? StudentId { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public bool ShowBatchLink { get; set; }
+
+    public static string? BatchHref(string? faculty, string? intake)
+    {
+        var code = Faculties.NormalizeCode(faculty ?? "");
+        var batch = intake?.Trim();
+        if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(batch)) return null;
+        return $"/students?faculty={Uri.EscapeDataString(code)}&intake={Uri.EscapeDataString(batch)}";
+    }
 
     private Student? _student;
     private List<CertificateLinks.CertificateLinkItem> _certificates = new();

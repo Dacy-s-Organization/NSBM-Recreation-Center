@@ -31,6 +31,9 @@ else
         @if (_view == StudentsView.Faculties)
         {
             <div class="space-y-4">
+                <GlobalStudentSearch @key="@("search-faculties")" OnActiveChanged="active => _searchActive = active" />
+                @if (!_searchActive)
+                {
                 <p class="text-sm text-zinc-600 dark:text-zinc-400">Select a faculty to view batches and students.</p>
                 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     @foreach (var faculty in _facultyCards)
@@ -46,16 +49,25 @@ else
                         </a>
                     }
                 </div>
+                }
             </div>
         }
         else if (_view == StudentsView.Intakes)
         {
             <div class="space-y-4">
                 @Breadcrumb
-                <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                    Select a batch for <span class="font-medium">@_facultyName</span>.
-                </p>
-                @if (_intakeCards.Count == 0)
+                <GlobalStudentSearch @key="@($"search-{_faculty}")" OnActiveChanged="active => _searchActive = active" />
+                @if (!_searchActive)
+                {
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                        Select a batch for <span class="font-medium">@_facultyName</span>.
+                    </p>
+                }
+                @if (_searchActive)
+                {
+                    /* the search results replace the batch cards */
+                }
+                else if (_intakeCards.Count == 0)
                 {
                     <Card Class="p-8 text-center text-zinc-500 dark:text-zinc-400">
                         No batches found for this faculty yet. Import students from CSV or add them manually.
@@ -297,6 +309,7 @@ else
     private IReadOnlyList<StudentColumn> _columns = StudentColumns.All;
 
     private string _query = "";
+    private bool _searchActive;
     private string _houseFilter = "";
     private string _genderFilter = "";
 
@@ -377,6 +390,7 @@ else
         _faculty = faculty;
         _intake = intake;
         _query = "";
+        _searchActive = false;
         _houseFilter = "";
         _genderFilter = "";
         _showForm = false;

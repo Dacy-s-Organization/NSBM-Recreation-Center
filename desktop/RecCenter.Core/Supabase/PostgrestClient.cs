@@ -53,6 +53,13 @@ public sealed class PgQuery
         return this;
     }
 
+    /// <summary>Adds <c>or=(filter)</c>. The caller must strip PostgREST syntax characters from user input.</summary>
+    public PgQuery Or(string filter)
+    {
+        _params.Add($"or=({Uri.EscapeDataString(filter)})");
+        return this;
+    }
+
     private readonly List<string> _order = new();
 
     public PgQuery Order(string column, bool ascending = true)

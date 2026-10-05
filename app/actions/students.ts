@@ -2,7 +2,44 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSuper } from "@/lib/supabase/auth";
+import { createClient } from "@/lib/supabase/server";
 import { normalizeFacultyCode } from "@/lib/faculties";
+
+export type StudentSearchResult = {
+  id: string;
+  student_id: string | null;
+  full_name: string;
+  faculty: string | null;
+  intake: string | null;
+  houses: { name: string } | null;
+};
+
+const STUDENT_SEARCH_LIMIT = 50;
+
+export async function searchStudents(
+  query: string
+): Promise<{ students: StudentSearchResult[] } | { error: string }> {
+  // Characters that PostgREST reads as filter syntax inside or=(...).
+  const term = query.replace(/[,()*\\%"']/g, "").trim();
+  if (term.length < 2) return { students: [] };
+
+  const pattern = `*${term}*`;
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("students")
+    .select("id, student_id, full_name, faculty, intake, houses(name)")
+    .or(
+      ["student_id", "full_name", "email", "nic", "mobile"]
+        .map((column) => `${column}.ilike.${pattern}`)
+        .join(",")
+    )
+    .order("full_name")
+    .order("id")
+    .limit(STUDENT_SEARCH_LIMIT);
+
+  if (error) return { error: error.message };
+  return { students: (data ?? []) as unknown as StudentSearchResult[] };
+}
 
 function parseStudentForm(formData: FormData) {
   const serialRaw = String(formData.get("serial_no") ?? "").trim();

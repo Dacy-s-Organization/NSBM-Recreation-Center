@@ -1,0 +1,181 @@
+@implements IDisposable
+@inject StudentsService StudentsData
+
+<div class="space-y-4">
+    <div class="max-w-md">
+        <label for="global-student-search" class="@Ui.Label">Search all students</label>
+        <input id="global-student-search" type="search" class="@Ui.Input" placeholder="Student ID, name, email, NIC, mobile…"
+               @bind="_query" @bind:event="oninput" @bind:after="OnQueryChanged" />
+        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Searches every faculty and batch.</p>
+    </div>
+
+    @if (Active)
+    {
+        @if (_loading && _results is null)
+        {
+            <p class="text-sm text-zinc-500 dark:text-zinc-400">Searching…</p>
+        }
+        @if (_error is not null)
+        {
+            <p class="text-sm text-red-600 dark:text-red-300">@_error</p>
+        }
+        @if (_results is not null)
+        {
+            <Card Class="relative overflow-hidden p-0" aria-busy="@_loading">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="@Ui.TableHead">
+                            <tr>
+                                <th class="@Ui.Th">Student ID</th>
+                                <th class="@Ui.Th">Name</th>
+                                <th class="@Ui.Th">Faculty</th>
+                                <th class="@Ui.Th">Batch</th>
+                                <th class="@Ui.Th">House</th>
+                                <th class="@Ui.Th"><span class="sr-only">Batch link</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_results.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="6" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">@(_loading ? "Searching…" : "No students match.")</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var student in _results)
+                                {
+                                    var batchHref = StudentDetailModal.BatchHref(student.Faculty, student.Intake);
+                                    <tr @key="student.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
+                                        <td class="px-4 py-3 font-mono">@StudentLink(student, student.StudentId ?? "—")</td>
+                                        <td class="px-4 py-3">@StudentLink(student, student.FullName)</td>
+                                        <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">@Display(Faculties.NormalizeCode(student.Faculty))</td>
+                                        <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">@Display(student.Intake)</td>
+                                        <td class="px-4 py-3">
+                                            @if (!string.IsNullOrEmpty(student.Houses?.Name))
+                                            {
+                                                <HouseBadge Name="@(student.Houses!.Name!)" />
+                                            }
+                                            else
+                                            {
+                                                <span>—</span>
+                                            }
+                                        </td>
+                                        <td class="px-4 py-3 text-right">
+                                            @if (batchHref is not null)
+                                            {
+                                                <a href="@batchHref" class="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400">View batch</a>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">@FooterText</p>
+            </Card>
+        }
+    }
+
+    <StudentDetailModal StudentId="@_openStudentId" ShowBatchLink="true" OnClose="() => _openStudentId = null" />
+</div>
+
+@code {
+    [Parameter] public EventCallback<bool> OnActiveChanged { get; set; }
+
+    private string _query = "";
+    private List<Student>? _results;
+    private bool _loading;
+    private string? _error;
+    private string? _openStudentId;
+    private bool _reportedActive;
+    private CancellationTokenSource? _cts;
+
+    private bool Active => _query.Trim().Length >= StudentsService.SearchMinLength;
+
+    private string FooterText
+    {
+        get
+        {
+            if (_loading) return "Searching…";
+            var count = _results?.Count ?? 0;
+            return count >= StudentsService.SearchLimit
+                ? $"Showing the first {StudentsService.SearchLimit} matches. Refine the search to narrow it down."
+                : $"{count} match{(count == 1 ? "" : "es")}";
+        }
+    }
+
+    private static string Display(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private RenderFragment StudentLink(Student student, string label) => __builder =>
+    {
+        if (string.IsNullOrEmpty(student.StudentId))
+        {
+            <span>@label</span>
+            return;
+        }
+        <button type="button" class="text-left text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+                @onclick="() => _openStudentId = student.StudentId">@label</button>
+    };
+
+    private async Task OnQueryChanged()
+    {
+        CancelPending();
+        if (Active != _reportedActive)
+        {
+            _reportedActive = Active;
+            await OnActiveChanged.InvokeAsync(Active);
+        }
+
+        if (!Active)
+        {
+            _results = null;
+            _loading = false;
+            _error = null;
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _cts = cts;
+        _loading = true;
+        _ = RunSearchAsync(_query, cts.Token);
+    }
+
+    private async Task RunSearchAsync(string query, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(300, token);
+            List<Student> found;
+            string? error = null;
+            try
+            {
+                found = await StudentsData.SearchAsync(query);
+            }
+            catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)
+            {
+                found = new();
+                error = ex.Message;
+            }
+            if (token.IsCancellationRequested) return;
+            _results = found;
+            _error = error;
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException)
+        {
+            /* superseded by newer input */
+        }
+    }
+
+    private void CancelPending()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
+    }
+
+    public void Dispose() => CancelPending();
+}

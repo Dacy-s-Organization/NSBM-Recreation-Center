@@ -12,6 +12,7 @@ import {
 } from "@/lib/student-columns";
 import { ExpandableCell } from "@/components/expandable-cell";
 import { StudentFieldsForm } from "@/components/student-fields-form";
+import { GlobalStudentSearch } from "@/components/global-student-search";
 import { HouseBadge } from "@/components/house-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -204,6 +205,7 @@ export function StudentsClient({
   canEdit: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [searchActive, setSearchActive] = useState(false);
   const [houseFilter, setHouseFilter] = useState("");
   const [genderFilter, setGenderFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -316,8 +318,13 @@ export function StudentsClient({
   if (view === "faculties") {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">Select a faculty to view batches and students.</p>
-        <FacultyGrid cards={facultyCards} />
+        <GlobalStudentSearch onActiveChange={setSearchActive} />
+        {!searchActive && (
+          <>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">Select a faculty to view batches and students.</p>
+            <FacultyGrid cards={facultyCards} />
+          </>
+        )}
       </div>
     );
   }
@@ -329,10 +336,15 @@ export function StudentsClient({
           faculty={selectedFaculty}
           facultyName={selectedFacultyName}
         />
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Select a batch for <span className="font-medium">{selectedFacultyName}</span>.
-        </p>
-        <IntakeGrid faculty={selectedFaculty} cards={intakeCards} />
+        <GlobalStudentSearch onActiveChange={setSearchActive} />
+        {!searchActive && (
+          <>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Select a batch for <span className="font-medium">{selectedFacultyName}</span>.
+            </p>
+            <IntakeGrid faculty={selectedFaculty} cards={intakeCards} />
+          </>
+        )}
       </div>
     );
   }

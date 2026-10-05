@@ -82,6 +82,26 @@ public sealed class StudentsService
             .Order("full_name")
             .Order("id"));
 
+    public const int SearchLimit = 50;
+    public const int SearchMinLength = 2;
+
+    private static readonly string[] SearchColumns = { "student_id", "full_name", "email", "nic", "mobile" };
+
+    /// <summary>Case-insensitive search across every faculty and batch, capped at <see cref="SearchLimit"/> rows.</summary>
+    public Task<List<Student>> SearchAsync(string query)
+    {
+        var term = new string(query.Where(c => c is not (',' or '(' or ')' or '*' or '\\' or '%' or '"' or '\'')).ToArray()).Trim();
+        if (term.Length < SearchMinLength) return Task.FromResult(new List<Student>());
+
+        var filter = string.Join(",", SearchColumns.Select(column => $"{column}.ilike.*{term}*"));
+        return _db.GetAsync<Student>(PostgrestClient.From("students")
+            .Select("id, student_id, full_name, faculty, intake, houses(name)")
+            .Or(filter)
+            .Order("full_name")
+            .Order("id")
+            .Limit(SearchLimit));
+    }
+
     internal static StudentPayload Parse(StudentForm form)
     {
         var serialRaw = form.SerialNo.Trim();
