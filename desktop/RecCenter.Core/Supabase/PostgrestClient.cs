@@ -207,6 +207,13 @@ public sealed class PostgrestClient
         await SendAsync(HttpMethod.Delete, filter.Table + filter.BuildQueryString(includeSelect: false), null, "return=minimal");
     }
 
+    public async Task<List<T>> DeleteAsync<T>(PgQuery filter, string select)
+    {
+        var path = filter.Table + filter.Select(select).BuildQueryString();
+        var json = await SendAsync(HttpMethod.Delete, path, null, "return=representation");
+        return JsonSerializer.Deserialize<List<T>>(json, Json.Options) ?? new List<T>();
+    }
+
     private async Task<string> RequireTokenAsync(bool forceRefresh = false)
     {
         return await _auth.GetAccessTokenAsync(forceRefresh)

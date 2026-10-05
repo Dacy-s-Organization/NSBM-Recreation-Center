@@ -61,6 +61,28 @@ public sealed class AchievementsService
         }
     }
 
+    public async Task<ActionResult> AddSportAsync(string name)
+    {
+        var (_, error) = await EnsureNewSportAsync(name);
+        return error is null ? ActionResult.Ok : ActionResult.Fail(error.Replace(" Choose it from the menu.", ""));
+    }
+
+    public async Task<ActionResult> DeleteSportAsync(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return ActionResult.Fail("Invalid sport.");
+        try
+        {
+            var deleted = await _db.DeleteAsync<Sport>(PostgrestClient.From("sports").Eq("id", id), "id, name, sort_order");
+            return deleted.Count == 0
+                ? ActionResult.Fail("The sport could not be deleted. Check that you have permission.")
+                : ActionResult.Ok;
+        }
+        catch (PostgrestException ex)
+        {
+            return ActionResult.Fail(ex.Message);
+        }
+    }
+
     public async Task<(Dictionary<string, string>? Canonical, string? Error)> EnsureImportedSportsAsync(IEnumerable<string> names)
     {
         List<Sport> existing;

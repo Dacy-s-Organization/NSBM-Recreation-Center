@@ -5,6 +5,11 @@
 
 <div class="space-y-8">
     <div class="flex flex-wrap items-end gap-4">
+        <div class="min-w-[200px] flex-1 max-w-md">
+            <label for="record-search" class="@Ui.Label">Search records</label>
+            <input id="record-search" class="@Ui.Input" placeholder="Student ID, name, track, reference…"
+                   @bind="_search" @bind:event="oninput" @bind:after="ScheduleApply" />
+        </div>
         <div>
             <label for="year-filter" class="@Ui.Label">Year</label>
             <select id="year-filter" class="@Ui.Select" value="@SelectedYear" @onchange="OnYearChanged">
@@ -16,7 +21,7 @@
         </div>
         <div>
             <label for="track-filter" class="@Ui.Label">Track</label>
-            <select id="track-filter" class="@Ui.Select" @bind="_trackFilter">
+            <select id="track-filter" class="@Ui.Select" @bind="_trackFilter" @bind:after="ScheduleApply">
                 <option value="">All tracks</option>
                 @foreach (var t in Tracks)
                 {
@@ -26,20 +31,16 @@
         </div>
         <div>
             <label for="gender-filter" class="@Ui.Label">Gender</label>
-            <select id="gender-filter" class="@Ui.Select" @bind="_genderFilter">
+            <select id="gender-filter" class="@Ui.Select" @bind="_genderFilter" @bind:after="ScheduleApply">
                 <option value="">All genders</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
             </select>
         </div>
-        <div class="min-w-[200px] flex-1 max-w-md">
-            <label for="record-search" class="@Ui.Label">Search records</label>
-            <input id="record-search" class="@Ui.Input" placeholder="Student ID, name, track, reference…" @bind="_search" @bind:event="oninput" />
-        </div>
         <Button Variant="secondary" Disabled="@(Filtered.Count == 0)" OnClick="ExportFiltered">Export</Button>
         @if (Auth.CanEdit)
         {
-            <Button Class="ml-auto" OnClick="ToggleAddForm">@(_showForm ? "Cancel" : "Add record")</Button>
+            <Button Class="ml-auto" OnClick="OpenAdd">Add record</Button>
         }
     </div>
 
@@ -48,18 +49,22 @@
         <p role="alert" class="@Ui.ErrorBanner">@_error</p>
     }
 
-    @if (Auth.CanEdit && _showForm)
+    @if (Auth.CanEdit && (_showForm || EditingRecord is not null))
     {
-        <Card>
-            <h3 class="font-medium text-zinc-900 dark:text-white">New sport record</h3>
+        var editing = EditingRecord;
+        <Modal TrapKeyboard="true" CloseOnBackdrop="@(!_pending)" OnClose="CloseForm" PanelClass="max-h-[90vh] w-full max-w-3xl overflow-y-auto p-6">
+            <div class="flex items-start justify-between gap-4">
+                <h3 class="font-medium text-zinc-900 dark:text-white">@(editing is null ? "New sport record" : $"Edit record — {editing.Students?.FullName ?? editing.Students?.StudentId}")</h3>
+                <Button Variant="ghost" OnClick="CloseForm" Disabled="_pending">Close</Button>
+            </div>
             <div class="mt-4">
-                @RecordFormFields(null, "Save record")
+                @RecordFormFields(editing, editing is null ? "Save record" : "Save changes")
             </div>
             @if (_error is not null)
             {
                 <p role="alert" class="mt-2 text-sm text-red-600 dark:text-red-300">@_error</p>
             }
-        </Card>
+        </Modal>
     }
 
     @RecordsTable(Filtered, "No records for this filter.", "record(s)")
@@ -78,6 +83,7 @@
     [Parameter] public EventCallback<int> OnYearSelected { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public AchievementSection Section { get; set; }
+    [Parameter] public bool Busy { get; set; }
 
     private bool _askOpen;
     private string _askTitle = "";
@@ -105,6 +111,11 @@
     private string _trackFilter = "";
     private string _genderFilter = "";
     private string _search = "";
+    private string _appliedTrack = "";
+    private string _appliedGender = "";
+    private string _appliedSearch = "";
+    private bool _filtering;
+    private CancellationTokenSource? _filterCts;
     private string? _openStudentId;
     private bool _showForm;
     private string? _editingId;
@@ -116,6 +127,35 @@
     private bool _pending;
 
     private bool LookupActive => _showForm || _editingId is not null;
+
+    private SportRecord? EditingRecord => _editingId is null ? null : Records.FirstOrDefault(r => r.Id == _editingId);
+
+    private void ScheduleApply()
+    {
+        _filterCts?.Cancel();
+        _filterCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _filterCts = cts;
+        _filtering = true;
+        _ = ApplyAfterDelayAsync(cts.Token);
+    }
+
+    private async Task ApplyAfterDelayAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(250, token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+        _appliedSearch = _search;
+        _appliedTrack = _trackFilter;
+        _appliedGender = _genderFilter;
+        _filtering = false;
+        await InvokeAsync(StateHasChanged);
+    }
 
     private IReadOnlyList<int> YearOptions =>
         Years.Count > 0 ? Years : new[] { SelectedYear, SelectedYear - 1, SelectedYear - 2 };
@@ -180,9 +220,9 @@
         get
         {
             IEnumerable<SportRecord> list = Records;
-            if (_trackFilter.Length > 0) list = list.Where(r => r.TrackId == _trackFilter);
-            if (_genderFilter.Length > 0) list = list.Where(r => GenderKey(r.Students?.Gender) == _genderFilter);
-            var q = _search.Trim();
+            if (_appliedTrack.Length > 0) list = list.Where(r => r.TrackId == _appliedTrack);
+            if (_appliedGender.Length > 0) list = list.Where(r => GenderKey(r.Students?.Gender) == _appliedGender);
+            var q = _appliedSearch.Trim();
             if (q.Length > 0)
             {
                 list = list.Where(r =>
@@ -199,7 +239,11 @@
 
     private RenderFragment RecordsTable(List<SportRecord> rows, string emptyText, string countLabel) => __builder =>
     {
-        <Card Class="overflow-hidden p-0">
+        <Card Class="relative overflow-hidden p-0" aria-busy="@(Busy || _filtering)">
+            @if (Busy || _filtering)
+            {
+                <TableLoadingOverlay />
+            }
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead class="@Ui.TableHead">
@@ -229,19 +273,6 @@
                             @foreach (var r in rows)
                             {
                                 <tr @key="r.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
-                                    @if (Auth.CanEdit && _editingId == r.Id)
-                                    {
-                                        <td colspan="8" class="px-4 py-3">
-                                            <p class="mb-3 font-medium text-zinc-900 dark:text-white">Edit record</p>
-                                            @RecordFormFields(r, "Save changes")
-                                            @if (_error is not null)
-                                            {
-                                                <p role="alert" class="mt-2 text-sm text-red-600 dark:text-red-300">@_error</p>
-                                            }
-                                        </td>
-                                    }
-                                    else
-                                    {
                                         <td class="px-4 py-3 font-mono">
                                             <button type="button" class="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300" @onclick="() => _openStudentId = r.Students?.StudentId">@(r.Students?.StudentId ?? "—")</button>
                                         </td>
@@ -262,7 +293,6 @@
                                             </div>
                                         </td>
                                         }
-                                    }
                                 </tr>
                             }
                         }
@@ -270,7 +300,7 @@
                 </table>
             </div>
             <p class="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-500 dark:border-white/10 dark:text-zinc-400">
-                @rows.Count @countLabel for @SelectedYear@(_trackFilter.Length > 0 ? " · filtered by track" : "")@(_genderFilter.Length > 0 ? " · filtered by gender" : "")@(_search.Trim().Length > 0 ? " · matching search" : "")
+                @rows.Count @countLabel for @SelectedYear@(_appliedTrack.Length > 0 ? " · filtered by track" : "")@(_appliedGender.Length > 0 ? " · filtered by gender" : "")@(_appliedSearch.Trim().Length > 0 ? " · matching search" : "")
             </p>
         </Card>
     };
@@ -341,7 +371,7 @@
             </div>
             <div class="sm:col-span-2">
                 <label class="@Ui.Label">Certificates</label>
-                <InputFile OnChange="OnCertificateFiles" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/heif,image/heic,.jpg,.jpeg,.png,.webp,.gif,.heif,.heic" />
+                <CertificateFilePicker OnChange="OnCertificateFiles" FileNames="@_form.Uploads.Select(u => u.FileName).ToList()" />
                 <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Jpeg, png, webp, gif, or heif. Each file must be 4 MB or smaller.</p>
                 @if (isEdit && record!.CertificateReferences?.IssuedCertificates is { Count: > 0 } existing)
                 {
@@ -359,10 +389,7 @@
             </div>
             <div class="flex flex-wrap gap-2 sm:col-span-2">
                 <Button Type="submit" Disabled="_pending">@(_pending ? "Saving…" : submitLabel)</Button>
-                @if (isEdit)
-                {
-                    <Button Variant="secondary" OnClick="CancelEdit">Cancel</Button>
-                }
+                <Button Variant="secondary" OnClick="CloseForm" Disabled="_pending">Cancel</Button>
             </div>
         </form>
     };
@@ -380,12 +407,19 @@
         _lookup = null;
     }
 
-    private void ToggleAddForm()
+    private void OpenAdd()
     {
-        _showForm = !_showForm;
+        _showForm = true;
         _editingId = null;
         ResetFormState();
         _error = null;
+    }
+
+    private void CloseForm()
+    {
+        if (_pending) return;
+        _showForm = false;
+        CancelEdit();
     }
 
     private void StartEdit(SportRecord record)
@@ -582,7 +616,7 @@
     private void ExportFiltered()
     {
         var rows = Filtered;
-        var trackName = Tracks.FirstOrDefault(track => track.Id == _trackFilter)?.Name;
+        var trackName = Tracks.FirstOrDefault(track => track.Id == _appliedTrack)?.Name;
         var csv = CsvText.Build(
             new[] { "Student ID", "Name", "Track", "Record", "Date", "Reference no" },
             rows.Select(record => (IEnumerable<string?>)new[]
@@ -595,7 +629,7 @@
                 CsvText.Blank(record.CertificateReferences?.ReferenceNo),
             }));
         Bridge.SaveTextFile(
-            $"athletic-records-{SelectedYear}-{CsvText.FileSlug(trackName)}-{CsvText.FileSlug(string.IsNullOrEmpty(_genderFilter) ? "all-genders" : _genderFilter)}.csv",
+            $"athletic-records-{SelectedYear}-{CsvText.FileSlug(trackName)}-{CsvText.FileSlug(string.IsNullOrEmpty(_appliedGender) ? "all-genders" : _appliedGender)}.csv",
             csv);
     }
 
@@ -614,5 +648,10 @@
         }
     }
 
-    public void Dispose() => CancelLookup();
+    public void Dispose()
+    {
+        CancelLookup();
+        _filterCts?.Cancel();
+        _filterCts?.Dispose();
+    }
 }

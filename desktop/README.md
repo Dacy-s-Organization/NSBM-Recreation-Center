@@ -7,12 +7,16 @@ Windows desktop version of the Recreation Center staff portal. It is a WPF windo
 - Sign in with a staff email and password. The session is remembered between launches.
 - Dashboard with student, record and inventory counts.
 - Students: faculty and batch browsing, one scrolling list per batch, search, house and gender filters, add, edit (popup) and delete (confirmation popup), CSV import with preview and a downloadable template.
-- Achievements: athletic records split into **Male** and **Female** sections.
-  - A student can only be added to the section that matches their gender.
+- Achievements: Sports Fiesta and Inter-University sections, each with an Achievements tab and an Athletic Records tab.
+  - Achievements and records are added and edited in popups.
+  - Achievements filter by search, year, category (Other sports or Athletics) and sport or event. The name column reads Sport, Event or Sport / Event to match the category.
+  - Records filter by search, year, track and gender.
+  - Changing a filter or the year shows a loading overlay over the table until the results are ready.
   - Adding a record for a track and year that another student of the same gender already holds asks whether to replace the previous record before saving.
   - The same student can't get a second record for the same track and year (use Edit instead).
-  - Sport tracks manager and records CSV import.
-- Inventory: list, inline edit, add, delete, CSV import.
+  - **Add sport** (super staff, next to the section switcher) opens a popup with Other sports and Athletic events tabs to add or delete sports and events.
+  - Achievements CSV import.
+- Inventory: list, inline edit, add, delete.
 - Light and dark theme, following Windows by default. The title bar, window border and scrollbars all follow the theme.
 - Native-feeling window: themed minimize, maximize and close buttons, Windows 11 Snap Layouts on the maximize button, double-click the title bar to maximize, correct maximize above the taskbar.
 - Resolution-aware sizing: opens at up to 1440x900 (90% of the screen on smaller displays), never shrinks below 960x600 (less on very small screens), sharp on high-DPI and mixed-DPI monitors, and reopens where you left it.

@@ -130,7 +130,7 @@
     </div>
     <div class="sm:col-span-2">
         <label class="@Ui.Label">Certificates</label>
-        <InputFile OnChange="OnCertificateFiles" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/heif,image/heic,.jpg,.jpeg,.png,.webp,.gif,.heif,.heic" />
+        <CertificateFilePicker OnChange="OnCertificateFiles" FileNames="@_form.Uploads.Select(u => u.FileName).ToList()" />
         <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Jpeg, png, webp, gif, or heif. Each file must be 4 MB or smaller.</p>
         @if (Achievement?.CertificateReferences?.IssuedCertificates is { Count: > 0 } existing)
         {
@@ -152,7 +152,7 @@
         {
             <Button Variant="secondary" OnClick="OnCancel">Cancel</Button>
         }
-        @if (Error is not null)
+        @if (!string.IsNullOrEmpty(Error))
         {
             <p class="w-full text-sm text-red-600 dark:text-red-300">@Error</p>
         }
@@ -172,6 +172,7 @@
     [Parameter] public EventCallback<AchievementForm> OnSubmit { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
     [Parameter] public bool HasCategories { get; set; }
+    [Parameter] public string? DefaultCategory { get; set; }
     [Parameter] public IReadOnlyList<SportTrack> Tracks { get; set; } = Array.Empty<SportTrack>();
     [Parameter] public IReadOnlyList<TeamCardOption> TeamCards { get; set; } = Array.Empty<TeamCardOption>();
 
@@ -201,7 +202,7 @@
         _form = new AchievementForm
         {
             Id = a?.Id ?? "",
-            Category = a?.Category == "athletics" ? "athletics" : "other",
+            Category = (a?.Category ?? DefaultCategory) == "athletics" ? "athletics" : "other",
             TrackId = a?.TrackId ?? "",
             Sport = _sportChoice,
             AchievementType = a?.AchievementType ?? "",

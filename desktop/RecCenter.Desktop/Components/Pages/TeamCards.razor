@@ -199,7 +199,7 @@
     var linked = _links.GetValueOrDefault(_deleting.Id);
     <ConfirmDialog Title="@($"Delete \"{_deleting.EventName}\"?")"
                    Description="@(linked > 0 ? $"This team card is linked to {linked} achievement{(linked == 1 ? "" : "s")}. Those achievements stay, and the link is cleared." : "This removes the team card, its athletes, and its reference photos.")"
-                   Pending="_pending" Error="_error" OnConfirm="ConfirmDelete" OnClose="() => { if (!_pending) { _deleting = null; _error = null; } }" />
+                   Pending="_pending" Error="@_error" OnConfirm="ConfirmDelete" OnClose="() => { if (!_pending) { _deleting = null; _error = null; } }" />
 }
 
 @code {

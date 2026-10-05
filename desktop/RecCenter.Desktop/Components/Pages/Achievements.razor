@@ -26,18 +26,21 @@ else
                 <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white">Achievements</h2>
                 <p class="mt-1 text-zinc-600 dark:text-zinc-400">Athletic records and sports achievements for the recreation center.</p>
             </div>
-            <nav aria-label="Achievement sections" class="flex w-fit flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5">
-                @foreach (var section in new[] { AchievementSection.SportsFiesta, AchievementSection.InterUniversity })
-                {
-                    var active = section == _section;
-                    var href = _records ? AchievementSections.RecordsPath(section, _selectedYear) : AchievementSections.AchievementsPath(section, _selectedYear);
-                    <a href="@href" aria-current="@(active ? "page" : null)"
-                       class="@Ui.Cn("rounded-full px-4 py-1.5 text-sm font-medium transition",
-                           active ? "bg-emerald-500 text-zinc-950 shadow-sm dark:bg-emerald-400" : "text-zinc-600 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white")">
-                        @AchievementSections.Get(section).Label
-                    </a>
-                }
-            </nav>
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <nav aria-label="Achievement sections" class="flex w-fit flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5">
+                    @foreach (var section in new[] { AchievementSection.SportsFiesta, AchievementSection.InterUniversity })
+                    {
+                        var active = section == _section;
+                        var href = _records ? AchievementSections.RecordsPath(section, _selectedYear) : AchievementSections.AchievementsPath(section, _selectedYear);
+                        <a href="@href" aria-current="@(active ? "page" : null)"
+                           class="@Ui.Cn("rounded-full px-4 py-1.5 text-sm font-medium transition",
+                               active ? "bg-emerald-500 text-zinc-950 shadow-sm dark:bg-emerald-400" : "text-zinc-600 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white")">
+                            @AchievementSections.Get(section).Label
+                        </a>
+                    }
+                </nav>
+                <SportsManager Sports="_sports" Tracks="_tracks" OnChanged="ReloadAsync" />
+            </div>
         </div>
 
         @if (_loadError is not null)
@@ -55,15 +58,11 @@ else
         @if (_records)
         {
             <section>
-                <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
+                <div class="mb-4">
                     <h3 class="text-lg font-semibold text-zinc-800 dark:text-zinc-100">@_config!.Label Athletic Records</h3>
-                    <div class="flex flex-wrap gap-2">
-                        <TracksManager Tracks="_tracks" OnChanged="ReloadAsync" />
-                        <CsvImportDialog Type="ImportType.Records" Section="_section.Value" />
-                    </div>
                 </div>
                 <RecordsSection Records="_recordRows" Tracks="_tracks" Years="_years" SelectedYear="_selectedYear" Section="_section.Value"
-                                OnYearSelected="SelectYear" OnChanged="ReloadAsync" />
+                                Busy="_busy" OnYearSelected="SelectYear" OnChanged="ReloadAsync" />
             </section>
         }
         else
@@ -73,8 +72,8 @@ else
                     <h3 class="text-lg font-semibold text-zinc-800 dark:text-zinc-100">@_config!.Label Achievements</h3>
                     <CsvImportDialog Type="ImportType.Achievements" Section="_section.Value" />
                 </div>
-                <AchievementsSection Achievements="_achievements" Houses="_houses" Tracks="_tracks" TeamCards="_teamCards" Years="_years" SelectedYear="_selectedYear"
-                                     Section="_section.Value" HasCategories="_config!.HasCategories"
+                <AchievementsSection Achievements="_achievements" Houses="_houses" Tracks="_tracks" Sports="_sports" TeamCards="_teamCards" Years="_years" SelectedYear="_selectedYear"
+                                     Section="_section.Value" HasCategories="_config!.HasCategories" Busy="_busy"
                                      OnYearSelected="SelectYear" OnChanged="ReloadAsync" />
             </section>
         }
@@ -98,6 +97,8 @@ else
     private List<House> _houses = new();
     private List<SportsAchievement> _achievements = new();
     private List<TeamCardOption> _teamCards = new();
+    private List<Sport> _sports = new();
+    private bool _busy;
 
     protected override void OnInitialized()
     {
@@ -153,8 +154,14 @@ else
         }
 
         if (firstLoad) _loading = true;
+        else
+        {
+            _busy = true;
+            StateHasChanged();
+        }
         await LoadAsync();
         _loading = false;
+        _busy = false;
     }
 
     private async Task LoadAsync()
@@ -168,8 +175,10 @@ else
             Task<List<SportRecord>>? records = _records ? RecordsData.GetForYearAsync(_section.Value, _selectedYear) : null;
             Task<List<SportsAchievement>>? achievements = _records ? null : AchievementsData.GetForYearAsync(_section.Value, _selectedYear);
             var teamCards = _records ? Task.FromResult(new List<TeamCardOption>()) : TeamCardsData.ListOptionsAsync(_config!.Key);
-            await Task.WhenAll(tracks, houses, years, records ?? Task.CompletedTask, achievements ?? Task.CompletedTask, teamCards);
+            var sports = AchievementsData.ListSportsAsync();
+            await Task.WhenAll(tracks, houses, years, records ?? Task.CompletedTask, achievements ?? Task.CompletedTask, teamCards, sports);
             _tracks = tracks.Result;
+            _sports = sports.Result;
             _houses = houses.Result;
             _recordRows = records?.Result ?? new();
             _achievements = achievements?.Result ?? new();

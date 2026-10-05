@@ -1,7 +1,5 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { CsvImportDialog } from "@/components/csv-import-dialog";
-import { TracksManager } from "@/components/tracks-manager";
 import { RecordsClient } from "@/components/records-client";
 import { getSportTracks } from "@/lib/data/reference";
 import { getSectionYears, resolveSelectedYear } from "@/lib/data/achievement-years";
@@ -48,14 +46,6 @@ export default async function AthleticRecordsPage({
       <RecordsClient
         section={section}
         title={`${config.label} Athletic Records`}
-        headerActions={
-          canEdit ? (
-            <>
-              <TracksManager tracks={tracks as SportTrack[]} />
-              <CsvImportDialog type="records" section={section} />
-            </>
-          ) : null
-        }
         records={(records ?? []) as unknown as SportRecord[]}
         tracks={tracks as SportTrack[]}
         years={years}

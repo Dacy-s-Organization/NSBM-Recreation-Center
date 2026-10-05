@@ -1,0 +1,261 @@
+@inject AchievementsService AchievementsData
+@inject TracksService TracksData
+@inject AuthService Auth
+
+@if (Auth.CanEdit)
+{
+    <Button Variant="secondary" OnClick="Open">Add sport</Button>
+
+    @if (_open)
+    {
+        <Modal TrapKeyboard="true" CloseOnBackdrop="@(!_pending && !_askOpen)" OnClose="Close" PanelClass="max-h-[90vh] w-full max-w-3xl overflow-y-auto p-6">
+            <div class="flex items-start justify-between gap-4">
+                <h3 class="font-medium text-zinc-900 dark:text-white">Sports and events</h3>
+                <Button Variant="ghost" OnClick="Close" Disabled="_pending">Close</Button>
+            </div>
+            <div class="mt-4 space-y-5">
+                <div role="tablist" aria-label="Sport list" class="flex w-fit flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5">
+                    @foreach (var (value, label) in Tabs)
+                    {
+                        var selected = _tab == value;
+                        <button type="button" role="tab" aria-selected="@(selected ? "true" : "false")" @onclick="() => ChangeTab(value)"
+                                class="@Ui.Cn("rounded-full px-4 py-1.5 text-sm font-medium transition",
+                                    selected ? "bg-emerald-500 text-zinc-950 shadow-sm dark:bg-emerald-400" : "text-zinc-600 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white")">
+                            @label
+                        </button>
+                    }
+                </div>
+
+                @if (_tab == "sports")
+                {
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Sports listed here appear in the Sport menu when adding an achievement.</p>
+                    <form @onsubmit="HandleAddSport" class="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+                        <div>
+                            <label for="sport-name" class="@Ui.Label">Sport name</label>
+                            <input id="sport-name" class="@Ui.Input" required placeholder="e.g. Badminton" @bind="_sportName" />
+                        </div>
+                        <Button Type="submit" Disabled="_pending">@(_pending ? "Adding…" : "Add sport")</Button>
+                    </form>
+                }
+                else
+                {
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">
+                        Events for athletic records and athletics achievements (e.g. 100m Run, Long Jump). Use
+                        seconds (s) for timed runs and meters (m) for jumps and throws.
+                    </p>
+                    <form @onsubmit="HandleAddTrack" class="grid gap-4 sm:grid-cols-3 sm:items-end">
+                        <div>
+                            <label for="track-name" class="@Ui.Label">Event name</label>
+                            <input id="track-name" class="@Ui.Input" required placeholder="e.g. 800m Run" @bind="_track.Name" />
+                        </div>
+                        <div>
+                            <label for="track-unit" class="@Ui.Label">Unit</label>
+                            <select id="track-unit" class="@Ui.Select" required @bind="_track.Unit">
+                                <option value="s">Seconds (s) — runs</option>
+                                <option value="m">Meters (m) — jumps / throws</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                                <input type="checkbox" class="rounded border-zinc-300 dark:border-white/20" @bind="_track.LowerIsBetter" />
+                                Lower is better (faster times)
+                            </label>
+                            <Button Type="submit" Disabled="_pending">@(_pending ? "Adding…" : "Add event")</Button>
+                        </div>
+                    </form>
+                }
+
+                @if (_error is not null && !_askOpen)
+                {
+                    <p class="text-sm text-red-600 dark:text-red-300">@_error</p>
+                }
+
+                <div class="overflow-x-auto rounded-lg border border-zinc-200 dark:border-white/10">
+                    <table class="w-full text-left text-sm">
+                        <thead class="border-b border-zinc-100 bg-zinc-50 dark:border-white/10 dark:bg-white/5">
+                            @if (_tab == "sports")
+                            {
+                                <tr>
+                                    <th class="@HeadCell">Sport</th>
+                                    <th class="@HeadCell">Actions</th>
+                                </tr>
+                            }
+                            else
+                            {
+                                <tr>
+                                    <th class="@HeadCell">Event</th>
+                                    <th class="@HeadCell">Unit</th>
+                                    <th class="@HeadCell">Lower is better</th>
+                                    <th class="@HeadCell">Actions</th>
+                                </tr>
+                            }
+                        </thead>
+                        <tbody>
+                            @if (_tab == "sports")
+                            {
+                                @if (Sports.Count == 0)
+                                {
+                                    <tr><td colspan="2" class="px-3 py-4 text-zinc-500 dark:text-zinc-400">No sports yet.</td></tr>
+                                }
+                                else
+                                {
+                                    @foreach (var sport in Sports)
+                                    {
+                                        <tr @key="sport.Id" class="border-b border-zinc-50 last:border-0 dark:border-white/10">
+                                            <td class="px-3 py-2 font-medium text-zinc-900 dark:text-white">@sport.Name</td>
+                                            <td class="px-3 py-2">
+                                                <Button Variant="danger" Disabled="_pending" OnClick="() => HandleDeleteSport(sport)">Delete</Button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            }
+                            else if (Tracks.Count == 0)
+                            {
+                                <tr><td colspan="4" class="px-3 py-4 text-zinc-500 dark:text-zinc-400">No events yet.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var track in Tracks)
+                                {
+                                    <tr @key="track.Id" class="border-b border-zinc-50 last:border-0 dark:border-white/10">
+                                        <td class="px-3 py-2 font-medium text-zinc-900 dark:text-white">@track.Name</td>
+                                        <td class="px-3 py-2 text-zinc-700 dark:text-zinc-300">@Formatting.TrackUnitLabel(track.Unit) (@track.Unit)</td>
+                                        <td class="px-3 py-2 text-zinc-700 dark:text-zinc-300">@(track.LowerIsBetter ? "Yes" : "No")</td>
+                                        <td class="px-3 py-2">
+                                            <Button Variant="danger" Disabled="_pending" OnClick="() => HandleDeleteTrack(track)">Delete</Button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </Modal>
+    }
+
+    @if (_askOpen)
+    {
+        <ConfirmDialog Title="@_askTitle" Description="@_askBody" Pending="_pending" Error="@_error"
+                       OnConfirm="ConfirmDelete" OnClose="CloseDelete" />
+    }
+}
+
+@code {
+    [Parameter] public IReadOnlyList<Sport> Sports { get; set; } = Array.Empty<Sport>();
+    [Parameter] public IReadOnlyList<SportTrack> Tracks { get; set; } = Array.Empty<SportTrack>();
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private const string HeadCell = "px-3 py-2 font-medium text-zinc-600 dark:text-zinc-400";
+
+    private static readonly (string Value, string Label)[] Tabs =
+    {
+        ("sports", "Other sports"),
+        ("events", "Athletic events"),
+    };
+
+    private bool _open;
+    private string _tab = "sports";
+    private bool _pending;
+    private string? _error;
+    private string _sportName = "";
+    private TrackForm _track = new();
+
+    private bool _askOpen;
+    private string _askTitle = "";
+    private string _askBody = "";
+    private Func<Task<ActionResult>>? _deleteAction;
+
+    private void Open()
+    {
+        _open = true;
+        _error = null;
+    }
+
+    private void Close()
+    {
+        if (_pending || _askOpen) return;
+        _open = false;
+        _error = null;
+    }
+
+    private void ChangeTab(string next)
+    {
+        _tab = next;
+        _error = null;
+    }
+
+    private async Task HandleAddSport()
+    {
+        _error = null;
+        _pending = true;
+        var result = await AchievementsData.AddSportAsync(_sportName);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _sportName = "";
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task HandleAddTrack()
+    {
+        _error = null;
+        _pending = true;
+        var result = await TracksData.AddAsync(_track);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _track = new TrackForm();
+        await OnChanged.InvokeAsync();
+    }
+
+    private void HandleDeleteSport(Sport sport)
+    {
+        _error = null;
+        _askTitle = "Delete sport?";
+        _askBody = $"{sport.Name} will be removed from the sport menu. Existing achievements keep this sport name.";
+        _deleteAction = () => AchievementsData.DeleteSportAsync(sport.Id);
+        _askOpen = true;
+    }
+
+    private void HandleDeleteTrack(SportTrack track)
+    {
+        _error = null;
+        _askTitle = "Delete event?";
+        _askBody = $"{track.Name} will be permanently removed. This cannot be undone.";
+        _deleteAction = () => TracksData.DeleteAsync(track.Id);
+        _askOpen = true;
+    }
+
+    private void CloseDelete()
+    {
+        if (_pending) return;
+        _askOpen = false;
+        _deleteAction = null;
+        _error = null;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_deleteAction is null) return;
+        _error = null;
+        _pending = true;
+        var result = await _deleteAction();
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _askOpen = false;
+        _deleteAction = null;
+        await OnChanged.InvokeAsync();
+    }
+}
