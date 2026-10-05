@@ -13,6 +13,7 @@ const links = [
   { href: "/", label: "Dashboard" },
   { href: "/students", label: "Students" },
   { href: "/achievements", label: "Achievements" },
+  { href: "/team-cards", label: "Team Cards" },
   { href: "/inventory", label: "Inventory" },
 ];
 

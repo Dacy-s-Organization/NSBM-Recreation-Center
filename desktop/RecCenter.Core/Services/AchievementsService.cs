@@ -4,7 +4,9 @@ using RecCenter.Core.Supabase;
 
 namespace RecCenter.Core.Services;
 
-internal sealed record AchievementPayload(int MeetYear, string Sport, string AchievementType, string? TeamName, string? Notes);
+internal sealed record AchievementPayload(int MeetYear, string Sport, string AchievementType, string? TeamName, string? Notes, string? TeamCardId);
+
+internal sealed record FiestaAchievementPayload(int MeetYear, string Sport, string AchievementType, string? TeamName, string? Notes, string Category, string? TrackId, string? TeamCardId);
 
 internal sealed record SportInsert(string Name, int SortOrder);
 
@@ -98,13 +100,18 @@ public sealed class AchievementsService
         return (known, null);
     }
 
-    public Task<List<SportsAchievement>> GetForYearAsync(int year) =>
-        _db.GetAsync<SportsAchievement>(PostgrestClient.From("sports_achievements")
-            .Select(@"id, meet_year, sport, achievement_type, team_name, notes, created_at,
-                      sports_achievement_winners(student_id, place, students(student_id, full_name, nic)),
+    public Task<List<SportsAchievement>> GetForYearAsync(AchievementSection section, int year)
+    {
+        var config = AchievementSections.Get(section);
+        var categoryColumns = config.HasCategories ? "category, track_id, sport_tracks(name)," : "";
+        var winners = $"sports_achievement_winners:{config.WinnersTable}";
+        return _db.GetAsync<SportsAchievement>(PostgrestClient.From(config.AchievementsTable)
+            .Select($@"id, meet_year, sport, achievement_type, team_name, notes, created_at, team_card_id, team_cards(id, event_name), {categoryColumns}
+                      {winners}(student_id, place, students(student_id, full_name, nic)),
                       certificate_references(reference_no, issued_certificates(id, file_name, content_type))")
             .Eq("meet_year", year)
             .Order("created_at", ascending: false));
+    }
 
     private async Task<(string? Name, string? Error)> ResolveSportAsync(AchievementForm form)
     {
@@ -130,36 +137,75 @@ public sealed class AchievementsService
         return row is null ? (null, $"Student \"{sid}\" not found.") : (row.Id, null);
     }
 
-    private static (string? Error, AchievementPayload? Payload) Parse(AchievementForm form, bool requireId)
+    private async Task<(string? Id, string? Error)> ResolveTeamCardAsync(string section, string raw)
     {
-        var meetYear = Formatting.ParseIntLoose(form.MeetYear);
-        var sport = form.Sport.Trim();
-        var type = AchievementTypes.Parse(form.AchievementType);
-        var teamName = FormText.NullIfEmpty(form.TeamName);
-        var notes = FormText.NullIfEmpty(form.Notes);
-
-        if ((requireId && form.Id.Trim().Length == 0) || sport.Length == 0 || type is null || meetYear is null)
-            return ("Sport, achievement type, and year are required.", null);
-
-        return (null, new AchievementPayload(meetYear.Value, sport, type, teamName, notes));
+        var id = raw.Trim();
+        if (id.Length == 0) return (null, null);
+        TeamCardSectionRow? card;
+        try
+        {
+            card = await _db.MaybeSingleAsync<TeamCardSectionRow>(PostgrestClient.From("team_cards").Select("id, section").Eq("id", id));
+        }
+        catch (PostgrestException)
+        {
+            card = null;
+        }
+        if (card is null) return (null, "That team card no longer exists.");
+        if (!string.Equals(card.Section, section, StringComparison.Ordinal))
+            return (null, "That team card belongs to a different section.");
+        return (card.Id, null);
     }
 
-    public async Task<ActionResult> AddAsync(AchievementForm form)
+    private async Task<(string? Error, object? Payload, List<(string StudentId, string? Place)> Winners)> BuildAsync(AchievementSection section, AchievementForm form, bool requireId)
     {
-        var (error, payload) = Parse(form, requireId: false);
-        if (error is not null) return ActionResult.Fail(error);
+        var config = AchievementSections.Get(section);
+        var meetYear = Formatting.ParseIntLoose(form.MeetYear);
+        var teamName = FormText.NullIfEmpty(form.TeamName);
+        var notes = FormText.NullIfEmpty(form.Notes);
+        if (requireId && form.Id.Trim().Length == 0) return ("Sport, achievement type, and year are required.", null, new());
+        if (meetYear is null) return ("Sport, achievement type, and year are required.", null, new());
+        var card = await ResolveTeamCardAsync(config.Key, form.TeamCardId);
+        if (card.Error is not null) return (card.Error, null, new());
 
-        var winners = await WinnersFromFormAsync(form, payload!.AchievementType);
-        if (winners.Error is not null) return ActionResult.Fail(winners.Error);
+        var category = config.HasCategories && form.Category == "athletics" ? "athletics" : "other";
+        var type = AchievementTypes.Parse(form.AchievementType, AchievementTypes.ForCategory(category));
+        if (category == "athletics")
+        {
+            if (type is null) return ("Choose 1st, 2nd, or 3rd Place for an athletics achievement.", null, new());
+            var trackId = form.TrackId.Trim();
+            if (trackId.Length == 0) return ("Choose the athletic event.", null, new());
+            var track = await _db.MaybeSingleAsync<IdRow>(PostgrestClient.From("sport_tracks").Select("id").Eq("id", trackId));
+            if (track is null) return ("That athletic event no longer exists.", null, new());
+            if (form.WinnerStudentId.Trim().Length == 0) return ("Student ID is required for an athletics achievement.", null, new());
+            var student = await ResolveStudentAsync(form.WinnerStudentId);
+            if (student.Error is not null) return (student.Error, null, new());
+            if (student.Uuid is null) return ("Student ID is required for an athletics achievement.", null, new());
+            var fiesta = new FiestaAchievementPayload(meetYear.Value, AchievementTypes.AthleticsSport, type, teamName, notes, "athletics", trackId, card.Id);
+            return (null, fiesta, new() { (student.Uuid, null) });
+        }
 
+        if (type is null) return ("Sport, achievement type, and year are required.", null, new());
+        var winners = await WinnersFromFormAsync(form, type);
+        if (winners.Error is not null) return (winners.Error, null, new());
         var sport = await ResolveSportAsync(form);
-        if (sport.Error is not null) return ActionResult.Fail(sport.Error);
-        payload = payload with { Sport = sport.Name! };
+        if (sport.Error is not null) return (sport.Error, null, new());
+
+        object payload = config.HasCategories
+            ? new FiestaAchievementPayload(meetYear.Value, sport.Name!, type, teamName, notes, "other", null, card.Id)
+            : new AchievementPayload(meetYear.Value, sport.Name!, type, teamName, notes, card.Id);
+        return (null, payload, winners.Rows);
+    }
+
+    public async Task<ActionResult> AddAsync(AchievementSection section, AchievementForm form)
+    {
+        var config = AchievementSections.Get(section);
+        var built = await BuildAsync(section, form, requireId: false);
+        if (built.Error is not null) return ActionResult.Fail(built.Error);
 
         List<IdRow> inserted;
         try
         {
-            inserted = await _db.InsertAsync<IdRow>("sports_achievements", payload, "id");
+            inserted = await _db.InsertAsync<IdRow>(config.AchievementsTable, built.Payload!, "id");
         }
         catch (PostgrestException ex)
         {
@@ -167,14 +213,14 @@ public sealed class AchievementsService
         }
         if (inserted.Count == 0) return ActionResult.Fail("The achievement could not be saved.");
 
-        var settled = await _certificates.SettleAsync("sports_achievement_id", inserted[0].Id, form.ReferenceNo, deleteEntryOnFailure: true, "sports_achievements");
+        var settled = await _certificates.SettleAsync(config.AchievementRefColumn, inserted[0].Id, form.ReferenceNo, deleteEntryOnFailure: true, config.AchievementsTable);
         if (settled.Error is not null) return ActionResult.Fail(settled.Error);
 
-        if (winners.Rows.Count > 0)
+        if (built.Winners.Count > 0)
         {
             try
             {
-                await _db.InsertAsync("sports_achievement_winners", winners.Rows.Select(row => new WinnerPayload(inserted[0].Id, row.StudentId, row.Place)).ToList());
+                await _db.InsertAsync(config.WinnersTable, built.Winners.Select(row => new WinnerPayload(inserted[0].Id, row.StudentId, row.Place)).ToList());
             }
             catch (PostgrestException ex)
             {
@@ -188,25 +234,19 @@ public sealed class AchievementsService
         return ActionResult.Ok;
     }
 
-    public async Task<ActionResult> UpdateAsync(AchievementForm form)
+    public async Task<ActionResult> UpdateAsync(AchievementSection section, AchievementForm form)
     {
-        var (error, payload) = Parse(form, requireId: true);
-        if (error is not null) return ActionResult.Fail(error);
+        var config = AchievementSections.Get(section);
+        var built = await BuildAsync(section, form, requireId: true);
+        if (built.Error is not null) return ActionResult.Fail(built.Error);
         var id = form.Id.Trim();
 
-        var winners = await WinnersFromFormAsync(form, payload!.AchievementType);
-        if (winners.Error is not null) return ActionResult.Fail(winners.Error);
-
-        var settled = await _certificates.SettleAsync("sports_achievement_id", id, form.ReferenceNo, deleteEntryOnFailure: false, "sports_achievements");
+        var settled = await _certificates.SettleAsync(config.AchievementRefColumn, id, form.ReferenceNo, deleteEntryOnFailure: false, config.AchievementsTable);
         if (settled.Error is not null) return ActionResult.Fail(settled.Error);
-
-        var sport = await ResolveSportAsync(form);
-        if (sport.Error is not null) return ActionResult.Fail(sport.Error);
-        payload = payload with { Sport = sport.Name! };
 
         try
         {
-            await _db.UpdateAsync(PostgrestClient.From("sports_achievements").Eq("id", id), payload);
+            await _db.UpdateAsync(PostgrestClient.From(config.AchievementsTable).Eq("id", id), built.Payload!);
         }
         catch (PostgrestException ex)
         {
@@ -215,18 +255,18 @@ public sealed class AchievementsService
 
         try
         {
-            await _db.DeleteAsync(PostgrestClient.From("sports_achievement_winners").Eq("achievement_id", id));
+            await _db.DeleteAsync(PostgrestClient.From(config.WinnersTable).Eq("achievement_id", id));
         }
         catch (PostgrestException)
         {
             /* the web action ignores this result too */
         }
 
-        if (winners.Rows.Count > 0)
+        if (built.Winners.Count > 0)
         {
             try
             {
-                await _db.InsertAsync("sports_achievement_winners", winners.Rows.Select(row => new WinnerPayload(id, row.StudentId, row.Place)).ToList());
+                await _db.InsertAsync(config.WinnersTable, built.Winners.Select(row => new WinnerPayload(id, row.StudentId, row.Place)).ToList());
             }
             catch (PostgrestException ex)
             {
@@ -277,17 +317,23 @@ public sealed class AchievementsService
         return (rows, null);
     }
 
-    public async Task<ActionResult> DeleteAsync(string id)
+    public async Task<ActionResult> DeleteAsync(AchievementSection section, string id)
     {
         if (string.IsNullOrWhiteSpace(id)) return ActionResult.Fail("Invalid achievement.");
         try
         {
-            await _db.DeleteAsync(PostgrestClient.From("sports_achievements").Eq("id", id));
+            await _db.DeleteAsync(PostgrestClient.From(AchievementSections.Get(section).AchievementsTable).Eq("id", id));
             return ActionResult.Ok;
         }
         catch (PostgrestException ex)
         {
             return ActionResult.Fail(ex.Message);
         }
+    }
+
+    private sealed class TeamCardSectionRow
+    {
+        public string Id { get; set; } = "";
+        public string Section { get; set; } = "";
     }
 }

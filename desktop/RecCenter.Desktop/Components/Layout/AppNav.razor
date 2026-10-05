@@ -16,7 +16,9 @@
         <nav aria-label="Main" class="flex flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5">
             @foreach (var link in Links)
             {
-                var active = CurrentPath == link.Href;
+                var active = link.Href.StartsWith("/achievements", StringComparison.Ordinal)
+                    ? CurrentPath.StartsWith("/achievements", StringComparison.Ordinal)
+                    : CurrentPath == link.Href;
                 <a href="@link.Href"
                    aria-current="@(active ? "page" : null)"
                    class="@Ui.Cn("whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition lg:px-3.5 lg:text-sm",
@@ -42,7 +44,8 @@
     {
         ("/", "Dashboard"),
         ("/students", "Students"),
-        ("/achievements", "Achievements"),
+        ("/achievements/sports-fiesta", "Achievements"),
+        ("/team-cards", "Team Cards"),
         ("/inventory", "Inventory"),
     };
 

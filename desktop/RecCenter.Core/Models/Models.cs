@@ -91,6 +91,8 @@ public sealed class InventoryItem
     public string Name { get; set; } = "";
     public int Quantity { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public string Phase { get; set; } = "phase_01";
+    public string Category { get; set; } = "rec";
 }
 
 public sealed class Sport
@@ -112,13 +114,24 @@ public sealed class SportsAchievement
     public string Id { get; set; } = "";
     public int MeetYear { get; set; }
     public string Sport { get; set; } = "";
+    public string? Category { get; set; }
+    public string? TrackId { get; set; }
+    public TrackRef? SportTracks { get; set; }
     public string AchievementType { get; set; } = "";
     public string? TeamName { get; set; }
     public string? Notes { get; set; }
+    public string? TeamCardId { get; set; }
+    public TeamCardLink? TeamCards { get; set; }
     public string? CreatedAt { get; set; }
     public List<AchievementWinner>? SportsAchievementWinners { get; set; }
     [System.Text.Json.Serialization.JsonConverter(typeof(OneOrManyConverter<CertificateReference>))]
     public CertificateReference? CertificateReferences { get; set; }
+}
+
+public sealed class TeamCardLink
+{
+    public string Id { get; set; } = "";
+    public string EventName { get; set; } = "";
 }
 
 public sealed class IssuedCertificateMeta

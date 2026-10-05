@@ -65,12 +65,12 @@ public sealed class ImportService
         _achievements = achievements;
     }
 
-    public Task<ImportResult> ImportAsync(ImportType type, IReadOnlyList<ImportPreviewRow> validRows) => type switch
+    public Task<ImportResult> ImportAsync(ImportType type, IReadOnlyList<ImportPreviewRow> validRows, AchievementSection section = AchievementSection.SportsFiesta) => type switch
     {
         ImportType.Students => ImportStudentsAsync(validRows),
-        ImportType.Records => ImportRecordsAsync(validRows),
+        ImportType.Records => ImportRecordsAsync(validRows, section),
         ImportType.Inventory => ImportInventoryAsync(validRows),
-        _ => ImportAchievementsAsync(validRows),
+        _ => ImportAchievementsAsync(validRows, section),
     };
 
     private ImportResult? NotSignedIn()
@@ -406,9 +406,10 @@ public sealed class ImportService
         return patch;
     }
 
-    public async Task<ImportResult> ImportRecordsAsync(IReadOnlyList<ImportPreviewRow> rows)
+    public async Task<ImportResult> ImportRecordsAsync(IReadOnlyList<ImportPreviewRow> rows, AchievementSection section = AchievementSection.SportsFiesta)
     {
         if (NotSignedIn() is { } denied) return denied;
+        var recordsTable = AchievementSections.Get(section).RecordsTable;
         var result = new ImportResult();
 
         List<StudentIdRow> students;
@@ -443,7 +444,7 @@ public sealed class ImportService
         try
         {
             existingRecords = await _db.GetAllPagesAsync<RecordKeyRow>(() =>
-                PostgrestClient.From("sport_records").Select("id, student_id, track_id, year"));
+                PostgrestClient.From(recordsTable).Select("id, student_id, track_id, year"));
         }
         catch (PostgrestException ex)
         {
@@ -513,7 +514,7 @@ public sealed class ImportService
         {
             try
             {
-                await _db.InsertAsync("sport_records", batch);
+                await _db.InsertAsync(recordsTable, batch);
                 result.Success += batch.Count;
                 result.Inserted += batch.Count;
             }
@@ -524,15 +525,16 @@ public sealed class ImportService
         }
 
         await RunUpdatesAsync(result, toUpdate
-            .Select(u => (Func<Task>)(() => _db.UpdateAsync(PostgrestClient.From("sport_records").Eq("id", u.Id), new RecordValuePayload(u.Value))))
+            .Select(u => (Func<Task>)(() => _db.UpdateAsync(PostgrestClient.From(recordsTable).Eq("id", u.Id), new RecordValuePayload(u.Value))))
             .ToList());
 
         return result;
     }
 
-    public async Task<ImportResult> ImportAchievementsAsync(IReadOnlyList<ImportPreviewRow> rows)
+    public async Task<ImportResult> ImportAchievementsAsync(IReadOnlyList<ImportPreviewRow> rows, AchievementSection section = AchievementSection.SportsFiesta)
     {
         if (NotSignedIn() is { } denied) return denied;
+        var config = AchievementSections.Get(section);
         var result = new ImportResult();
 
         List<StudentIdRow> students;
@@ -593,7 +595,7 @@ public sealed class ImportService
                 }
             }
 
-            prepared.Add((new AchievementPayload(meetYear.Value, sport, achievementType, teamName, notes), winnerUuid));
+            prepared.Add((new AchievementPayload(meetYear.Value, sport, achievementType, teamName, notes, null), winnerUuid));
         }
 
         var ensured = await _achievements.EnsureImportedSportsAsync(prepared.Select(p => p.Achievement.Sport));
@@ -617,7 +619,7 @@ public sealed class ImportService
             List<IdRow> inserted;
             try
             {
-                inserted = await _db.InsertAsync<IdRow>("sports_achievements", batch.Select(p => p.Achievement).ToList(), "id");
+                inserted = await _db.InsertAsync<IdRow>(config.AchievementsTable, batch.Select(p => p.Achievement).ToList(), "id");
             }
             catch (PostgrestException ex)
             {
@@ -635,7 +637,7 @@ public sealed class ImportService
             {
                 try
                 {
-                    await _db.InsertAsync("sports_achievement_winners", winnerBatch);
+                    await _db.InsertAsync(config.WinnersTable, winnerBatch);
                 }
                 catch (PostgrestException ex)
                 {
@@ -658,7 +660,7 @@ public sealed class ImportService
         List<NamedRow> existing;
         try
         {
-            existing = await _db.GetAllPagesAsync<NamedRow>(() => PostgrestClient.From("inventory_items").Select("id, name"));
+            existing = await _db.GetAllPagesAsync<NamedRow>(() => PostgrestClient.From("inventory_items").Select("id, name").Eq("phase", "phase_01").Eq("category", "rec"));
         }
         catch (PostgrestException ex)
         {
@@ -701,12 +703,12 @@ public sealed class ImportService
             else if (existingId is not null)
             {
                 var idx = toInsert.FindIndex(item => item.Name.ToLowerInvariant() == key);
-                if (idx >= 0) toInsert[idx] = new InventoryInsertPayload(name, quantity.Value);
+                if (idx >= 0) toInsert[idx] = new InventoryInsertPayload(name, quantity.Value, "phase_01", "rec");
                 result.Skipped++;
             }
             else
             {
-                toInsert.Add(new InventoryInsertPayload(name, quantity.Value));
+                toInsert.Add(new InventoryInsertPayload(name, quantity.Value, "phase_01", "rec"));
                 existingMap[key] = $"pending-{name}";
             }
         }

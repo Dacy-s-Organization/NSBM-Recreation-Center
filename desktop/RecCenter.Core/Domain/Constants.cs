@@ -6,16 +6,29 @@ namespace RecCenter.Core.Domain;
 public static class AchievementTypes
 {
     public const string Champion = "Champion Team";
+    public const string FirstPlace = "1st Place";
+    public const string SecondPlace = "2nd Place";
+    public const string ThirdPlace = "3rd Place";
     public const string BestPlayer = "Best Player";
     public const string NewSport = "__new__";
+    public const string AthleticsSport = "Athletics";
 
-    public static readonly string[] All = { Champion, BestPlayer };
+    public static readonly string[] Other = { Champion, FirstPlace, SecondPlace, ThirdPlace, BestPlayer };
+    public static readonly string[] Athletics = { FirstPlace, SecondPlace, ThirdPlace };
 
-    public static string? Parse(string raw)
+    /// <summary>Types accepted by the achievements CSV import, which only creates other-sport rows.</summary>
+    public static readonly string[] All = Other;
+
+    public static string? Parse(string raw) => Parse(raw, All);
+
+    public static string? Parse(string raw, IReadOnlyList<string> allowed)
     {
         var t = raw.Trim();
-        return All.Contains(t) ? t : null;
+        return allowed.Contains(t) ? t : null;
     }
+
+    public static string[] ForCategory(string? category) =>
+        category == "athletics" ? Athletics : Other;
 }
 
 public static class Formatting

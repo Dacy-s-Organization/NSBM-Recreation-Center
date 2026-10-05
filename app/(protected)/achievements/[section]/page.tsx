@@ -34,20 +34,21 @@ export default async function AchievementSectionPage({
   const supabase = await createClient();
   const { role } = await getStaffRole();
   const canEdit = role === "super";
-  const [tracks, houses, sports, { data: achievements }, years] = await Promise.all([
+  const [tracks, houses, sports, { data: achievements }, years, { data: teamCards }] = await Promise.all([
     getSportTracks(),
     getHouses(),
     getSports(),
     supabase
       .from(config.achievementsTable)
       .select(
-        `id, meet_year, sport, achievement_type, team_name, notes, created_at, ${categoryColumns}
+        `id, meet_year, sport, achievement_type, team_name, notes, created_at, team_card_id, team_cards(id, event_name), ${categoryColumns}
          sports_achievement_winners:${config.winnersTable}(student_id, place, students(student_id, full_name, nic)),
          certificate_references(reference_no, issued_certificates(id, file_name, content_type))`
       )
       .eq("meet_year", selectedYear)
       .order("created_at", { ascending: false }),
     getSectionYears(supabase, section, "achievements", selectedYear, defaultYear),
+    supabase.from("team_cards").select("id, event_name").eq("section", section).order("event_name"),
   ]);
 
   return (
@@ -62,6 +63,7 @@ export default async function AchievementSectionPage({
         houses={houses as House[]}
         sports={(sports ?? []).map((sport) => sport.name)}
         tracks={tracks as SportTrack[]}
+        teamCards={(teamCards ?? []) as { id: string; event_name: string }[]}
         hasCategories={config.hasCategories}
         defaultYear={selectedYear}
         selectedYear={selectedYear}

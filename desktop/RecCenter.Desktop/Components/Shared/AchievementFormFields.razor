@@ -1,4 +1,29 @@
 <form @onsubmit="Submit" class="grid gap-4 sm:grid-cols-2">
+    @if (HasCategories)
+    {
+        <div>
+            <label class="@Ui.Label">Category</label>
+            <select class="@Ui.Select" @bind="_form.Category" @bind:after="OnCategoryChanged">
+                <option value="other">Other sports</option>
+                <option value="athletics">Athletics</option>
+            </select>
+        </div>
+    }
+    @if (_form.Category == "athletics")
+    {
+        <div>
+            <label class="@Ui.Label">Event</label>
+            <select class="@Ui.Select" required @bind="_form.TrackId">
+                <option value="" disabled>Select event</option>
+                @foreach (var track in Tracks)
+                {
+                    <option value="@track.Id">@track.Name</option>
+                }
+            </select>
+        </div>
+    }
+    else
+    {
     <div>
         <label class="@Ui.Label">Sport</label>
         <select class="@Ui.Select" required @bind="_sportChoice">
@@ -18,11 +43,12 @@
             <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">This name is saved and appears in the sport menu after you save the achievement.</p>
         </div>
     }
+    }
     <div>
         <label class="@Ui.Label">Achievement type</label>
         <select class="@Ui.Select" required @bind="_form.AchievementType">
             <option value="" disabled>Select type</option>
-            @foreach (var t in AchievementTypes.All)
+            @foreach (var t in AchievementTypes.ForCategory(HasCategories ? _form.Category : "other"))
             {
                 <option value="@t">@t</option>
             }
@@ -42,6 +68,17 @@
             }
         </select>
         <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Optional. Leave blank when the result is not for a house.</p>
+    </div>
+    <div>
+        <label class="@Ui.Label">Team card</label>
+        <select class="@Ui.Select" @bind="_form.TeamCardId">
+            <option value="">No team card</option>
+            @foreach (var card in TeamCards)
+            {
+                <option value="@card.Id">@card.EventName</option>
+            }
+        </select>
+        <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Only team cards already saved in this section are listed.</p>
     </div>
     @if (_form.AchievementType == AchievementTypes.Champion)
     {
@@ -134,6 +171,9 @@
     [Parameter] public string SubmitLabel { get; set; } = "Save";
     [Parameter] public EventCallback<AchievementForm> OnSubmit { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public bool HasCategories { get; set; }
+    [Parameter] public IReadOnlyList<SportTrack> Tracks { get; set; } = Array.Empty<SportTrack>();
+    [Parameter] public IReadOnlyList<TeamCardOption> TeamCards { get; set; } = Array.Empty<TeamCardOption>();
 
     private AchievementForm _form = new();
     private string _sportChoice = "";
@@ -161,10 +201,13 @@
         _form = new AchievementForm
         {
             Id = a?.Id ?? "",
+            Category = a?.Category == "athletics" ? "athletics" : "other",
+            TrackId = a?.TrackId ?? "",
             Sport = _sportChoice,
             AchievementType = a?.AchievementType ?? "",
             MeetYear = (a?.MeetYear ?? DefaultYear).ToString(CultureInfo.InvariantCulture),
             TeamName = HouseNameFor(a),
+            TeamCardId = a?.TeamCardId ?? "",
             WinnerStudentId = a?.AchievementType == AchievementTypes.Champion
                 ? ""
                 : a?.SportsAchievementWinners?.FirstOrDefault()?.Students?.StudentId ?? "",
@@ -272,9 +315,15 @@
         }
     }
 
+    private void OnCategoryChanged()
+    {
+        if (!AchievementTypes.ForCategory(_form.Category).Contains(_form.AchievementType))
+            _form.AchievementType = "";
+    }
+
     private Task Submit()
     {
-        _form.Sport = _sportChoice;
+        if (_form.Category != "athletics") _form.Sport = _sportChoice;
         _form.Places = _places;
         return OnSubmit.InvokeAsync(_form);
     }

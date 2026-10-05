@@ -2,7 +2,6 @@
 @implements IDisposable
 @inject InventoryService InventoryData
 @inject AppState State
-@inject IJSRuntime JS
 @inject AuthService Auth
 
 @if (_items is null && _loadError is null)
@@ -17,8 +16,29 @@ else
                 <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white">Inventory</h2>
                 <p class="mt-1 text-zinc-600 dark:text-zinc-400">Track equipment quantities. Add new items or edit existing counts.</p>
             </div>
-            <CsvImportDialog Type="ImportType.Inventory" />
         </div>
+        <nav aria-label="Inventory phases" class="flex w-fit flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5">
+            @foreach (var phase in Phases)
+            {
+                var active = _phase == phase.Id;
+                <button type="button" aria-current="@(active ? "page" : null)" @onclick="() => _phase = phase.Id"
+                        class="@Ui.Cn("rounded-full px-4 py-1.5 text-sm font-medium transition",
+                            active ? "bg-emerald-500 text-zinc-950 shadow-sm dark:bg-emerald-400" : "text-zinc-600 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white")">
+                    @phase.Label
+                </button>
+            }
+        </nav>
+        <nav aria-label="Inventory categories" class="inline-flex flex-wrap items-center gap-1 border-b border-zinc-200 dark:border-white/10">
+            @foreach (var category in Categories)
+            {
+                var active = _category == category.Id;
+                <button type="button" aria-current="@(active ? "page" : null)" @onclick="() => _category = category.Id"
+                        class="@Ui.Cn("-mb-px border-b-2 px-3 py-2 text-sm font-medium transition",
+                            active ? "border-emerald-500 text-zinc-900 dark:border-emerald-400 dark:text-white" : "border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white")">
+                    @category.Label
+                </button>
+            }
+        </nav>
 
         @if (_loadError is not null)
         {
@@ -75,15 +95,15 @@ else
                             </tr>
                         </thead>
                         <tbody>
-                            @if (_items is null || _items.Count == 0)
+                            @if (Visible.Count == 0)
                             {
                                 <tr>
-                                    <td colspan="4" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">No inventory items yet.</td>
+                                    <td colspan="4" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">No items in this list yet.</td>
                                 </tr>
                             }
                             else
                             {
-                                @foreach (var item in _items)
+                                @foreach (var item in Visible)
                                 {
                                     <tr @key="item.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
                                         @if (Auth.CanEdit && _editingId == item.Id && _editForm is not null)
@@ -126,6 +146,10 @@ else
                 </div>
             </Card>
         </div>
+        @if (_askOpen)
+        {
+            <ConfirmDialog Title="@_askTitle" Description="@_askBody" Pending="_pending" OnConfirm="() => Answer(true)" OnClose="() => Answer(false)" />
+        }
     </div>
 }
 
@@ -138,6 +162,34 @@ else
     private InventoryForm? _editForm;
     private string? _error;
     private bool _pending;
+    private string _phase = "phase_01";
+    private string _category = "rec";
+    private bool _askOpen;
+    private string _askTitle = "";
+    private string _askBody = "";
+    private TaskCompletionSource<bool>? _answer;
+
+    private static readonly (string Id, string Label)[] Phases = { ("phase_01", "Phase 01"), ("phase_02", "Phase 02") };
+    private static readonly (string Id, string Label)[] Categories = { ("rec", "Rec Inventory"), ("gym", "Gym Inventory") };
+
+    private List<InventoryItem> Visible =>
+        (_items ?? new()).Where(item => item.Phase == _phase && item.Category == _category).ToList();
+
+    private Task<bool> AskAsync(string title, string body)
+    {
+        _askTitle = title;
+        _askBody = body;
+        _askOpen = true;
+        _answer = new TaskCompletionSource<bool>();
+        _ = InvokeAsync(StateHasChanged);
+        return _answer.Task;
+    }
+
+    private void Answer(bool yes)
+    {
+        _askOpen = false;
+        _answer?.TrySetResult(yes);
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -168,7 +220,7 @@ else
     private void ToggleAdd()
     {
         _showAdd = !_showAdd;
-        if (_showAdd) _addForm = new InventoryForm();
+        if (_showAdd) _addForm = new InventoryForm { Phase = _phase, Category = _category };
     }
 
     private void StartEdit(InventoryItem item)
@@ -179,6 +231,8 @@ else
             Id = item.Id,
             Name = item.Name,
             Quantity = item.Quantity.ToString(CultureInfo.InvariantCulture),
+            Phase = item.Phase,
+            Category = item.Category,
         };
     }
 
@@ -186,6 +240,8 @@ else
     {
         _error = null;
         _pending = true;
+        _addForm.Phase = _phase;
+        _addForm.Category = _category;
         var result = await InventoryData.AddAsync(_addForm);
         _pending = false;
         if (!result.Success)
@@ -216,7 +272,7 @@ else
 
     private async Task HandleDelete(string id, string name)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Delete inventory item \"{name}\"?")) return;
+        if (!await AskAsync($"Delete \"{name}\"?", "This removes the item from the current inventory list.")) return;
         _error = null;
         _pending = true;
         var result = await InventoryData.DeleteAsync(id);

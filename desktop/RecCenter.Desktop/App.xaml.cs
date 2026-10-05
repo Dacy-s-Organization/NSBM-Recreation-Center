@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using RecCenter.Core.Config;
 using RecCenter.Core.Services;
 using RecCenter.Core.Supabase;
+using RecCenter.Core.TeamCards;
+using RecCenter.Desktop.Ocr;
 using RecCenter.Desktop.Services;
 
 namespace RecCenter.Desktop;
@@ -49,6 +51,8 @@ public partial class App : Application
         services.AddSingleton<AchievementsService>();
         services.AddSingleton<InventoryService>();
         services.AddSingleton<ImportService>();
+        services.AddSingleton<TeamCardsService>();
+        services.AddSingleton<IOcrService, WindowsOcrService>();
         services.AddSingleton<AppState>();
         services.AddSingleton<DesktopBridge>();
         services.AddSingleton(themeBridge);

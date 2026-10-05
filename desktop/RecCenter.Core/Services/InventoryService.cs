@@ -4,9 +4,9 @@ using RecCenter.Core.Supabase;
 
 namespace RecCenter.Core.Services;
 
-internal sealed record InventoryInsertPayload(string Name, int Quantity);
+internal sealed record InventoryInsertPayload(string Name, int Quantity, string Phase, string Category);
 
-internal sealed record InventoryUpdatePayload(string Name, int Quantity, string UpdatedAt);
+internal sealed record InventoryUpdatePayload(string Name, int Quantity, string Phase, string Category, string UpdatedAt);
 
 public sealed class InventoryService
 {
@@ -15,7 +15,7 @@ public sealed class InventoryService
     public InventoryService(PostgrestClient db) => _db = db;
 
     public Task<List<InventoryItem>> GetAllAsync() =>
-        _db.GetAsync<InventoryItem>(PostgrestClient.From("inventory_items").Select("id, name, quantity, updated_at").Order("name"));
+        _db.GetAsync<InventoryItem>(PostgrestClient.From("inventory_items").Select("id, name, quantity, updated_at, phase, category").Order("name"));
 
     public async Task<ActionResult> AddAsync(InventoryForm form)
     {
@@ -26,12 +26,12 @@ public sealed class InventoryService
 
         try
         {
-            await _db.InsertAsync("inventory_items", new InventoryInsertPayload(name, quantity.Value));
+            await _db.InsertAsync("inventory_items", new InventoryInsertPayload(name, quantity.Value, form.Phase, form.Category));
             return ActionResult.Ok;
         }
         catch (PostgrestException ex)
         {
-            return ActionResult.Fail(ex.Code == "23505" ? "An item with this name already exists. Edit it instead." : ex.Message);
+            return ActionResult.Fail(ex.Code == "23505" ? "An item with this name already exists in this list. Edit it instead." : ex.Message);
         }
     }
 
@@ -46,12 +46,12 @@ public sealed class InventoryService
         try
         {
             await _db.UpdateAsync(PostgrestClient.From("inventory_items").Eq("id", id),
-                new InventoryUpdatePayload(name, quantity.Value, DateTime.UtcNow.ToString("o")));
+                new InventoryUpdatePayload(name, quantity.Value, form.Phase, form.Category, DateTime.UtcNow.ToString("o")));
             return ActionResult.Ok;
         }
         catch (PostgrestException ex)
         {
-            return ActionResult.Fail(ex.Code == "23505" ? "An item with this name already exists." : ex.Message);
+            return ActionResult.Fail(ex.Code == "23505" ? "An item with this name already exists in this list." : ex.Message);
         }
     }
 

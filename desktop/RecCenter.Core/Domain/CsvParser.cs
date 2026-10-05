@@ -5,6 +5,12 @@ namespace RecCenter.Core.Domain;
 /// <summary>RFC 4180 CSV reader with a header row, matching PapaParse's <c>header: true, skipEmptyLines: true</c>.</summary>
 public static class CsvParser
 {
+    public static List<List<string>> ParseRows(string text)
+    {
+        if (text.Length > 0 && text[0] == '\uFEFF') text = text[1..];
+        return ReadRecords(text);
+    }
+
     public static List<Dictionary<string, string>> ParseWithHeader(string text)
     {
         if (text.Length > 0 && text[0] == '\uFEFF') text = text[1..];

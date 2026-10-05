@@ -1,0 +1,24 @@
+<Modal Role="alertdialog" TrapKeyboard="true" CloseOnBackdrop="@(!Pending)" OnClose="Close" PanelClass="w-full max-w-md p-6">
+    <h3 class="font-medium text-zinc-900 dark:text-white">@Title</h3>
+    <p class="mt-2 whitespace-pre-line text-sm text-zinc-600 dark:text-zinc-400">@Description</p>
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <p class="mt-3 text-sm text-red-600 dark:text-red-300">@Error</p>
+    }
+    <div class="mt-6 flex justify-end gap-2">
+        <Button Variant="secondary" OnClick="Close" Disabled="Pending">Cancel</Button>
+        <Button Variant="danger" OnClick="OnConfirm" Disabled="Pending">@(Pending ? "Deleting…" : ConfirmLabel)</Button>
+    </div>
+</Modal>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Delete?";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public string ConfirmLabel { get; set; } = "Delete";
+    [Parameter] public bool Pending { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Task Close() => Pending ? Task.CompletedTask : OnClose.InvokeAsync();
+}

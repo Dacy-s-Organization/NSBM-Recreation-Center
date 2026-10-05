@@ -21,22 +21,21 @@ public sealed class RecordsService
         _certificates = certificates;
     }
 
-    public Task<List<SportRecord>> GetForYearAsync(int year) =>
-        _db.GetAsync<SportRecord>(PostgrestClient.From("sport_records")
-            .Select(@"id, student_id, track_id, year, value, recorded_at,
+    private const string RecordSelect = @"id, student_id, track_id, year, value, recorded_at,
                       students(student_id, full_name, gender),
                       sport_tracks(name, unit, lower_is_better),
-                      certificate_references(reference_no, issued_certificates(id, file_name, content_type))")
+                      certificate_references(reference_no, issued_certificates(id, file_name, content_type))";
+
+    public Task<List<SportRecord>> GetForYearAsync(AchievementSection section, int year) =>
+        _db.GetAsync<SportRecord>(PostgrestClient.From(AchievementSections.Get(section).RecordsTable)
+            .Select(RecordSelect)
             .Eq("year", year)
             .Order("recorded_at", ascending: false)
             .Limit(RecordsLimit));
 
-    public Task<List<SportRecord>> GetForTrackYearAsync(string trackId, int year) =>
-        _db.GetAsync<SportRecord>(PostgrestClient.From("sport_records")
-            .Select(@"id, student_id, track_id, year, value, recorded_at,
-                      students(student_id, full_name, gender),
-                      sport_tracks(name, unit, lower_is_better),
-                      certificate_references(reference_no, issued_certificates(id, file_name, content_type))")
+    public Task<List<SportRecord>> GetForTrackYearAsync(AchievementSection section, string trackId, int year) =>
+        _db.GetAsync<SportRecord>(PostgrestClient.From(AchievementSections.Get(section).RecordsTable)
+            .Select(RecordSelect)
             .Eq("track_id", trackId)
             .Eq("year", year));
 
@@ -76,8 +75,9 @@ public sealed class RecordsService
     }
 
     /// <param name="replaceIds">Records to remove once the new one is saved, so a failed save never loses the previous holder.</param>
-    public async Task<ActionResult> AddAsync(RecordForm form, IReadOnlyCollection<string>? replaceIds = null)
+    public async Task<ActionResult> AddAsync(AchievementSection section, RecordForm form, IReadOnlyCollection<string>? replaceIds = null)
     {
+        var config = AchievementSections.Get(section);
         var v = Validate(form, requireId: false);
         if (v.Error is not null) return ActionResult.Fail(v.Error);
 
@@ -87,7 +87,7 @@ public sealed class RecordsService
         List<IdRow> inserted;
         try
         {
-            inserted = await _db.InsertAsync<IdRow>("sport_records", new RecordPayload(studentUuid, v.TrackId, v.Year, v.Value), "id");
+            inserted = await _db.InsertAsync<IdRow>(config.RecordsTable, new RecordPayload(studentUuid, v.TrackId, v.Year, v.Value), "id");
         }
         catch (PostgrestException ex)
         {
@@ -95,18 +95,19 @@ public sealed class RecordsService
         }
         if (inserted.Count == 0) return ActionResult.Fail("The record could not be saved.");
 
-        var settled = await _certificates.SettleAsync("sport_record_id", inserted[0].Id, form.ReferenceNo, deleteEntryOnFailure: true, "sport_records");
+        var settled = await _certificates.SettleAsync(config.RecordRefColumn, inserted[0].Id, form.ReferenceNo, deleteEntryOnFailure: true, config.RecordsTable);
         if (settled.Error is not null) return ActionResult.Fail(settled.Error);
         var fileError = await _certificates.StoreAsync(settled.Reference!, form.Uploads);
-        var replaced = await DeleteReplacedAsync(replaceIds);
+        var replaced = await DeleteReplacedAsync(config.RecordsTable, replaceIds);
         if (fileError is not null)
             return ActionResult.Fail($"The record was saved as {settled.Reference}, but a certificate could not be stored: {fileError}");
         return replaced;
     }
 
     /// <param name="replaceIds">Records to remove once the edit is saved.</param>
-    public async Task<ActionResult> UpdateAsync(RecordForm form, IReadOnlyCollection<string>? replaceIds = null)
+    public async Task<ActionResult> UpdateAsync(AchievementSection section, RecordForm form, IReadOnlyCollection<string>? replaceIds = null)
     {
+        var config = AchievementSections.Get(section);
         var v = Validate(form, requireId: true);
         if (v.Error is not null) return ActionResult.Fail(v.Error);
 
@@ -114,12 +115,12 @@ public sealed class RecordsService
         if (studentUuid is null) return ActionResult.Fail("Student not found. Check the ID.");
 
         var id = form.Id.Trim();
-        var settled = await _certificates.SettleAsync("sport_record_id", id, form.ReferenceNo, deleteEntryOnFailure: false, "sport_records");
+        var settled = await _certificates.SettleAsync(config.RecordRefColumn, id, form.ReferenceNo, deleteEntryOnFailure: false, config.RecordsTable);
         if (settled.Error is not null) return ActionResult.Fail(settled.Error);
 
         try
         {
-            await _db.UpdateAsync(PostgrestClient.From("sport_records").Eq("id", id),
+            await _db.UpdateAsync(PostgrestClient.From(config.RecordsTable).Eq("id", id),
                 new RecordPayload(studentUuid, v.TrackId, v.Year, v.Value));
         }
         catch (PostgrestException ex)
@@ -130,7 +131,7 @@ public sealed class RecordsService
         var removeError = await _certificates.RemoveAsync(form.RemoveCertificateIds);
         if (removeError is not null) return ActionResult.Fail(removeError);
         var fileError = await _certificates.StoreAsync(settled.Reference!, form.Uploads);
-        var replaced = await DeleteReplacedAsync(replaceIds);
+        var replaced = await DeleteReplacedAsync(config.RecordsTable, replaceIds);
         if (fileError is not null) return ActionResult.Fail(fileError);
         return replaced;
     }
@@ -138,13 +139,13 @@ public sealed class RecordsService
     private static string DuplicateMessage(PostgrestException ex) =>
         ex.Code == "23505" ? "This student already has a record for this track and year. Use Edit to change it." : ex.Message;
 
-    private async Task<ActionResult> DeleteReplacedAsync(IReadOnlyCollection<string>? ids)
+    private async Task<ActionResult> DeleteReplacedAsync(string table, IReadOnlyCollection<string>? ids)
     {
         if (ids is null || ids.Count == 0) return ActionResult.Ok;
         try
         {
             foreach (var id in ids)
-                await _db.DeleteAsync(PostgrestClient.From("sport_records").Eq("id", id));
+                await _db.DeleteAsync(PostgrestClient.From(table).Eq("id", id));
             return ActionResult.Ok;
         }
         catch (PostgrestException ex)
@@ -153,12 +154,12 @@ public sealed class RecordsService
         }
     }
 
-    public async Task<ActionResult> DeleteAsync(string id)
+    public async Task<ActionResult> DeleteAsync(AchievementSection section, string id)
     {
         if (string.IsNullOrWhiteSpace(id)) return ActionResult.Fail("Invalid record.");
         try
         {
-            await _db.DeleteAsync(PostgrestClient.From("sport_records").Eq("id", id));
+            await _db.DeleteAsync(PostgrestClient.From(AchievementSections.Get(section).RecordsTable).Eq("id", id));
             return ActionResult.Ok;
         }
         catch (PostgrestException ex)

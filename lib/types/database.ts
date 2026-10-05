@@ -66,6 +66,8 @@ export type SportsAchievement = {
   team_name: string | null;
   notes: string | null;
   created_at: string;
+  team_card_id?: string | null;
+  team_cards?: { id: string; event_name: string } | null;
   category?: "athletics" | "other" | null;
   track_id?: string | null;
   sport_tracks?: Pick<SportTrack, "name"> | null;

@@ -40,6 +40,12 @@ public sealed class PgQuery
         return this;
     }
 
+    public PgQuery NotNull(string column)
+    {
+        _params.Add($"{column}=not.is.null");
+        return this;
+    }
+
     public PgQuery In(string column, IEnumerable<string> values)
     {
         var list = string.Join(",", values.Select(v => $"\"{v.Replace("\\", "\\\\").Replace("\"", "\\\"")}\""));

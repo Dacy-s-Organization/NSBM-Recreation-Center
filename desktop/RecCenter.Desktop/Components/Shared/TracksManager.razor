@@ -1,5 +1,4 @@
 @inject TracksService TracksData
-@inject IJSRuntime JS
 @inject AuthService Auth
 
 @if (Auth.CanEdit)
@@ -76,6 +75,10 @@
             </table>
         </div>
     </Card>
+    @if (_askOpen)
+    {
+        <ConfirmDialog Title="@_askTitle" Description="@_askBody" Pending="_pending" OnConfirm="() => Answer(true)" OnClose="() => Answer(false)" />
+    }
 }
 }
 
@@ -85,6 +88,26 @@
 
     private bool _open;
     private bool _pending;
+    private bool _askOpen;
+    private string _askTitle = "";
+    private string _askBody = "";
+    private TaskCompletionSource<bool>? _answer;
+
+    private Task<bool> AskAsync(string title, string body)
+    {
+        _askTitle = title;
+        _askBody = body;
+        _askOpen = true;
+        _answer = new TaskCompletionSource<bool>();
+        _ = InvokeAsync(StateHasChanged);
+        return _answer.Task;
+    }
+
+    private void Answer(bool yes)
+    {
+        _askOpen = false;
+        _answer?.TrySetResult(yes);
+    }
     private string? _error;
     private TrackForm _form = new();
 
@@ -106,7 +129,7 @@
 
     private async Task HandleDelete(SportTrack track)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Delete track \"{track.Name}\"?")) return;
+        if (!await AskAsync($"Delete track \"{track.Name}\"?", "Records that use this track are kept, but the track cannot be deleted while a record still points at it.")) return;
         _error = null;
         _pending = true;
         var result = await TracksData.DeleteAsync(track.Id);

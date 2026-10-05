@@ -1,0 +1,536 @@
+@page "/team-cards"
+@using RecCenter.Core.TeamCards
+@inject TeamCardsService CardsData
+@inject IOcrService Ocr
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject AppState State
+@implements IDisposable
+
+<section class="space-y-8">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white">Team Cards</h2>
+            <p class="mt-1 text-zinc-600 dark:text-zinc-400">Student ID, name, and jersey number from Sports Fiesta entry forms and Inter University team cards.</p>
+        </div>
+        @if (Auth.CanEdit)
+        {
+            <Button OnClick="OpenAdd">Add Data</Button>
+        }
+    </div>
+    @if (_loadError is not null)
+    {
+        <p class="text-sm text-red-600 dark:text-red-400">@_loadError</p>
+    }
+
+    @foreach (var section in Sections)
+    {
+        var rows = (_cards ?? new()).Where(card => card.Section == section.Id).ToList();
+        <div class="space-y-3">
+            <h3 class="text-lg font-medium text-zinc-900 dark:text-white">@section.Title</h3>
+            @if (rows.Count == 0)
+            {
+                <Card><p class="text-sm text-zinc-500 dark:text-zinc-400">No team cards in this section yet.</p></Card>
+            }
+            else
+            {
+                @foreach (var card in rows)
+                {
+                    var open = _openId == card.Id;
+                    var links = _links.GetValueOrDefault(card.Id);
+                    <Card Class="space-y-4">
+                        <button type="button" class="flex w-full flex-wrap items-center justify-between gap-3 text-left" aria-expanded="@open" @onclick="() => Toggle(card.Id)">
+                            <span>
+                                <span class="block font-medium text-zinc-900 dark:text-white">@card.EventName</span>
+                                <span class="mt-1 block text-sm text-zinc-500 dark:text-zinc-400">
+                                    @FormatDate(card.CreatedAt) · @card.TeamCardMembers.Count athletes · @card.TeamCardPhotos.Count photos
+                                </span>
+                            </span>
+                            <span class="text-sm text-emerald-700 dark:text-emerald-300">@(open ? "Hide" : "Show")</span>
+                        </button>
+                        @if (open)
+                        {
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm">
+                                    <thead>
+                                        <tr class="border-b border-zinc-200 text-zinc-500 dark:border-white/10 dark:text-zinc-400">
+                                            <th class="px-2 py-2 font-medium">Student ID</th>
+                                            <th class="px-2 py-2 font-medium">Name</th>
+                                            <th class="px-2 py-2 font-medium">Jersey No</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var member in card.TeamCardMembers)
+                                        {
+                                            <tr class="border-b border-zinc-100 last:border-0 dark:border-white/10">
+                                                <td class="px-2 py-2 text-zinc-900 dark:text-white">@member.StudentId</td>
+                                                <td class="px-2 py-2 text-zinc-900 dark:text-white">@member.FullName</td>
+                                                <td class="px-2 py-2 text-zinc-700 dark:text-zinc-300">@member.JerseyNo</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            @if (card.TeamCardPhotos.Count > 0)
+                            {
+                                <div class="flex flex-wrap gap-3">
+                                    @foreach (var photo in card.TeamCardPhotos)
+                                    {
+                                        <figure class="w-28">
+                                            @if (_photoUrls.TryGetValue(photo.Id, out var url))
+                                            {
+                                                <img src="@url" alt="@photo.FileName" class="h-28 w-28 rounded-lg object-cover" />
+                                            }
+                                            @if (Auth.CanEdit)
+                                            {
+                                                <Button Variant="ghost" Class="mt-1 w-full px-2 py-1" Disabled="_pending" OnClick="() => RemovePhoto(photo.Id)">Remove</Button>
+                                            }
+                                        </figure>
+                                    }
+                                </div>
+                            }
+                            @if (Auth.CanEdit)
+                            {
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <Button Variant="secondary" OnClick="() => StartEdit(card)">Edit</Button>
+                                    <Button Variant="danger" OnClick="() => { _error = null; _deleting = card; }">Delete</Button>
+                                    <label class="text-sm text-zinc-600 dark:text-zinc-300">
+                                        Add photo
+                                        <InputFile accept="@PhotoAccept" disabled="@(_pending || card.TeamCardPhotos.Count >= 10)" OnChange="e => AddExistingPhoto(card.Id, e)" />
+                                    </label>
+                                </div>
+                            }
+                        }
+                    </Card>
+                }
+            }
+        </div>
+    }
+</section>
+
+@if (_adding)
+{
+    <Modal TrapKeyboard="true" CloseOnBackdrop="@(!_pending)" OnClose="CloseAdd" PanelClass="max-h-[90vh] w-full max-w-3xl overflow-y-auto p-6">
+        <div class="flex items-start justify-between gap-4">
+            <h3 class="font-medium text-zinc-900 dark:text-white">Add team card</h3>
+            <Button Variant="ghost" OnClick="CloseAdd" Disabled="_pending">Close</Button>
+        </div>
+        <div class="mt-4 grid gap-4">
+            <div>
+                <label class="@Ui.Label">Event name</label>
+                <input class="@Ui.Input" @bind="_eventName" />
+            </div>
+            <div>
+                <label class="@Ui.Label">Team card file</label>
+                <InputFile accept=".docx,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.heic,.heif" OnChange="ReadCard" />
+                @if (_reading) { <p class="mt-1 text-sm text-zinc-500">Reading the team card…</p> }
+            </div>
+            <div>
+                <label class="@Ui.Label">Reference photos (optional, up to 10)</label>
+                <InputFile accept="@PhotoAccept" multiple OnChange="PickPhotos" />
+                @if (_newPhotos.Count > 0)
+                {
+                    <p class="mt-1 text-sm text-zinc-500">@_newPhotos.Count photo@(_newPhotos.Count == 1 ? "" : "s") selected. These are not read as the team card.</p>
+                }
+            </div>
+            @if (_sourceKind is not null)
+            {
+                <div>
+                    <label class="@Ui.Label">Section</label>
+                    <select class="@Ui.Select" @bind="_section">
+                        <option value="">Choose a section</option>
+                        <option value="sports-fiesta">Sports Fiesta</option>
+                        <option value="inter-university">Inter University</option>
+                    </select>
+                </div>
+            }
+            @foreach (var warning in _warnings)
+            {
+                <p class="text-sm text-amber-700 dark:text-amber-300">@warning</p>
+            }
+            @if (_rows.Count > 0)
+            {
+                <TeamCardRowEditor Rows="_rows" />
+            }
+            @if (_error is not null) { <p class="text-sm text-red-600 dark:text-red-400">@_error</p> }
+            <div class="flex justify-end gap-2">
+                <Button Variant="secondary" OnClick="CloseAdd" Disabled="_pending">Cancel</Button>
+                <Button OnClick="SaveNew" Disabled="@(_pending || _reading || _sourceKind is null)">@(_pending ? "Saving…" : "Save")</Button>
+            </div>
+        </div>
+    </Modal>
+}
+
+@if (_editing is not null)
+{
+    <Modal TrapKeyboard="true" CloseOnBackdrop="@(!_pending)" OnClose="CloseEdit" PanelClass="max-h-[90vh] w-full max-w-3xl overflow-y-auto p-6">
+        <div class="flex items-start justify-between gap-4">
+            <h3 class="font-medium text-zinc-900 dark:text-white">Edit team card</h3>
+            <Button Variant="ghost" OnClick="CloseEdit" Disabled="_pending">Close</Button>
+        </div>
+        <div class="mt-4 grid gap-4">
+            <div>
+                <label class="@Ui.Label">Event name</label>
+                <input class="@Ui.Input" @bind="_eventName" />
+            </div>
+            <TeamCardRowEditor Rows="_rows" />
+            @if (_error is not null) { <p class="text-sm text-red-600 dark:text-red-400">@_error</p> }
+            <div class="flex justify-end gap-2">
+                <Button Variant="secondary" OnClick="CloseEdit" Disabled="_pending">Cancel</Button>
+                <Button OnClick="SaveEdit" Disabled="_pending">@(_pending ? "Saving…" : "Save")</Button>
+            </div>
+        </div>
+    </Modal>
+}
+
+@if (_deleting is not null)
+{
+    var linked = _links.GetValueOrDefault(_deleting.Id);
+    <ConfirmDialog Title="@($"Delete \"{_deleting.EventName}\"?")"
+                   Description="@(linked > 0 ? $"This team card is linked to {linked} achievement{(linked == 1 ? "" : "s")}. Those achievements stay, and the link is cleared." : "This removes the team card, its athletes, and its reference photos.")"
+                   Pending="_pending" Error="_error" OnConfirm="ConfirmDelete" OnClose="() => { if (!_pending) { _deleting = null; _error = null; } }" />
+}
+
+@code {
+    private const string PhotoAccept = ".jpg,.jpeg,.png,.webp,.gif,.heic,.heif,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif";
+    private static readonly (string Id, string Title)[] Sections =
+    {
+        ("sports-fiesta", "Sport Fiesta team cards"),
+        ("inter-university", "Inter University Championships team cards"),
+    };
+
+    private List<TeamCardRecord>? _cards;
+    private Dictionary<string, int> _links = new();
+    private Dictionary<string, string> _photoUrls = new();
+    private string? _loadError;
+    private string? _openId;
+    private bool _adding;
+    private TeamCardRecord? _editing;
+    private TeamCardRecord? _deleting;
+    private bool _pending;
+    private bool _reading;
+    private string? _error;
+    private string _eventName = "";
+    private string _section = "";
+    private string? _sourceKind;
+    private string? _fileName;
+    private List<string> _warnings = new();
+    private List<TeamCardsService.TeamCardDraftRow> _rows = new();
+    private List<PendingPhoto> _newPhotos = new();
+
+    [SupplyParameterFromQuery(Name = "card")]
+    public string? CardId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.RefreshRequested += ReloadAsync;
+        await LoadAsync();
+        if (!string.IsNullOrWhiteSpace(CardId)) await Toggle(CardId);
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var cards = CardsData.GetAllAsync();
+            var links = CardsData.LinkCountsAsync();
+            await Task.WhenAll(cards, links);
+            _cards = cards.Result;
+            _links = links.Result;
+            _loadError = null;
+        }
+        catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)
+        {
+            _cards ??= new();
+            _loadError = ex.Message;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Toggle(string id)
+    {
+        _openId = _openId == id ? null : id;
+        if (_openId is null) return;
+        var card = _cards?.FirstOrDefault(item => item.Id == id);
+        if (card is null) return;
+        foreach (var photo in card.TeamCardPhotos)
+        {
+            if (_photoUrls.ContainsKey(photo.Id)) continue;
+            var loaded = await CardsData.GetPhotoAsync(photo.Id);
+            if (loaded.Bytes is null || loaded.ContentType is null) continue;
+            _photoUrls[photo.Id] = $"data:{loaded.ContentType};base64,{Convert.ToBase64String(loaded.Bytes)}";
+        }
+    }
+
+    private void OpenAdd()
+    {
+        _error = null;
+        _eventName = "";
+        _section = "";
+        _sourceKind = null;
+        _fileName = null;
+        _warnings = new();
+        _rows = new();
+        _newPhotos = new();
+        _adding = true;
+    }
+
+    private void CloseAdd()
+    {
+        if (_pending) return;
+        _adding = false;
+        _error = null;
+    }
+
+    private void StartEdit(TeamCardRecord card)
+    {
+        _error = null;
+        _editing = card;
+        _eventName = card.EventName;
+        _rows = card.TeamCardMembers.Select(member => new TeamCardsService.TeamCardDraftRow
+        {
+            StudentId = member.StudentId,
+            FullName = member.FullName,
+            JerseyNo = member.JerseyNo ?? "",
+        }).ToList();
+    }
+
+    private void CloseEdit()
+    {
+        if (_pending) return;
+        _editing = null;
+        _error = null;
+    }
+
+    private async Task ReadCard(InputFileChangeEventArgs e)
+    {
+        _reading = true;
+        _error = null;
+        _rows = new();
+        _warnings = new();
+        _sourceKind = null;
+        try
+        {
+            var file = e.File;
+            await using var stream = file.OpenReadStream(20 * 1024 * 1024);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            var bytes = memory.ToArray();
+            var kind = TeamCardParser.SourceKindFor(file.Name);
+            if (kind is null)
+            {
+                _error = "Use a Word, Excel, CSV, or image team card.";
+                return;
+            }
+            TeamCardExtract extract;
+            if (kind == "image")
+            {
+                var temp = Path.Combine(Path.GetTempPath(), "rec-ocr-" + Guid.NewGuid().ToString("N") + Path.GetExtension(file.Name));
+                await File.WriteAllBytesAsync(temp, bytes);
+                try
+                {
+                    var passes = await Ocr.RecognizePassesAsync(temp);
+                    extract = TeamCardParser.ExtractOcrPasses(passes);
+                }
+                finally
+                {
+                    try { File.Delete(temp); } catch { /* the temporary image is only used for OCR */ }
+                }
+            }
+            else
+            {
+                extract = TeamCardParser.ExtractOffice(file.Name, bytes);
+            }
+            _fileName = file.Name;
+            _sourceKind = extract.SourceKind;
+            _section = extract.Section ?? "";
+            _warnings = extract.Warnings;
+            _rows = extract.Rows.Select(row => new TeamCardsService.TeamCardDraftRow { StudentId = row.StudentId, FullName = row.FullName, JerseyNo = row.JerseyNo ?? "" }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _reading = false;
+        }
+    }
+
+    private async Task PickPhotos(InputFileChangeEventArgs e)
+    {
+        _newPhotos = new();
+        foreach (var file in e.GetMultipleFiles(10))
+        {
+            if (file.Size > 4 * 1024 * 1024)
+            {
+                _error = "Each photo must be 4 MB or smaller.";
+                _newPhotos.Clear();
+                return;
+            }
+            var type = PhotoType(file);
+            if (type is null)
+            {
+                _error = "Photo must be a jpeg, png, webp, gif, or heif image.";
+                _newPhotos.Clear();
+                return;
+            }
+            await using var stream = file.OpenReadStream(4 * 1024 * 1024);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            _newPhotos.Add(new PendingPhoto(file.Name, type, memory.ToArray()));
+        }
+    }
+
+    private async Task SaveNew()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_section))
+        {
+            _error = "Choose Sports Fiesta or Inter University.";
+            return;
+        }
+        _pending = true;
+        var saved = await CardsData.AddAsync(_section, _eventName, _sourceKind ?? "", _fileName, Inputs(_rows));
+        if (saved.Error is not null || saved.Id is null)
+        {
+            _pending = false;
+            _error = saved.Error ?? "The team card could not be saved.";
+            return;
+        }
+        foreach (var photo in _newPhotos)
+        {
+            var result = await CardsData.AddPhotoAsync(saved.Id, photo.Name, photo.ContentType, photo.Bytes);
+            if (!result.Success)
+            {
+                _pending = false;
+                _adding = false;
+                _error = $"The team card was saved, but a photo could not be stored: {result.Error}";
+                await LoadAsync();
+                _openId = saved.Id;
+                return;
+            }
+        }
+        _pending = false;
+        _adding = false;
+        await LoadAsync();
+        await Toggle(saved.Id);
+    }
+
+    private async Task SaveEdit()
+    {
+        if (_editing is null) return;
+        _error = null;
+        _pending = true;
+        var result = await CardsData.UpdateAsync(_editing.Id, _eventName, Inputs(_rows));
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _editing = null;
+        await LoadAsync();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_deleting is null) return;
+        _pending = true;
+        _error = null;
+        var result = await CardsData.DeleteAsync(_deleting.Id);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _deleting = null;
+        await LoadAsync();
+    }
+
+    private async Task AddExistingPhoto(string cardId, InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file.Size > 4 * 1024 * 1024)
+        {
+            _error = "Each photo must be 4 MB or smaller.";
+            return;
+        }
+        var type = PhotoType(file);
+        if (type is null)
+        {
+            _error = "Photo must be a jpeg, png, webp, gif, or heif image.";
+            return;
+        }
+        _pending = true;
+        _error = null;
+        await using var stream = file.OpenReadStream(4 * 1024 * 1024);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+        var result = await CardsData.AddPhotoAsync(cardId, file.Name, type, memory.ToArray());
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _photoUrls.Remove(cardId);
+        await LoadAsync();
+        _openId = null;
+        await Toggle(cardId);
+    }
+
+    private async Task RemovePhoto(string id)
+    {
+        _pending = true;
+        _error = null;
+        var result = await CardsData.DeletePhotoAsync(id);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _photoUrls.Remove(id);
+        var open = _openId;
+        await LoadAsync();
+        if (open is not null)
+        {
+            _openId = null;
+            await Toggle(open);
+        }
+    }
+
+    private static List<TeamCardsService.TeamCardMemberInput> Inputs(IEnumerable<TeamCardsService.TeamCardDraftRow> rows) =>
+        rows.Select(row => new TeamCardsService.TeamCardMemberInput(row.StudentId, row.FullName, string.IsNullOrWhiteSpace(row.JerseyNo) ? null : row.JerseyNo)).ToList();
+
+    private static string FormatDate(string value) =>
+        DateTimeOffset.TryParse(value, out var date) ? date.ToLocalTime().ToString("d") : value;
+
+    private static string? PhotoType(IBrowserFile file)
+    {
+        var type = file.ContentType.ToLowerInvariant();
+        if (type is "image/jpeg" or "image/png" or "image/webp" or "image/gif" or "image/heic" or "image/heif" or "image/heic-sequence" or "image/heif-sequence")
+            return type;
+        return Path.GetExtension(file.Name).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            ".heic" => "image/heic",
+            ".heif" => "image/heif",
+            _ => null,
+        };
+    }
+
+    public void Dispose() => State.RefreshRequested -= ReloadAsync;
+
+    private sealed record PendingPhoto(string Name, string ContentType, byte[] Bytes);
+}

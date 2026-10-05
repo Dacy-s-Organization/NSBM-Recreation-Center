@@ -65,6 +65,8 @@ public sealed class TrackForm
 public sealed class AchievementForm
 {
     public string Id { get; set; } = "";
+    public string Category { get; set; } = "other";
+    public string TrackId { get; set; } = "";
     public string Sport { get; set; } = "";
     public string AchievementType { get; set; } = "";
     public string MeetYear { get; set; } = "";
@@ -72,6 +74,7 @@ public sealed class AchievementForm
     public string WinnerStudentId { get; set; } = "";
     public string NewSport { get; set; } = "";
     public string Notes { get; set; } = "";
+    public string TeamCardId { get; set; } = "";
     public string ReferenceNo { get; set; } = "";
     public List<PlaceEntry> Places { get; set; } = new();
     public List<Models.CertificateUpload> Uploads { get; } = new();
@@ -83,6 +86,8 @@ public sealed class InventoryForm
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Quantity { get; set; } = "";
+    public string Phase { get; set; } = "phase_01";
+    public string Category { get; set; } = "rec";
 }
 
 internal static class FormText

@@ -1,8 +1,12 @@
 @page "/achievements"
+@page "/achievements/{SectionKey}"
+@page "/achievements/{SectionKey}/{Tab}"
 @implements IDisposable
+@using System.Web
 @inject ReferenceService Reference
 @inject RecordsService RecordsData
 @inject AchievementsService AchievementsData
+@inject TeamCardsService TeamCardsData
 @inject AppState State
 @inject NavigationManager Nav
 
@@ -10,12 +14,30 @@
 {
     <LoadingSkeleton />
 }
+else if (_section is null)
+{
+    <p class="text-zinc-600 dark:text-zinc-400">That achievements section does not exist.</p>
+}
 else
 {
-    <div class="space-y-10">
-        <div>
-            <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white">Achievements</h2>
-            <p class="mt-1 text-zinc-600 dark:text-zinc-400">Athletic records and sports achievements for the recreation center.</p>
+    <div class="space-y-8">
+        <div class="space-y-4">
+            <div>
+                <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white">Achievements</h2>
+                <p class="mt-1 text-zinc-600 dark:text-zinc-400">Athletic records and sports achievements for the recreation center.</p>
+            </div>
+            <nav aria-label="Achievement sections" class="flex w-fit flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5">
+                @foreach (var section in new[] { AchievementSection.SportsFiesta, AchievementSection.InterUniversity })
+                {
+                    var active = section == _section;
+                    var href = _records ? AchievementSections.RecordsPath(section, _selectedYear) : AchievementSections.AchievementsPath(section, _selectedYear);
+                    <a href="@href" aria-current="@(active ? "page" : null)"
+                       class="@Ui.Cn("rounded-full px-4 py-1.5 text-sm font-medium transition",
+                           active ? "bg-emerald-500 text-zinc-950 shadow-sm dark:bg-emerald-400" : "text-zinc-600 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white")">
+                        @AchievementSections.Get(section).Label
+                    </a>
+                }
+            </nav>
         </div>
 
         @if (_loadError is not null)
@@ -23,39 +45,59 @@ else
             <p role="alert" class="@Ui.ErrorBanner">@_loadError</p>
         }
 
-        <section>
-            <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
-                <h3 class="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Athletic Records</h3>
-                <div class="flex flex-wrap gap-2">
-                    <TracksManager Tracks="_tracks" OnChanged="ReloadAsync" />
-                    <CsvImportDialog Type="ImportType.Records" />
-                </div>
-            </div>
-            <RecordsSection Records="_records" Tracks="_tracks" Years="_years" SelectedYear="_selectedYear"
-                            OnYearSelected="SelectYear" OnChanged="ReloadAsync" />
-        </section>
+        <nav aria-label="Achievement pages" class="inline-flex flex-wrap items-center gap-1 border-b border-zinc-200 dark:border-white/10">
+            <a href="@AchievementSections.AchievementsPath(_section.Value, _selectedYear)" aria-current="@(_records ? null : "page")"
+               class="@TabClass(!_records)">Achievements</a>
+            <a href="@AchievementSections.RecordsPath(_section.Value, _selectedYear)" aria-current="@(_records ? "page" : null)"
+               class="@TabClass(_records)">Athletic Records</a>
+        </nav>
 
-        <section>
-            <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
-                <h3 class="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Sports Achievements</h3>
-                <CsvImportDialog Type="ImportType.Achievements" />
-            </div>
-            <AchievementsSection Achievements="_achievements" Houses="_houses" Years="_years" SelectedYear="_selectedYear"
-                                 OnYearSelected="SelectYear" OnChanged="ReloadAsync" />
-        </section>
+        @if (_records)
+        {
+            <section>
+                <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
+                    <h3 class="text-lg font-semibold text-zinc-800 dark:text-zinc-100">@_config!.Label Athletic Records</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <TracksManager Tracks="_tracks" OnChanged="ReloadAsync" />
+                        <CsvImportDialog Type="ImportType.Records" Section="_section.Value" />
+                    </div>
+                </div>
+                <RecordsSection Records="_recordRows" Tracks="_tracks" Years="_years" SelectedYear="_selectedYear" Section="_section.Value"
+                                OnYearSelected="SelectYear" OnChanged="ReloadAsync" />
+            </section>
+        }
+        else
+        {
+            <section>
+                <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
+                    <h3 class="text-lg font-semibold text-zinc-800 dark:text-zinc-100">@_config!.Label Achievements</h3>
+                    <CsvImportDialog Type="ImportType.Achievements" Section="_section.Value" />
+                </div>
+                <AchievementsSection Achievements="_achievements" Houses="_houses" Tracks="_tracks" TeamCards="_teamCards" Years="_years" SelectedYear="_selectedYear"
+                                     Section="_section.Value" HasCategories="_config!.HasCategories"
+                                     OnYearSelected="SelectYear" OnChanged="ReloadAsync" />
+            </section>
+        }
     </div>
 }
 
 @code {
+    [Parameter] public string? SectionKey { get; set; }
+    [Parameter] public string? Tab { get; set; }
+
     private bool _loading = true;
     private string? _loadError;
-    private string? _loadedQuery;
+    private string? _loadedKey;
+    private bool _records;
+    private AchievementSection? _section;
+    private AchievementSectionConfig? _config;
     private int _selectedYear;
     private List<int> _years = new();
     private List<SportTrack> _tracks = new();
-    private List<SportRecord> _records = new();
+    private List<SportRecord> _recordRows = new();
     private List<House> _houses = new();
     private List<SportsAchievement> _achievements = new();
+    private List<TeamCardOption> _teamCards = new();
 
     protected override void OnInitialized()
     {
@@ -77,19 +119,38 @@ else
 
     private async Task ApplyLocationAsync()
     {
-        var query = new Uri(Nav.Uri).Query;
-        if (query == _loadedQuery) return;
-        var firstLoad = _loadedQuery is null;
-        _loadedQuery = query;
+        var relative = Nav.ToBaseRelativePath(Nav.Uri);
+        var path = relative.Split('?', '#')[0].Trim('/');
+        if (path.Equals("achievements", StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo(AchievementSections.AchievementsPath(AchievementSection.SportsFiesta), replace: true);
+            return;
+        }
+
+        var key = relative;
+        if (key == _loadedKey) return;
+        var firstLoad = _loadedKey is null;
+        _loadedKey = key;
+
+        _section = AchievementSections.Parse(SectionKey);
+        _config = _section is null ? null : AchievementSections.Get(_section.Value);
+        _records = string.Equals(Tab, "records", StringComparison.OrdinalIgnoreCase);
+        if (Tab is not null && !_records)
+        {
+            _section = null;
+            _config = null;
+        }
 
         var defaultYear = DateTime.Now.Year;
-        var raw = System.Web.HttpUtility.ParseQueryString(query)["year"] ?? defaultYear.ToString(CultureInfo.InvariantCulture);
+        var raw = HttpUtility.ParseQueryString(new Uri(Nav.Uri).Query)["year"] ?? defaultYear.ToString(CultureInfo.InvariantCulture);
         var parsed = Formatting.ParseIntLoose(raw);
         _selectedYear = parsed is null or 0 ? defaultYear : parsed.Value;
-        _years = new[] { _selectedYear, _selectedYear - 1, _selectedYear - 2, defaultYear }
-            .Distinct()
-            .OrderByDescending(y => y)
-            .ToList();
+
+        if (_section is null)
+        {
+            _loading = false;
+            return;
+        }
 
         if (firstLoad) _loading = true;
         await LoadAsync();
@@ -98,24 +159,22 @@ else
 
     private async Task LoadAsync()
     {
+        if (_section is null) return;
         try
         {
             var tracks = Reference.GetSportTracksAsync();
-            var records = RecordsData.GetForYearAsync(_selectedYear);
             var houses = Reference.GetHousesAsync();
-            var achievements = AchievementsData.GetForYearAsync(_selectedYear);
-            await Task.WhenAll(tracks, records, houses, achievements);
+            var years = Reference.GetYearsAsync(_section.Value, achievements: !_records);
+            Task<List<SportRecord>>? records = _records ? RecordsData.GetForYearAsync(_section.Value, _selectedYear) : null;
+            Task<List<SportsAchievement>>? achievements = _records ? null : AchievementsData.GetForYearAsync(_section.Value, _selectedYear);
+            var teamCards = _records ? Task.FromResult(new List<TeamCardOption>()) : TeamCardsData.ListOptionsAsync(_config!.Key);
+            await Task.WhenAll(tracks, houses, years, records ?? Task.CompletedTask, achievements ?? Task.CompletedTask, teamCards);
             _tracks = tracks.Result;
-            _records = records.Result;
             _houses = houses.Result;
-            _achievements = achievements.Result;
-            var storedYears = await Reference.GetAchievementYearsAsync();
-            _years = storedYears
-                .Append(_selectedYear)
-                .Append(DateTime.Now.Year)
-                .Distinct()
-                .OrderByDescending(year => year)
-                .ToList();
+            _recordRows = records?.Result ?? new();
+            _achievements = achievements?.Result ?? new();
+            _teamCards = teamCards.Result;
+            _years = years.Result.Append(_selectedYear).Append(DateTime.Now.Year).Distinct().OrderByDescending(y => y).ToList();
             _loadError = null;
         }
         catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)
@@ -130,7 +189,19 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
-    private void SelectYear(int year) => Nav.NavigateTo($"/achievements?year={year}");
+    private void SelectYear(int year)
+    {
+        if (_section is null) return;
+        Nav.NavigateTo(_records
+            ? AchievementSections.RecordsPath(_section.Value, year)
+            : AchievementSections.AchievementsPath(_section.Value, year));
+    }
+
+    private string TabClass(bool active) => Ui.Cn(
+        "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition",
+        active
+            ? "border-emerald-500 text-zinc-900 dark:border-emerald-400 dark:text-white"
+            : "border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white");
 
     public void Dispose()
     {

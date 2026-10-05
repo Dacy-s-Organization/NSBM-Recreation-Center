@@ -87,6 +87,7 @@ type AchievementFields = {
   achievement_type: AchievementType;
   category?: AchievementCategory;
   track_id?: string | null;
+  team_card_id?: string | null;
 };
 
 async function achievementFieldsFromForm(
@@ -159,6 +160,19 @@ async function resolveStudentUuid(
   return { uuid: data.id };
 }
 
+async function resolveTeamCard(
+  supabase: Supabase,
+  section: string,
+  raw: FormDataEntryValue | null
+): Promise<{ id: string | null } | { error: string }> {
+  const id = String(raw ?? "").trim();
+  if (!id) return { id: null };
+  const { data } = await supabase.from("team_cards").select("id, section").eq("id", id).maybeSingle();
+  if (!data) return { error: "That team card no longer exists." };
+  if (data.section !== section) return { error: "That team card belongs to a different section." };
+  return { id: data.id };
+}
+
 export async function addAchievement(formData: FormData) {
   const section = parseSection(formData.get("section"));
   if (!section) return { error: INVALID_SECTION };
@@ -178,6 +192,8 @@ export async function addAchievement(formData: FormData) {
 
   const parsed = await achievementFieldsFromForm(supabase, formData, config);
   if ("error" in parsed) return { error: parsed.error };
+  const teamCard = await resolveTeamCard(supabase, section, formData.get("team_card_id"));
+  if ("error" in teamCard) return { error: teamCard.error };
   const winners = { rows: parsed.winners };
 
   const { data: achievement, error } = await supabase
@@ -187,6 +203,7 @@ export async function addAchievement(formData: FormData) {
       ...parsed.fields,
       team_name: teamName,
       notes,
+      team_card_id: teamCard.id,
     })
     .select("id")
     .single();
@@ -245,6 +262,8 @@ export async function updateAchievement(formData: FormData) {
 
   const parsed = await achievementFieldsFromForm(supabase, formData, config);
   if ("error" in parsed) return { error: parsed.error };
+  const teamCard = await resolveTeamCard(supabase, section, formData.get("team_card_id"));
+  if ("error" in teamCard) return { error: teamCard.error };
   const winners = { rows: parsed.winners };
 
   const settled = await settleReference(
@@ -262,6 +281,7 @@ export async function updateAchievement(formData: FormData) {
       ...parsed.fields,
       team_name: teamName,
       notes,
+      team_card_id: teamCard.id,
     })
     .eq("id", id);
 

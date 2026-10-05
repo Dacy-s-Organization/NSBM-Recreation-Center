@@ -1,5 +1,4 @@
 @inject AchievementsService AchievementsData
-@inject IJSRuntime JS
 @inject AuthService Auth
 @inject DesktopBridge Bridge
 
@@ -35,7 +34,7 @@
         <Card>
             <h3 class="font-medium text-zinc-900 dark:text-zinc-100">New sports achievement</h3>
             <div class="mt-4">
-                <AchievementFormFields @key="_addFormKey" Houses="Houses" DefaultYear="SelectedYear" Pending="_pending" Error="_error"
+                <AchievementFormFields @key="_addFormKey" Houses="Houses" Tracks="Tracks" TeamCards="TeamCards" HasCategories="HasCategories" DefaultYear="SelectedYear" Pending="_pending" Error="_error"
                                        OnSubmit="HandleAdd" SubmitLabel="Save achievement" />
             </div>
         </Card>
@@ -49,6 +48,7 @@
                         <th class="@Ui.Th">Sport</th>
                         <th class="@Ui.Th">Achievement</th>
                         <th class="@Ui.Th">Team</th>
+                        <th class="@Ui.Th">Team card</th>
                         <th class="@Ui.Th">Winners</th>
                         <th class="@Ui.Th">Notes</th>
                         <th class="@Ui.Th">Reference no</th>
@@ -63,7 +63,7 @@
                     @if (Filtered.Count == 0)
                     {
                         <tr>
-                            <td colspan="@(Auth.CanEdit ? 8 : 7)" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">No achievements for @SelectedYear.</td>
+                            <td colspan="@(Auth.CanEdit ? 9 : 8)" class="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">No achievements for @SelectedYear.</td>
                         </tr>
                     }
                     else
@@ -73,18 +73,28 @@
                             <tr @key="a.Id" class="border-b border-zinc-100 last:border-0 dark:border-white/10">
                                 @if (Auth.CanEdit && _editingId == a.Id)
                                 {
-                                    <td colspan="8" class="px-4 py-3">
+                                    <td colspan="9" class="px-4 py-3">
                                         <p class="mb-3 font-medium text-zinc-900 dark:text-zinc-100">Edit achievement</p>
-                                        <AchievementFormFields @key="a.Id" Achievement="a" Houses="Houses" DefaultYear="SelectedYear"
+                                        <AchievementFormFields @key="a.Id" Achievement="a" Houses="Houses" Tracks="Tracks" TeamCards="TeamCards" HasCategories="HasCategories" DefaultYear="SelectedYear"
                                                                Pending="_pending" Error="_error" OnSubmit="HandleUpdate"
                                                                SubmitLabel="Save changes" OnCancel="CancelEdit" />
                                     </td>
                                 }
                                 else
                                 {
-                                    <td class="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">@a.Sport</td>
+                                    <td class="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">@LabelOf(a)</td>
                                     <td class="px-4 py-3">@a.AchievementType</td>
                                     <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">@(string.IsNullOrEmpty(a.TeamName) ? "—" : a.TeamName)</td>
+                                    <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">
+                                        @if (!string.IsNullOrEmpty(a.TeamCards?.EventName) && !string.IsNullOrEmpty(a.TeamCardId))
+                                        {
+                                            <a class="text-emerald-700 underline dark:text-emerald-300" href="@($"/team-cards?card={a.TeamCardId}")">@a.TeamCards.EventName</a>
+                                        }
+                                        else
+                                        {
+                                            <span>—</span>
+                                        }
+                                    </td>
                                     <td class="px-4 py-3 text-zinc-700 dark:text-zinc-300">@FormatWinners(a)</td>
                                     <td class="px-4 py-3 text-zinc-500 dark:text-zinc-400">@(string.IsNullOrEmpty(a.Notes) ? "—" : a.Notes)</td>
                                     <td class="px-4 py-3 font-mono">@(a.CertificateReferences?.ReferenceNo ?? "—")</td>
@@ -94,7 +104,7 @@
                                     <td class="px-4 py-3">
                                         <div class="flex flex-wrap gap-2">
                                             <Button Variant="ghost" OnClick="() => StartEdit(a)">Edit</Button>
-                                            <Button Variant="danger" OnClick="() => HandleDelete(a.Id, a.Sport)" Disabled="_pending">Delete</Button>
+                                            <Button Variant="danger" OnClick="() => HandleDelete(a.Id, LabelOf(a))" Disabled="_pending">Delete</Button>
                                         </div>
                                     </td>
                                     }
@@ -109,7 +119,11 @@
             @Filtered.Count achievement(s) for @SelectedYear@(_search.Trim().Length > 0 ? " · matching search" : "")
         </p>
     </Card>
-    <StudentDetailModal StudentId="_openStudentId" OnClose="() => _openStudentId = null" />
+    <StudentDetailModal StudentId="@_openStudentId" OnClose="CloseStudent" />
+    @if (_askOpen)
+    {
+        <ConfirmDialog Title="@_askTitle" Description="@_askBody" Pending="_pending" OnConfirm="() => Answer(true)" OnClose="() => Answer(false)" />
+    }
 </div>
 
 @code {
@@ -119,6 +133,36 @@
     [Parameter] public int SelectedYear { get; set; }
     [Parameter] public EventCallback<int> OnYearSelected { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public AchievementSection Section { get; set; }
+    [Parameter] public bool HasCategories { get; set; }
+    [Parameter] public IReadOnlyList<TeamCardOption> TeamCards { get; set; } = Array.Empty<TeamCardOption>();
+    [Parameter] public IReadOnlyList<SportTrack> Tracks { get; set; } = Array.Empty<SportTrack>();
+
+    private bool _askOpen;
+    private string _askTitle = "";
+    private string _askBody = "";
+    private TaskCompletionSource<bool>? _answer;
+
+    private static string LabelOf(SportsAchievement achievement) =>
+        achievement.Category == "athletics"
+            ? achievement.SportTracks?.Name ?? achievement.Sport
+            : achievement.Sport;
+
+    private Task<bool> AskAsync(string title, string body)
+    {
+        _askTitle = title;
+        _askBody = body;
+        _askOpen = true;
+        _answer = new TaskCompletionSource<bool>();
+        _ = InvokeAsync(StateHasChanged);
+        return _answer.Task;
+    }
+
+    private void Answer(bool yes)
+    {
+        _askOpen = false;
+        _answer?.TrySetResult(yes);
+    }
 
     private bool _showForm;
     private int _addFormKey;
@@ -127,6 +171,10 @@
     private bool _pending;
     private string _search = "";
     private string? _openStudentId;
+
+    private void OpenStudent(string? studentId) => _openStudentId = studentId;
+
+    private void CloseStudent() => _openStudentId = null;
 
     private List<SportsAchievement> Filtered
     {
@@ -138,7 +186,8 @@
             {
                 var winners = a.SportsAchievementWinners ?? new List<AchievementWinner>();
                 var winnerText = string.Join(" ", winners.Select(w => $"{w.Students?.FullName} {w.Students?.StudentId}"));
-                return Contains(a.Sport, q) || Contains(a.AchievementType, q) || Contains(a.TeamName, q)
+                return Contains(LabelOf(a), q) || Contains(a.AchievementType, q) || Contains(a.TeamName, q)
+                    || Contains(a.TeamCards?.EventName, q)
                     || Contains(winnerText, q) || Contains(a.Notes, q) || Contains(a.CertificateReferences?.ReferenceNo, q);
             }).ToList();
         }
@@ -183,7 +232,7 @@
             }
             else
             {
-                <button type="button" class="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300" @onclick="() => _openStudentId = studentId">@label</button>
+                <button type="button" class="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300" @onclick="() => OpenStudent(studentId)">@label</button>
             }
         }
     };
@@ -213,7 +262,7 @@
     {
         _error = null;
         _pending = true;
-        var result = await AchievementsData.AddAsync(form);
+        var result = await AchievementsData.AddAsync(Section, form);
         _pending = false;
         if (!result.Success)
         {
@@ -229,7 +278,7 @@
     {
         _error = null;
         _pending = true;
-        var result = await AchievementsData.UpdateAsync(form);
+        var result = await AchievementsData.UpdateAsync(Section, form);
         _pending = false;
         if (!result.Success)
         {
@@ -268,12 +317,13 @@
     private void ExportFiltered()
     {
         var csv = CsvText.Build(
-            new[] { "Sport", "Achievement", "Team", "Winners", "Notes", "Reference no" },
+            new[] { "Sport", "Achievement", "Team", "Team card", "Winners", "Notes", "Reference no" },
             Filtered.Select(achievement => (IEnumerable<string?>)new[]
             {
-                CsvText.Blank(achievement.Sport),
+                CsvText.Blank(LabelOf(achievement)),
                 CsvText.Blank(achievement.AchievementType),
                 CsvText.Blank(achievement.TeamName),
+                CsvText.Blank(achievement.TeamCards?.EventName),
                 WinnersText(achievement),
                 CsvText.Blank(achievement.Notes),
                 CsvText.Blank(achievement.CertificateReferences?.ReferenceNo),
@@ -283,10 +333,10 @@
 
     private async Task HandleDelete(string id, string sport)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Delete sports achievement for {sport}?")) return;
+        if (!await AskAsync($"Delete the achievement for {sport}?", "This removes the achievement and its certificate reference.")) return;
         _error = null;
         _pending = true;
-        var result = await AchievementsData.DeleteAsync(id);
+        var result = await AchievementsData.DeleteAsync(Section, id);
         _pending = false;
         if (!result.Success) _error = result.Error;
         else

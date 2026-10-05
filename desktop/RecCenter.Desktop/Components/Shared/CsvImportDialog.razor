@@ -93,6 +93,7 @@
 
 @code {
     [Parameter, EditorRequired] public ImportType Type { get; set; }
+    [Parameter] public AchievementSection Section { get; set; } = AchievementSection.SportsFiesta;
     [Parameter] public string Label { get; set; } = "Import CSV";
 
     private const long MaxCsvBytes = 50L * 1024 * 1024;
@@ -149,7 +150,7 @@
         StateHasChanged();
         try
         {
-            var importResult = await Importer.ImportAsync(Type, valid);
+            var importResult = await Importer.ImportAsync(Type, valid, Section);
             _result = FormatResult(importResult);
             _preview = new();
             if (importResult.Success > 0) await State.RequestRefreshAsync();

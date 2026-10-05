@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   addAchievement,
   deleteAchievement,
@@ -143,6 +144,7 @@ function AchievementForm({
   houses,
   sports,
   tracks,
+  teamCards,
   defaultYear,
   pending,
   error,
@@ -156,6 +158,7 @@ function AchievementForm({
   houses: House[];
   sports: string[];
   tracks: SportTrack[];
+  teamCards: { id: string; event_name: string }[];
   defaultYear: number;
   pending: boolean;
   error: string | null;
@@ -333,6 +336,20 @@ function AchievementForm({
           Optional. Leave blank when the result is not for a house.
         </p>
       </div>
+      <div>
+        <Label>Team card</Label>
+        <Select name="team_card_id" defaultValue={achievement?.team_card_id ?? ""}>
+          <option value="">No team card</option>
+          {teamCards.map((card) => (
+            <option key={card.id} value={card.id}>
+              {card.event_name}
+            </option>
+          ))}
+        </Select>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Only team cards already saved in this section are listed.
+        </p>
+      </div>
       {champion ? (
         <div className="sm:col-span-2 space-y-3">
           <Label>Places</Label>
@@ -410,6 +427,7 @@ export function AchievementsClient({
   houses,
   sports,
   tracks,
+  teamCards,
   hasCategories,
   defaultYear,
   selectedYear,
@@ -423,6 +441,7 @@ export function AchievementsClient({
   houses: House[];
   sports: string[];
   tracks: SportTrack[];
+  teamCards: { id: string; event_name: string }[];
   hasCategories: boolean;
   defaultYear: number;
   selectedYear: number;
@@ -492,7 +511,7 @@ export function AchievementsClient({
         .map((winner) => `${winner.students?.full_name ?? ""} ${winner.students?.student_id ?? ""}`)
         .join(" ");
       const reference = certificateOf(achievement)?.reference_no ?? "";
-      return [labelOf(achievement), achievement.achievement_type, achievement.team_name, winnerText, achievement.notes, reference].some(
+      return [labelOf(achievement), achievement.achievement_type, achievement.team_name, achievement.team_cards?.event_name, winnerText, achievement.notes, reference].some(
         (value) => (value ?? "").toLowerCase().includes(q)
       );
     });
@@ -585,12 +604,13 @@ export function AchievementsClient({
     downloadCsv(
       `sports-achievements-${section}-${yearFilter}${categorySlug}-${csvFileSlug(sportFilter || allLabel)}.csv`,
       toCsv(
-        ["Year", nameHeader, "Achievement", "Team", "Winners", "Notes", "Reference no"],
+        ["Year", nameHeader, "Achievement", "Team", "Team card", "Winners", "Notes", "Reference no"],
         filtered.map((achievement) => [
           String(achievement.meet_year),
           blankCell(labelOf(achievement)),
           blankCell(achievement.achievement_type),
           blankCell(achievement.team_name),
+          blankCell(achievement.team_cards?.event_name),
           winnerText(achievement),
           blankCell(achievement.notes),
           blankCell(certificateOf(achievement)?.reference_no),
@@ -726,6 +746,7 @@ export function AchievementsClient({
           houses={houses}
           sports={sports}
           tracks={tracks}
+          teamCards={teamCards}
           defaultYear={defaultYear}
           pending={pending}
           error={error}
@@ -750,6 +771,7 @@ export function AchievementsClient({
             houses={houses}
             sports={sports}
             tracks={tracks}
+            teamCards={teamCards}
             defaultYear={defaultYear}
             pending={pending}
             error={error}
@@ -769,6 +791,7 @@ export function AchievementsClient({
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">{nameHeader}</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Achievement</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Team</th>
+                <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Team card</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Winners</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Notes</th>
                 <th className="px-4 py-3 font-medium text-zinc-600 dark:text-zinc-400">Reference no</th>
@@ -781,7 +804,7 @@ export function AchievementsClient({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={canEdit ? 8 : 7} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={canEdit ? 9 : 8} className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400">
                     No achievements for {yearFilter}.
                   </td>
                 </tr>
@@ -797,6 +820,15 @@ export function AchievementsClient({
                     <td className="px-4 py-3">{a.achievement_type}</td>
                     <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">
                       {a.team_name || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">
+                      {a.team_cards?.event_name && a.team_card_id ? (
+                        <Link className="text-emerald-700 underline dark:text-emerald-300" href={`/team-cards?card=${a.team_card_id}`}>
+                          {a.team_cards.event_name}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="px-4 py-3 text-zinc-700 dark:text-zinc-300">
                       {formatWinners(a)}
