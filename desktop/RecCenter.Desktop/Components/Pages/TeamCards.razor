@@ -105,10 +105,8 @@
                                 <div class="flex flex-wrap items-center gap-2">
                                     <Button Variant="secondary" OnClick="() => StartEdit(card)">Edit</Button>
                                     <Button Variant="danger" OnClick="() => { _error = null; _deleting = card; }">Delete</Button>
-                                    <label class="text-sm text-zinc-600 dark:text-zinc-300">
-                                        Add photo
-                                        <InputFile accept="@PhotoAccept" disabled="@(_pending || card.TeamCardPhotos.Count >= 10)" OnChange="e => AddExistingPhoto(card.Id, e)" />
-                                    </label>
+                                    <FilePicker Label="Add photo" Multiple="false" ShowSummary="false" Accept="@PhotoAccept"
+                                                Disabled="@(_pending || card.TeamCardPhotos.Count >= 10)" OnChange="e => AddExistingPhoto(card.Id, e)" />
                                 </div>
                             }
                         }
@@ -133,12 +131,13 @@
             </div>
             <div>
                 <label class="@Ui.Label">Team card file</label>
-                <InputFile accept=".docx,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.heic,.heif" OnChange="ReadCard" />
+                <FilePicker Multiple="false" Accept=".docx,.xlsx,.csv,.jpg,.jpeg,.png,.webp,.heic,.heif" Disabled="_reading"
+                            FileNames="@(_fileName is null ? Array.Empty<string>() : new[] { _fileName })" OnChange="ReadCard" />
                 @if (_reading) { <p class="mt-1 text-sm text-zinc-500">Reading the team card…</p> }
             </div>
             <div>
                 <label class="@Ui.Label">Reference photos (optional, up to 10)</label>
-                <InputFile accept="@PhotoAccept" multiple OnChange="PickPhotos" />
+                <FilePicker Accept="@PhotoAccept" FileNames="@_newPhotos.Select(p => p.Name).ToList()" OnChange="PickPhotos" />
                 @if (_newPhotos.Count > 0)
                 {
                     <p class="mt-1 text-sm text-zinc-500">@_newPhotos.Count photo@(_newPhotos.Count == 1 ? "" : "s") selected. These are not read as the team card.</p>

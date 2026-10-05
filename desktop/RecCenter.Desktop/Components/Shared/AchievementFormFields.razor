@@ -130,7 +130,7 @@
     </div>
     <div class="sm:col-span-2">
         <label class="@Ui.Label">Certificates</label>
-        <CertificateFilePicker OnChange="OnCertificateFiles" FileNames="@_form.Uploads.Select(u => u.FileName).ToList()" />
+        <FilePicker OnChange="OnCertificateFiles" FileNames="@_form.Uploads.Select(u => u.FileName).ToList()" />
         <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Jpeg, png, webp, gif, or heif. Each file must be 4 MB or smaller.</p>
         @if (Achievement?.CertificateReferences?.IssuedCertificates is { Count: > 0 } existing)
         {
