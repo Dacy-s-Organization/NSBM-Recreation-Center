@@ -4,11 +4,11 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import {
-  importStudents,
   importRecords,
   importInventory,
   importAchievements,
 } from "@/app/actions/import";
+import { StudentDataDialog } from "@/components/student-data-dialog";
 import {
   type ImportType,
   type ImportPreviewRow,
@@ -33,6 +33,19 @@ export function CsvImportDialog({
   type: ImportType;
   label?: string;
   section?: AchievementSection;
+}) {
+  if (type === "students") return <StudentDataDialog />;
+  return <CsvImportForm type={type} label={label} section={section} />;
+}
+
+function CsvImportForm({
+  type,
+  label,
+  section,
+}: {
+  type: Exclude<ImportType, "students">;
+  label: string;
+  section: AchievementSection;
 }) {
   const sectioned = type === "records" || type === "achievements";
   const [open, setOpen] = useState(false);
@@ -75,25 +88,7 @@ export function CsvImportDialog({
 
     startTransition(async () => {
       let importResult;
-      if (type === "students") {
-        importResult = await importStudents(
-          valid.map((r) => ({
-            serial_no: String(r.serial_no ?? ""),
-            student_id: String(r.student_id ?? ""),
-            full_name: String(r.full_name),
-            house_name: String(r.house_name ?? ""),
-            faculty: String(r.faculty ?? ""),
-            intake: String(r.intake ?? ""),
-            degree_programme: String(r.degree_programme ?? ""),
-            university: String(r.university ?? ""),
-            title: String(r.title ?? ""),
-            gender: String(r.gender ?? ""),
-            nic: String(r.nic ?? ""),
-            mobile: String(r.mobile ?? ""),
-            email: String(r.email ?? ""),
-          }))
-        );
-      } else if (type === "records") {
+      if (type === "records") {
         importResult = await importRecords(
           valid.map((r) => ({
             student_id: String(r.student_id),

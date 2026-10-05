@@ -173,6 +173,10 @@ public sealed record FacultyCard(string Code, string Name, string Description, i
 
 public sealed record IntakeCard(string Intake, int Count);
 
+public sealed record BatchFacultyCount(string Faculty, int Count);
+
+public sealed record BatchSummary(string Intake, int Total, IReadOnlyList<BatchFacultyCount> Faculties);
+
 public sealed record DashboardStats(int Students, int Records, int InventoryItems, int Year);
 
 /// <summary>Result of a mutation, mirroring the server actions' <c>{ error } | { success }</c>.</summary>

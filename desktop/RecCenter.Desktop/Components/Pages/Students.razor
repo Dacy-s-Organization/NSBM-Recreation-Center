@@ -20,7 +20,10 @@ else
                 <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white">Students</h2>
                 <p class="mt-1 text-zinc-600 dark:text-zinc-400">@HeaderSubtitle</p>
             </div>
-            <CsvImportDialog Type="ImportType.Students" />
+            <div class="flex flex-wrap gap-2">
+                <BatchCustomizeDialog Faculty="@_faculty" CurrentIntake="@_intake" />
+                <CsvImportDialog Type="ImportType.Students" />
+            </div>
         </div>
 
         @if (_loadError is not null)
@@ -70,7 +73,7 @@ else
                 else if (_intakeCards.Count == 0)
                 {
                     <Card Class="p-8 text-center text-zinc-500 dark:text-zinc-400">
-                        No batches found for this faculty yet. Import students from CSV or add them manually.
+                        No batches found for this faculty yet. Use Add data or add a student manually.
                     </Card>
                 }
                 else
@@ -179,7 +182,7 @@ else
                                         <td colspan="@(_columns.Count + 1)" class="px-4 py-10 text-center text-zinc-500 dark:text-zinc-400">
                                             @(_query.Length > 0 || _houseFilter.Length > 0 || _genderFilter.Length > 0
                                                 ? "No students match your search."
-                                                : "No students in this batch yet. Add one or import from CSV.")
+                                                : "No students in this batch yet. Add one or use Add data.")
                                         </td>
                                     </tr>
                                 }

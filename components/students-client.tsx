@@ -156,7 +156,7 @@ function IntakeGrid({
   if (cards.length === 0) {
     return (
       <Card className="p-8 text-center text-zinc-500 dark:text-zinc-400">
-        No batches found for this faculty yet. Import students from CSV or add them manually.
+        No batches found for this faculty yet. Use Add data or add a student manually.
       </Card>
     );
   }
@@ -506,7 +506,7 @@ export function StudentsClient({
                   >
                     {query || houseFilter || genderFilter
                       ? "No students match your search."
-                      : "No students in this batch yet. Add one or import from CSV."}
+                      : "No students in this batch yet. Add one or use Add data."}
                   </td>
                 </tr>
               ) : (

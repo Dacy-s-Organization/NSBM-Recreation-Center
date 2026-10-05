@@ -88,9 +88,11 @@
                                     @foreach (var photo in card.TeamCardPhotos)
                                     {
                                         <figure class="w-28">
-                                            @if (_photoUrls.TryGetValue(photo.Id, out var url))
+                                            @if (_photos.TryGetValue(photo.Id, out var loaded))
                                             {
-                                                <img src="@url" alt="@photo.FileName" class="h-28 w-28 rounded-lg object-cover" />
+                                                <button type="button" class="block rounded-lg" aria-label="@($"View {photo.FileName}")" @onclick="() => _previewPhotoId = photo.Id">
+                                                    <img src="@loaded.DataUrl" alt="@photo.FileName" class="h-28 w-28 rounded-lg object-cover" />
+                                                </button>
                                             }
                                             @if (Auth.CanEdit)
                                             {
@@ -201,6 +203,11 @@
                    Pending="_pending" Error="@_error" OnConfirm="ConfirmDelete" OnClose="() => { if (!_pending) { _deleting = null; _error = null; } }" />
 }
 
+@if (_previewPhotoId is not null && _photos.TryGetValue(_previewPhotoId, out var preview))
+{
+    <ImagePreviewModal FileName="@preview.FileName" DataUrl="@preview.DataUrl" Bytes="@preview.Bytes" OnClose="() => _previewPhotoId = null" />
+}
+
 @code {
     private const string PhotoAccept = ".jpg,.jpeg,.png,.webp,.gif,.heic,.heif,image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif";
     private static readonly (string Id, string Title)[] Sections =
@@ -227,7 +234,8 @@
 
     private List<TeamCardRecord>? _cards;
     private Dictionary<string, int> _links = new();
-    private Dictionary<string, string> _photoUrls = new();
+    private Dictionary<string, LoadedPhoto> _photos = new();
+    private string? _previewPhotoId;
     private string? _loadError;
     private string? _openId;
     private bool _adding;
@@ -286,10 +294,13 @@
         if (card is null) return;
         foreach (var photo in card.TeamCardPhotos)
         {
-            if (_photoUrls.ContainsKey(photo.Id)) continue;
+            if (_photos.ContainsKey(photo.Id)) continue;
             var loaded = await CardsData.GetPhotoAsync(photo.Id);
             if (loaded.Bytes is null || loaded.ContentType is null) continue;
-            _photoUrls[photo.Id] = $"data:{loaded.ContentType};base64,{Convert.ToBase64String(loaded.Bytes)}";
+            _photos[photo.Id] = new LoadedPhoto(
+                $"data:{loaded.ContentType};base64,{Convert.ToBase64String(loaded.Bytes)}",
+                photo.FileName,
+                loaded.Bytes);
         }
     }
 
@@ -506,7 +517,7 @@
             _error = result.Error;
             return;
         }
-        _photoUrls.Remove(cardId);
+        _photos.Remove(cardId);
         await LoadAsync();
         _openId = null;
         await Toggle(cardId);
@@ -523,7 +534,8 @@
             _error = result.Error;
             return;
         }
-        _photoUrls.Remove(id);
+        _photos.Remove(id);
+        if (_previewPhotoId == id) _previewPhotoId = null;
         var open = _openId;
         await LoadAsync();
         if (open is not null)
@@ -559,4 +571,5 @@
     public void Dispose() => State.RefreshRequested -= ReloadAsync;
 
     private sealed record PendingPhoto(string Name, string ContentType, byte[] Bytes);
+    private sealed record LoadedPhoto(string DataUrl, string FileName, byte[] Bytes);
 }

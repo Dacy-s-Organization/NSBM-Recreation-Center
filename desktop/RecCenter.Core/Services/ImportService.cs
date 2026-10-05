@@ -65,9 +65,9 @@ public sealed class ImportService
         _achievements = achievements;
     }
 
-    public Task<ImportResult> ImportAsync(ImportType type, IReadOnlyList<ImportPreviewRow> validRows, AchievementSection section = AchievementSection.SportsFiesta) => type switch
+    public Task<ImportResult> ImportAsync(ImportType type, IReadOnlyList<ImportPreviewRow> validRows, AchievementSection section = AchievementSection.SportsFiesta, string? batch = null) => type switch
     {
-        ImportType.Students => ImportStudentsAsync(validRows),
+        ImportType.Students => ImportStudentsAsync(validRows, batch ?? ""),
         ImportType.Records => ImportRecordsAsync(validRows, section),
         ImportType.Inventory => ImportInventoryAsync(validRows),
         _ => ImportAchievementsAsync(validRows, section),
@@ -93,7 +93,7 @@ public sealed class ImportService
         return $"{faculty}|{intake}|{serialNo}";
     }
 
-    private static StudentPayload StudentInsertPayload(ImportPreviewRow row, string? houseId)
+    private static StudentPayload StudentInsertPayload(ImportPreviewRow row, string? houseId, string batch)
     {
         var serialRaw = row.Get("serial_no").Trim();
         var serialNo = serialRaw.Length > 0 ? Formatting.ParseIntLoose(serialRaw) : null;
@@ -103,7 +103,7 @@ public sealed class ImportService
             houseId,
             serialNo,
             FormText.NullIfEmpty(Faculties.NormalizeCode(row.Get("faculty"))),
-            FormText.NullIfEmpty(row.Get("intake")),
+            batch,
             FormText.NullIfEmpty(row.Get("degree_programme")),
             FormText.NullIfEmpty(row.Get("university")),
             FormText.NullIfEmpty(row.Get("title")),
@@ -144,9 +144,16 @@ public sealed class ImportService
         }
     }
 
-    public async Task<ImportResult> ImportStudentsAsync(IReadOnlyList<ImportPreviewRow> rows)
+    public async Task<ImportResult> ImportStudentsAsync(IReadOnlyList<ImportPreviewRow> rows, string batch)
     {
         if (NotSignedIn() is { } denied) return denied;
+        var batchName = BatchName.Normalize(batch, out var batchError);
+        if (batchName is null)
+        {
+            var rejected = new ImportResult();
+            rejected.Errors.Add(batchError ?? "Enter a batch name.");
+            return rejected;
+        }
         var result = new ImportResult { Filled = 0, Unchanged = 0, Kept = 0 };
 
         List<House> houses;
@@ -202,7 +209,7 @@ public sealed class ImportService
                 continue;
             }
 
-            var payload = StudentInsertPayload(row, houseId);
+            var payload = StudentInsertPayload(row, houseId, batchName);
             if (payload.StudentId is not null)
             {
                 if (!incomingById.TryGetValue(payload.StudentId, out var earlier))
@@ -278,17 +285,17 @@ public sealed class ImportService
             QueueExisting(line, existing, payload);
         }
 
-        foreach (var batch in Chunk(toInsert, ImportBatchSize))
+        foreach (var chunk in Chunk(toInsert, ImportBatchSize))
         {
             try
             {
-                await _db.InsertAsync("students", batch);
-                result.Success += batch.Count;
-                result.Inserted += batch.Count;
+                await _db.InsertAsync("students", chunk);
+                result.Success += chunk.Count;
+                result.Inserted += chunk.Count;
             }
             catch (PostgrestException)
             {
-                foreach (var payload in batch)
+                foreach (var payload in chunk)
                 {
                     try
                     {
@@ -304,9 +311,9 @@ public sealed class ImportService
             }
         }
 
-        foreach (var batch in Chunk(toFill, UpdateConcurrency))
+        foreach (var chunk in Chunk(toFill, UpdateConcurrency))
         {
-            var outcomes = await Task.WhenAll(batch.Select(async item =>
+            var outcomes = await Task.WhenAll(chunk.Select(async item =>
             {
                 var filter = PostgrestClient.From("students").Eq("id", item.Existing.Id);
                 foreach (var column in item.Patch.Keys) filter.IsNull(column);

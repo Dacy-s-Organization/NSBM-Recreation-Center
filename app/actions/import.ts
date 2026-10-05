@@ -13,6 +13,7 @@ import { requireSuper } from "@/lib/supabase/auth";
 import { ensureImportedSports } from "@/lib/sports";
 import { fetchAllPages } from "@/lib/supabase/fetch-all";
 import { ACHIEVEMENT_SECTIONS, parseSection } from "@/lib/achievement-sections";
+import { normalizeBatchName } from "@/lib/batch-name";
 
 type ImportResult = {
   success: number;
@@ -144,7 +145,7 @@ function studentFillPlan(existing: StudentExisting, incoming: StudentPayload) {
   return { patch, kept };
 }
 
-function studentInsertPayload(row: StudentRow, houseId: string | null): StudentPayload {
+function studentInsertPayload(row: StudentRow, houseId: string | null, batch: string): StudentPayload {
   const serialRaw = row.serial_no?.trim();
   const serialNo = serialRaw ? parseInt(serialRaw, 10) : null;
 
@@ -154,7 +155,7 @@ function studentInsertPayload(row: StudentRow, houseId: string | null): StudentP
     house_id: houseId,
     serial_no: serialNo !== null && !Number.isNaN(serialNo) ? serialNo : null,
     faculty: normalizeFacultyCode(row.faculty) || null,
-    intake: row.intake?.trim() || null,
+    intake: batch,
     degree_programme: row.degree_programme?.trim() || null,
     university: row.university?.trim() || null,
     title: row.title?.trim() || null,
@@ -190,8 +191,13 @@ function revalidateInventory() {
 }
 
 export async function importStudents(
-  rows: StudentRow[]
+  rows: StudentRow[],
+  batch: string
 ): Promise<ImportResult> {
+  const named = normalizeBatchName(batch);
+  if ("error" in named) {
+    return { ...emptyImportResult(), errors: [named.error] };
+  }
   const auth = await requireSuper();
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
@@ -260,7 +266,7 @@ export async function importStudents(
       continue;
     }
 
-    const payload = studentInsertPayload(row, houseId);
+    const payload = studentInsertPayload(row, houseId, named.name);
     if (payload.student_id) {
       const earlier = incomingById.get(payload.student_id);
       if (!earlier) {

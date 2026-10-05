@@ -5,7 +5,11 @@
 @inject AppState State
 @inject AuthService Auth
 
-@if (Auth.CanEdit)
+@if (Type == ImportType.Students)
+{
+    <StudentDataDialog />
+}
+else if (Auth.CanEdit)
 {
 <Button Variant="secondary" OnClick="() => _open = true">@Label</Button>
 

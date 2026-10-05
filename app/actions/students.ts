@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireSuper } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeFacultyCode } from "@/lib/faculties";
+import { normalizeBatchName, sameBatchName } from "@/lib/batch-name";
+import { getBatchSummary, type BatchSummary } from "@/lib/data/students-nav";
 
 export type StudentSearchResult = {
   id: string;
@@ -110,6 +112,53 @@ export async function updateStudent(formData: FormData) {
 
   revalidatePath("/students", "page");
   return { success: true };
+}
+
+export async function listBatches(): Promise<{ batches: BatchSummary[] } | { error: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+  const summary = await getBatchSummary(supabase);
+  if (summary.error) return { error: summary.error };
+  return { batches: summary.batches };
+}
+
+export async function renameBatch(
+  oldName: string,
+  newName: string
+): Promise<{ success: true; count: number } | { error: string }> {
+  const next = normalizeBatchName(newName);
+  if ("error" in next) return { error: next.error };
+
+  const gate = await requireSuper();
+  if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
+  const supabase = gate.supabase;
+
+  const summary = await getBatchSummary(supabase);
+  if (summary.error) return { error: summary.error };
+  const current = summary.batches.find((batch) => batch.intake === oldName);
+  if (!current) return { error: "That batch was not found." };
+  if (sameBatchName(current.intake, next.name)) return { error: "That is already the batch name." };
+  const clash = summary.batches.find((batch) => sameBatchName(batch.intake, next.name));
+  if (clash) return { error: `A batch named "${clash.intake}" already exists.` };
+
+  const { error } = await supabase.from("students").update({ intake: next.name }).eq("intake", current.intake);
+  if (error) return { error: error.message };
+
+  const [{ count: oldLeft }, { count: nowNew }] = await Promise.all([
+    supabase.from("students").select("id", { count: "exact", head: true }).eq("intake", current.intake),
+    supabase.from("students").select("id", { count: "exact", head: true }).eq("intake", next.name),
+  ]);
+  if ((oldLeft ?? 0) !== 0 || (nowNew ?? 0) !== current.total) {
+    return {
+      error: `Renamed students, but the check found ${nowNew ?? 0} in "${next.name}" and ${oldLeft ?? 0} still named "${current.intake}".`,
+    };
+  }
+
+  revalidatePath("/students", "layout");
+  return { success: true, count: current.total };
 }
 
 export async function deleteStudent(id: string) {

@@ -28,6 +28,46 @@ export type TeamCardListItem = {
   linkedCount: number;
 };
 
+function PhotoPreview({
+  photo,
+  onClose,
+}: {
+  photo: { id: string; file_name: string };
+  onClose: () => void;
+}) {
+  const src = `/api/team-cards/photos/${photo.id}`;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={photo.file_name}
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-2xl bg-white p-4 shadow-xl dark:bg-zinc-900"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="font-medium text-zinc-900 dark:text-white">{photo.file_name}</p>
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={photo.file_name} className="max-h-[70vh] w-full object-contain" />
+        <a
+          className="mt-3 inline-block text-sm text-sky-700 underline dark:text-sky-300"
+          href={src}
+          download={photo.file_name}
+        >
+          Download
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function matchesTeamCard(card: TeamCardListItem, query: string) {
   const text = query.trim().toLowerCase();
   if (!text) return true;
@@ -62,6 +102,7 @@ export function TeamCardsClient({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [queries, setQueries] = useState<Partial<Record<TeamCardSection, string>>>({});
+  const [photo, setPhoto] = useState<{ id: string; file_name: string } | null>(null);
 
   return (
     <section className="space-y-8">
@@ -121,18 +162,24 @@ export function TeamCardsClient({
                       <MemberTable members={card.team_card_members} />
                       {card.team_card_photos.length > 0 && (
                         <div className="flex flex-wrap gap-3">
-                          {card.team_card_photos.map((photo) => (
-                            <figure key={photo.id} className="w-28">
-                              <a href={`/api/team-cards/photos/${photo.id}`} target="_blank" rel="noreferrer">
-                                <img src={`/api/team-cards/photos/${photo.id}`} alt={photo.file_name} className="h-28 w-28 rounded-lg object-cover" />
-                              </a>
+                          {card.team_card_photos.map((item) => (
+                            <figure key={item.id} className="w-28">
+                              <button
+                                type="button"
+                                className="block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+                                aria-label={`View ${item.file_name}`}
+                                onClick={() => setPhoto(item)}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={`/api/team-cards/photos/${item.id}`} alt={item.file_name} className="h-28 w-28 rounded-lg object-cover" />
+                              </button>
                               {canEdit && (
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   className="mt-1 w-full px-2 py-1"
                                   disabled={pending}
-                                  onClick={() => removePhoto(photo.id)}
+                                  onClick={() => removePhoto(item.id)}
                                 >
                                   Remove
                                 </Button>
@@ -200,6 +247,7 @@ export function TeamCardsClient({
         onClose={() => { if (!pending) { setDeleting(null); setError(null); } }}
         onConfirm={() => { if (deleting) void removeCard(deleting.id); }}
       />
+      {photo && <PhotoPreview photo={photo} onClose={() => setPhoto(null)} />}
     </section>
   );
 

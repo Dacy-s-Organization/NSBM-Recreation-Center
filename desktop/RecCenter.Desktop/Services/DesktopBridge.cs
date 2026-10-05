@@ -25,6 +25,26 @@ public sealed class DesktopBridge
         });
     }
 
+    /// <returns>True when the user saved the file.</returns>
+    public bool SaveBinaryFile(string suggestedName, byte[] content)
+    {
+        return Application.Current.Dispatcher.Invoke(() =>
+        {
+            var extension = Path.GetExtension(suggestedName);
+            var dialog = new SaveFileDialog
+            {
+                FileName = suggestedName,
+                DefaultExt = extension,
+                Filter = string.IsNullOrEmpty(extension)
+                    ? "All files (*.*)|*.*"
+                    : $"{extension.TrimStart('.').ToUpperInvariant()} files (*{extension})|*{extension}|All files (*.*)|*.*",
+            };
+            if (dialog.ShowDialog(Application.Current.MainWindow) != true) return false;
+            File.WriteAllBytes(dialog.FileName, content);
+            return true;
+        });
+    }
+
     public bool CopyText(string text)
     {
         return Application.Current.Dispatcher.Invoke(() =>

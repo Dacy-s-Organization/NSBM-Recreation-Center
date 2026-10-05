@@ -26,7 +26,7 @@ public static class ImportConfig
     public static readonly IReadOnlyDictionary<ImportType, string> Descriptions = new Dictionary<ImportType, string>
     {
         [ImportType.Students] =
-            "Supports NSBM Foundation CSV (Serial No, Intake, Faculty, Student No / Student ID, …) or legacy columns. House is optional until assigned. Use Ruby, Citrine, Emerald, or Sapphire. Student No maps to student_id. Importing again fills only empty fields. Values already stored are kept.",
+            "Upload an Excel workbook (.xlsx) or a CSV file. Enter the batch name to use. A workbook is split by faculty: a faculty sheet wins, and blanks are filled from sheets such as All. House is optional until assigned. Use Ruby, Citrine, Emerald, or Sapphire. Importing again fills only empty fields. Values already stored are kept.",
         [ImportType.Records] =
             "Columns: student_id, track_name, value, year. Students must exist before importing records.",
         [ImportType.Inventory] =

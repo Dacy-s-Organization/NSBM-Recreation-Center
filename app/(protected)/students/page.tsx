@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { BatchCustomizeDialog } from "@/components/batch-customize-dialog";
 import { CsvImportDialog } from "@/components/csv-import-dialog";
 import { StudentsClient } from "@/components/students-client";
 import { getFacultyCards, getIntakeCards } from "@/lib/data/students-nav";
@@ -122,7 +123,12 @@ function StudentsPageHeader({
               : "Browse by faculty and batch, then manage student records."}
         </p>
       </div>
-      {canEdit ? <CsvImportDialog type="students" /> : null}
+      {canEdit ? (
+        <div className="flex flex-wrap gap-2">
+          <BatchCustomizeDialog faculty={faculty} intake={intake} />
+          <CsvImportDialog type="students" />
+        </div>
+      ) : null}
     </div>
   );
 }

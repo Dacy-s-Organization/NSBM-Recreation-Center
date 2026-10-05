@@ -52,6 +52,21 @@ public static partial class StudentCsv
         return "";
     }
 
+    /// <summary>True when the file itself has a name, before the email or student-id fallback.</summary>
+    public static bool HasExplicitName(IReadOnlyDictionary<string, string> raw)
+    {
+        foreach (var (key, value) in raw)
+        {
+            if (HeaderAliases.TryGetValue(key.Trim().ToLowerInvariant(), out var alias)
+                && alias == "full_name"
+                && !string.IsNullOrWhiteSpace(value))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static Dictionary<string, string> NormalizeRow(IReadOnlyDictionary<string, string> raw)
     {
         var output = new Dictionary<string, string>();

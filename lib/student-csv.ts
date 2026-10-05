@@ -64,6 +64,16 @@ export function buildStudentFullName(row: CanonicalStudentCsvRow): string {
   return "";
 }
 
+/** True when the file itself has a name, before the email or student-id fallback. */
+export function rowHasExplicitName(raw: Record<string, string>): boolean {
+  for (const [key, value] of Object.entries(raw)) {
+    if (HEADER_ALIASES[key.trim().toLowerCase()] === "full_name" && String(value ?? "").trim()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function normalizeStudentCsvRow(
   raw: Record<string, string>
 ): CanonicalStudentCsvRow {

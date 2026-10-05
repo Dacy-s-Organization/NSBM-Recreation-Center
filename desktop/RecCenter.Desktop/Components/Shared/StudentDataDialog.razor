@@ -1,0 +1,245 @@
+@using System.IO
+@inject ImportService Importer
+@inject DesktopBridge Bridge
+@inject AppState State
+@inject AuthService Auth
+
+@if (Auth.CanEdit)
+{
+    <Button Variant="secondary" OnClick="() => _open = true">Add data</Button>
+    @if (_open)
+    {
+        var named = BatchName.Normalize(_batch, out var batchError);
+        var preview = PreviewRows(named);
+        var validCount = preview.Count(row => row.Valid);
+        var template = ImportConfig.Templates[ImportType.Students];
+        var labels = ImportConfig.PreviewLabels(ImportType.Students);
+        <Modal PanelClass="max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h3 class="font-medium text-zinc-900 dark:text-white">Add data</h3>
+                    <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">@ImportConfig.Descriptions[ImportType.Students]</p>
+                </div>
+                <Button Variant="ghost" OnClick="Close" Disabled="_pending">Close</Button>
+            </div>
+
+            <div class="mt-4 max-w-sm">
+                <label for="student-batch-name" class="@Ui.Label">Batch name</label>
+                <input id="student-batch-name" class="@Ui.Input" maxlength="40" placeholder="25.1 MOHE"
+                       @bind="_batch" @bind:event="oninput" />
+                @if (batchError is not null && _batch.Trim().Length > 0)
+                {
+                    <p class="mt-1 text-xs text-red-600">@batchError</p>
+                }
+            </div>
+
+            <div class="mt-4 flex flex-wrap gap-2">
+                <Button Variant="secondary" OnClick="DownloadTemplate">Download template</Button>
+                <label class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:hover:bg-white/10">
+                    Upload file
+                    <InputFile @key="_inputKey" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden" OnChange="HandleFile" />
+                </label>
+                @if (_parsed is not null)
+                {
+                    <Button OnClick="HandleImport" Disabled="@(_pending || named is null || validCount == 0)">
+                        @(_pending ? "Importing…" : $"Import {validCount} row(s)")
+                    </Button>
+                }
+            </div>
+
+            @if (_parsed is not null)
+            {
+                var counts = StudentWorkbook.CountByFaculty(_parsed.Rows);
+                <div class="mt-4 space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
+                    <p>
+                        @(counts.Count == 0 ? "No students recognised." : string.Join(" · ", counts.Select(item => $"{item.Faculty} {item.Count}")))
+                        · @_parsed.Rows.Count total
+                    </p>
+                    @if (_parsed.SkippedSheets.Count > 0)
+                    {
+                        <p>Skipped sheets: @string.Join(", ", _parsed.SkippedSheets)</p>
+                    }
+                    @if (_parsed.Issues.Count > 0)
+                    {
+                        <pre class="whitespace-pre-wrap rounded-lg bg-red-50 p-3 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">@IssueText()</pre>
+                    }
+                </div>
+            }
+
+            @if (preview.Count > 0)
+            {
+                <div class="mt-4 overflow-x-auto rounded-lg border border-zinc-200 dark:border-white/10">
+                    <p class="border-b border-zinc-100 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+                        Preview: @validCount valid, @(preview.Count - validCount) invalid@(named is null ? "" : $" · batch {named}")
+                    </p>
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-zinc-100 dark:border-white/10">
+                                <th class="px-2 py-2">Line</th>
+                                @foreach (var label in labels)
+                                {
+                                    <th class="whitespace-nowrap px-2 py-2">@label</th>
+                                }
+                                <th class="px-2 py-2">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in preview.Take(20))
+                            {
+                                <tr @key="row.Line" class="@(row.Valid ? "" : "bg-red-50 dark:bg-red-950/50")">
+                                    <td class="px-2 py-1">@row.Line</td>
+                                    @foreach (var column in template.Columns)
+                                    {
+                                        <td class="px-2 py-1">@row.Get(column)</td>
+                                    }
+                                    <td class="px-2 py-1">
+                                        @if (row.Valid)
+                                        {
+                                            <span class="text-emerald-700 dark:text-emerald-400">OK</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-red-600 dark:text-red-300">@row.Error</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    @if (preview.Count > 20)
+                    {
+                        <p class="px-3 py-2 text-xs text-zinc-500 dark:text-zinc-400">Showing first 20 of @preview.Count rows</p>
+                    }
+                </div>
+            }
+
+            @if (_result is not null)
+            {
+                <pre class="mt-4 whitespace-pre-wrap rounded-lg bg-zinc-100 p-3 text-xs text-zinc-800 dark:bg-white/5 dark:text-zinc-300">@_result</pre>
+            }
+        </Modal>
+    }
+}
+
+@code {
+    private const long MaxBytes = 50L * 1024 * 1024;
+
+    private bool _open;
+    private bool _pending;
+    private string _batch = "";
+    private string? _result;
+    private int _inputKey;
+    private StudentWorkbook.ReadResult? _parsed;
+
+    private void Close()
+    {
+        if (_pending) return;
+        _open = false;
+        _parsed = null;
+        _result = null;
+    }
+
+    private void DownloadTemplate()
+    {
+        var template = ImportConfig.Templates[ImportType.Students];
+        Bridge.SaveTextFile(template.Filename, template.Content + "\n");
+    }
+
+    private List<ImportPreviewRow> PreviewRows(string? batch)
+    {
+        if (_parsed is null) return new();
+        return _parsed.Rows.Select((row, index) =>
+        {
+            var values = new Dictionary<string, string>(row);
+            if (!string.IsNullOrEmpty(batch)) values["intake"] = batch;
+            return ImportConfig.ValidateRow(ImportType.Students, values, index + 2);
+        }).ToList();
+    }
+
+    private string IssueText()
+    {
+        if (_parsed is null) return "";
+        var lines = _parsed.Issues.Take(10).Select(issue => $"{issue.Sheet} row {issue.Line}: {issue.Message}");
+        var text = string.Join("\n", lines);
+        if (_parsed.Issues.Count > 10) text += $"\n… and {_parsed.Issues.Count - 10} more";
+        return text;
+    }
+
+    private async Task HandleFile(InputFileChangeEventArgs e)
+    {
+        _result = null;
+        try
+        {
+            await using var stream = e.File.OpenReadStream(MaxBytes);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            _parsed = StudentWorkbook.Read(e.File.Name, memory.ToArray());
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException)
+        {
+            _parsed = null;
+            _result = ex.Message;
+        }
+        _inputKey++;
+    }
+
+    private async Task HandleImport()
+    {
+        var batch = BatchName.Normalize(_batch, out var error);
+        if (batch is null)
+        {
+            _result = error;
+            return;
+        }
+        var valid = PreviewRows(batch).Where(row => row.Valid).ToList();
+        if (valid.Count == 0)
+        {
+            _result = "No valid rows to import.";
+            return;
+        }
+
+        _pending = true;
+        StateHasChanged();
+        try
+        {
+            var importResult = await Importer.ImportStudentsAsync(valid, batch);
+            _result = FormatResult(importResult);
+            _parsed = null;
+            if (importResult.Success > 0) await State.RequestRefreshAsync();
+        }
+        catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)
+        {
+            _result = ex.Message;
+        }
+        finally
+        {
+            _pending = false;
+        }
+    }
+
+    private static string FormatResult(ImportResult result)
+    {
+        var parts = new List<string>
+        {
+            $"Processed: {result.Success}",
+            $"New: {result.Inserted}",
+            $"Filled: {result.Filled ?? 0}",
+            $"Already complete: {result.Unchanged ?? 0}",
+            $"Kept existing: {result.Kept ?? 0}",
+        };
+        if (result.Skipped > 0) parts.Add($"Skipped: {result.Skipped}");
+        if (result.Notices.Count > 0)
+        {
+            var notes = "Notes:\n" + string.Join("\n", result.Notices.Take(10));
+            if (result.Notices.Count > 10) notes += $"\n… and {result.Notices.Count - 10} more";
+            parts.Add(notes);
+        }
+        if (result.Errors.Count > 0)
+        {
+            var errors = "Errors:\n" + string.Join("\n", result.Errors.Take(10));
+            if (result.Errors.Count > 10) errors += $"\n… and {result.Errors.Count - 10} more";
+            parts.Add(errors);
+        }
+        return string.Join("\n", parts);
+    }
+}

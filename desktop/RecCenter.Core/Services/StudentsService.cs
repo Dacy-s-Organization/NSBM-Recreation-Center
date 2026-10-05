@@ -5,6 +5,14 @@ using RecCenter.Core.Supabase;
 
 namespace RecCenter.Core.Services;
 
+internal sealed class IntakeFacultyRow
+{
+    public string? Faculty { get; set; }
+    public string? Intake { get; set; }
+}
+
+internal sealed record IntakeRename(string Intake);
+
 internal sealed record StudentPayload(
     string? StudentId,
     string FullName,
@@ -152,6 +160,81 @@ public sealed class StudentsService
         catch (PostgrestException ex)
         {
             return ActionResult.Fail(ex.Code == "23505" ? "A student with this ID already exists." : ex.Message);
+        }
+    }
+
+    public async Task<List<BatchSummary>> GetBatchSummaryAsync()
+    {
+        var rows = await _db.GetAllPagesAsync<IntakeFacultyRow>(() =>
+            PostgrestClient.From("students").Select("faculty, intake").Order("id"));
+        var byIntake = new Dictionary<string, Dictionary<string, int>>();
+        foreach (var row in rows)
+        {
+            var intake = row.Intake ?? "";
+            if (intake.Trim().Length == 0) continue;
+            var faculty = Faculties.NormalizeCode(row.Faculty);
+            if (faculty.Length == 0) faculty = "—";
+            if (!byIntake.TryGetValue(intake, out var faculties))
+            {
+                faculties = new Dictionary<string, int>();
+                byIntake[intake] = faculties;
+            }
+            faculties[faculty] = faculties.GetValueOrDefault(faculty) + 1;
+        }
+
+        var order = Faculties.All.Select(faculty => faculty.Code).ToList();
+        return byIntake
+            .Select(pair =>
+            {
+                var faculties = pair.Value
+                    .OrderBy(item =>
+                    {
+                        var index = order.IndexOf(item.Key);
+                        return index < 0 ? 99 : index;
+                    })
+                    .Select(item => new BatchFacultyCount(item.Key, item.Value))
+                    .ToList();
+                return new BatchSummary(pair.Key, faculties.Sum(item => item.Count), faculties);
+            })
+            .OrderBy(batch => batch.Intake, Comparer<string>.Create((a, b) => string.Compare(b, a, CultureInfo.CurrentCulture, CompareOptions.None)))
+            .ToList();
+    }
+
+    public async Task<ActionResult> RenameBatchAsync(string oldName, string newName)
+    {
+        var next = BatchName.Normalize(newName, out var error);
+        if (next is null) return ActionResult.Fail(error ?? "Enter a batch name.");
+
+        List<BatchSummary> batches;
+        try
+        {
+            batches = await GetBatchSummaryAsync();
+        }
+        catch (PostgrestException ex)
+        {
+            return ActionResult.Fail(ex.Message);
+        }
+
+        var current = batches.FirstOrDefault(batch => batch.Intake == oldName);
+        if (current is null) return ActionResult.Fail("That batch was not found.");
+        if (BatchName.Same(current.Intake, next)) return ActionResult.Fail("That is already the batch name.");
+        var clash = batches.FirstOrDefault(batch => BatchName.Same(batch.Intake, next));
+        if (clash is not null) return ActionResult.Fail($"A batch named \"{clash.Intake}\" already exists.");
+
+        try
+        {
+            await _db.UpdateAsync(PostgrestClient.From("students").Eq("intake", current.Intake), new IntakeRename(next));
+            var oldLeft = await _db.CountAsync(PostgrestClient.From("students").Select("id").Eq("intake", current.Intake));
+            var nowNew = await _db.CountAsync(PostgrestClient.From("students").Select("id").Eq("intake", next));
+            if (oldLeft != 0 || nowNew != current.Total)
+            {
+                return ActionResult.Fail($"Renamed students, but the check found {nowNew} in \"{next}\" and {oldLeft} still named \"{current.Intake}\".");
+            }
+            return ActionResult.Ok;
+        }
+        catch (PostgrestException ex)
+        {
+            return ActionResult.Fail(ex.Message);
         }
     }
 

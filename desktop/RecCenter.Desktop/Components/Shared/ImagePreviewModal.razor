@@ -1,0 +1,21 @@
+@inject DesktopBridge Bridge
+
+<Modal TrapKeyboard="true" CloseOnBackdrop="true" OnClose="OnClose" PanelClass="max-w-3xl">
+    <div class="mb-3 flex items-center justify-between gap-3">
+        <p class="font-medium text-zinc-900 dark:text-white">@FileName</p>
+        <Button Variant="secondary" OnClick="OnClose">Close</Button>
+    </div>
+    <img src="@DataUrl" alt="@FileName" class="max-h-[70vh] w-full object-contain" />
+    <button type="button" class="mt-3 inline-block text-sm text-sky-700 underline dark:text-sky-300" @onclick="Download">
+        Download
+    </button>
+</Modal>
+
+@code {
+    [Parameter, EditorRequired] public string FileName { get; set; } = "";
+    [Parameter, EditorRequired] public string DataUrl { get; set; } = "";
+    [Parameter, EditorRequired] public byte[] Bytes { get; set; } = Array.Empty<byte>();
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private void Download() => Bridge.SaveBinaryFile(FileName, Bytes);
+}

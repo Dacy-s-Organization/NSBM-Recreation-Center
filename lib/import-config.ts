@@ -18,7 +18,7 @@ export type ImportPreviewRow = Record<string, string | number | boolean> & {
 
 export const IMPORT_DESCRIPTIONS: Record<ImportType, string> = {
   students:
-    "Supports NSBM Foundation CSV (Serial No, Intake, Faculty, Student No / Student ID, …) or legacy columns. House is optional until assigned. Use Ruby, Citrine, Emerald, or Sapphire. Student No maps to student_id. Importing again fills only empty fields. Values already stored are kept.",
+    "Upload an Excel workbook (.xlsx) or a CSV file. Enter the batch name to use. A workbook is split by faculty: a faculty sheet wins, and blanks are filled from sheets such as All. House is optional until assigned. Use Ruby, Citrine, Emerald, or Sapphire. Importing again fills only empty fields. Values already stored are kept.",
   records:
     "Columns: student_id, track_name, value, year. Students must exist before importing records.",
   inventory:

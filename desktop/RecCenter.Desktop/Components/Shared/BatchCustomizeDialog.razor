@@ -1,0 +1,143 @@
+@inject StudentsService StudentsData
+@inject NavigationManager Nav
+@inject AppState State
+@inject AuthService Auth
+
+@if (Auth.CanEdit)
+{
+    <Button Variant="secondary" OnClick="Open">Customize</Button>
+    @if (_open)
+    {
+        <Modal TrapKeyboard="true" CloseOnBackdrop="@(!_pending)" OnClose="Close" PanelClass="w-full max-w-lg p-6">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <h3 class="font-medium text-zinc-900 dark:text-white">Customize batch name</h3>
+                    <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Renames the batch in every faculty. Students, records, and achievements stay attached.</p>
+                </div>
+                <Button Variant="ghost" OnClick="Close" Disabled="_pending">Close</Button>
+            </div>
+            <div class="mt-4 space-y-4">
+                <div>
+                    <label for="customize-batch" class="@Ui.Label">Batch</label>
+                    <select id="customize-batch" class="@Ui.Select" @bind="_selected" disabled="@(_pending || _batches.Count == 0)">
+                        @if (_batches.Count == 0)
+                        {
+                            <option value="">No batches</option>
+                        }
+                        @foreach (var batch in _batches)
+                        {
+                            <option value="@batch.Intake">@batch.Intake (@batch.Total)</option>
+                        }
+                    </select>
+                </div>
+                @if (Current is not null)
+                {
+                    <p class="text-sm text-zinc-600 dark:text-zinc-300">
+                        Renames @Current.Total student@(Current.Total == 1 ? "" : "s"): @string.Join(", ", Current.Faculties.Select(item => $"{item.Faculty} {item.Count}")).
+                    </p>
+                }
+                <div>
+                    <label for="customize-batch-name" class="@Ui.Label">New name</label>
+                    <input id="customize-batch-name" class="@Ui.Input" maxlength="40" placeholder="25.1 MOHE" @bind="_nextName" @bind:event="oninput" />
+                </div>
+                @if (_error is not null)
+                {
+                    <p class="text-sm text-red-600 dark:text-red-300">@_error</p>
+                }
+                <div class="flex justify-end gap-2">
+                    <Button Variant="secondary" OnClick="Close" Disabled="_pending">Cancel</Button>
+                    <Button OnClick="Save" Disabled="@(_pending || Current is null || !CanRename)">
+                        @(_pending ? "Saving…" : "Rename batch")
+                    </Button>
+                </div>
+            </div>
+        </Modal>
+    }
+}
+
+@code {
+    [Parameter] public string Faculty { get; set; } = "";
+    [Parameter] public string CurrentIntake { get; set; } = "";
+
+    private bool _open;
+    private bool _pending;
+    private string? _error;
+    private string _selected = "";
+    private string _nextName = "";
+    private List<BatchSummary> _batches = new();
+
+    private BatchSummary? Current => _batches.FirstOrDefault(batch => batch.Intake == _selected);
+    private bool CanRename => BatchName.Normalize(_nextName, out _) is not null;
+
+    private void Close()
+    {
+        if (_pending) return;
+        _open = false;
+        _error = null;
+    }
+
+    private async Task Open()
+    {
+        _error = null;
+        _nextName = "";
+        _open = true;
+        _pending = true;
+        try
+        {
+            _batches = await StudentsData.GetBatchSummaryAsync();
+            var match = _batches.FirstOrDefault(batch => batch.Intake == CurrentIntake);
+            _selected = match?.Intake ?? _batches.FirstOrDefault()?.Intake ?? "";
+        }
+        catch (Exception ex) when (ex is PostgrestException or HttpRequestException or TaskCanceledException)
+        {
+            _batches = new();
+            _error = ex.Message;
+        }
+        finally
+        {
+            _pending = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        if (Current is null)
+        {
+            _error = "That batch was not found.";
+            return;
+        }
+        var next = BatchName.Normalize(_nextName, out var error);
+        if (next is null)
+        {
+            _error = error;
+            return;
+        }
+        if (BatchName.Same(Current.Intake, next))
+        {
+            _error = "That is already the batch name.";
+            return;
+        }
+        var clash = _batches.FirstOrDefault(batch => BatchName.Same(batch.Intake, next));
+        if (clash is not null)
+        {
+            _error = $"A batch named \"{clash.Intake}\" already exists.";
+            return;
+        }
+        var oldName = Current.Intake;
+        _pending = true;
+        _error = null;
+        var result = await StudentsData.RenameBatchAsync(oldName, next);
+        _pending = false;
+        if (!result.Success)
+        {
+            _error = result.Error;
+            return;
+        }
+        _open = false;
+        if (Faculty.Length > 0 && CurrentIntake == oldName)
+        {
+            Nav.NavigateTo($"/students?faculty={Uri.EscapeDataString(Faculty)}&intake={Uri.EscapeDataString(next)}");
+        }
+        await State.RequestRefreshAsync();
+    }
+}
