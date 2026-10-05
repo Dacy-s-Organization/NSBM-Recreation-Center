@@ -28,6 +28,18 @@ export type TeamCardListItem = {
   linkedCount: number;
 };
 
+function matchesTeamCard(card: TeamCardListItem, query: string) {
+  const text = query.trim().toLowerCase();
+  if (!text) return true;
+  if (card.event_name.toLowerCase().includes(text)) return true;
+  return card.team_card_members.some(
+    (member) =>
+      member.student_id.toLowerCase().includes(text) ||
+      member.full_name.toLowerCase().includes(text) ||
+      (member.jersey_no?.toLowerCase().includes(text) ?? false)
+  );
+}
+
 const SECTIONS: { id: TeamCardSection; title: string }[] = [
   { id: "sports-fiesta", title: "Sport Fiesta team cards" },
   { id: "inter-university", title: "Inter University Championships team cards" },
@@ -49,6 +61,7 @@ export function TeamCardsClient({
   const [deleting, setDeleting] = useState<TeamCardListItem | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queries, setQueries] = useState<Partial<Record<TeamCardSection, string>>>({});
 
   return (
     <section className="space-y-8">
@@ -63,13 +76,28 @@ export function TeamCardsClient({
       </div>
 
       {SECTIONS.map((section) => {
-        const rows = cards.filter((card) => card.section === section.id);
+        const sectionCards = cards.filter((card) => card.section === section.id);
+        const query = queries[section.id] ?? "";
+        const rows = sectionCards.filter((card) => matchesTeamCard(card, query));
         return (
           <div key={section.id} className="space-y-3">
             <h3 className="text-lg font-medium text-zinc-900 dark:text-white">{section.title}</h3>
-            {rows.length === 0 ? (
+            <div className="min-w-[200px] max-w-md flex-1">
+              <Label htmlFor={`team-card-search-${section.id}`}>Search this section</Label>
+              <Input
+                id={`team-card-search-${section.id}`}
+                value={query}
+                placeholder="Event, student ID, name, jersey…"
+                onChange={(event) => setQueries((current) => ({ ...current, [section.id]: event.target.value }))}
+              />
+            </div>
+            {sectionCards.length === 0 ? (
               <Card>
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">No team cards in this section yet.</p>
+              </Card>
+            ) : rows.length === 0 ? (
+              <Card>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">No team cards match your search.</p>
               </Card>
             ) : (
               rows.map((card) => (

@@ -25,12 +25,23 @@
 
     @foreach (var section in Sections)
     {
-        var rows = (_cards ?? new()).Where(card => card.Section == section.Id).ToList();
+        var sectionId = section.Id;
+        var sectionCards = (_cards ?? new()).Where(card => card.Section == sectionId).ToList();
+        var rows = sectionCards.Where(card => Matches(card, _search[sectionId])).ToList();
         <div class="space-y-3">
             <h3 class="text-lg font-medium text-zinc-900 dark:text-white">@section.Title</h3>
-            @if (rows.Count == 0)
+            <div class="min-w-[200px] max-w-md flex-1">
+                <label for="@($"team-card-search-{sectionId}")" class="@Ui.Label">Search this section</label>
+                <input id="@($"team-card-search-{sectionId}")" class="@Ui.Input" placeholder="Event, student ID, name, jersey…"
+                       @bind="_search[sectionId]" @bind:event="oninput" />
+            </div>
+            @if (sectionCards.Count == 0)
             {
                 <Card><p class="text-sm text-zinc-500 dark:text-zinc-400">No team cards in this section yet.</p></Card>
+            }
+            else if (rows.Count == 0)
+            {
+                <Card><p class="text-sm text-zinc-500 dark:text-zinc-400">No team cards match your search.</p></Card>
             }
             else
             {
@@ -198,6 +209,22 @@
         ("sports-fiesta", "Sport Fiesta team cards"),
         ("inter-university", "Inter University Championships team cards"),
     };
+    private readonly Dictionary<string, string> _search = new()
+    {
+        ["sports-fiesta"] = "",
+        ["inter-university"] = "",
+    };
+
+    private static bool Matches(TeamCardRecord card, string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return true;
+        var text = query.Trim();
+        if (card.EventName.Contains(text, StringComparison.OrdinalIgnoreCase)) return true;
+        return card.TeamCardMembers.Any(member =>
+            member.StudentId.Contains(text, StringComparison.OrdinalIgnoreCase)
+            || member.FullName.Contains(text, StringComparison.OrdinalIgnoreCase)
+            || (member.JerseyNo?.Contains(text, StringComparison.OrdinalIgnoreCase) ?? false));
+    }
 
     private List<TeamCardRecord>? _cards;
     private Dictionary<string, int> _links = new();
