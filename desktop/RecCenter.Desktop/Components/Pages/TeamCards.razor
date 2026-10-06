@@ -23,13 +23,25 @@
         <p class="text-sm text-red-600 dark:text-red-400">@_loadError</p>
     }
 
-    @foreach (var section in Sections)
+    <nav aria-label="Team card sections" class="flex w-fit flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5">
+        @foreach (var section in Sections)
+        {
+            var id = section.Id;
+            var active = id == _activeSection;
+            <button type="button" aria-pressed="@(active ? "true" : "false")" @onclick="() => SelectSection(id)"
+                    class="@Ui.Cn("rounded-full px-4 py-1.5 text-sm font-medium transition",
+                        active ? "bg-emerald-500 text-zinc-950 shadow-sm dark:bg-emerald-400" : "text-zinc-600 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white")">
+                @section.Title
+            </button>
+        }
+    </nav>
+
+    @foreach (var section in Sections.Where(s => s.Id == _activeSection))
     {
         var sectionId = section.Id;
         var sectionCards = (_cards ?? new()).Where(card => card.Section == sectionId).ToList();
         var rows = sectionCards.Where(card => Matches(card, _search[sectionId])).ToList();
         <div class="space-y-3">
-            <h3 class="text-lg font-medium text-zinc-900 dark:text-white">@section.Title</h3>
             <div class="min-w-[200px] max-w-md flex-1">
                 <label for="@($"team-card-search-{sectionId}")" class="@Ui.Label">Search this section</label>
                 <input id="@($"team-card-search-{sectionId}")" class="@Ui.Input" placeholder="Event, student ID, name, jersey…"
@@ -255,11 +267,29 @@
     [SupplyParameterFromQuery(Name = "card")]
     public string? CardId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "section")]
+    public string? SectionQuery { get; set; }
+
+    private string _activeSection = "sports-fiesta";
+
     protected override async Task OnInitializedAsync()
     {
         State.RefreshRequested += ReloadAsync;
+        if (Sections.Any(s => s.Id == SectionQuery)) _activeSection = SectionQuery!;
         await LoadAsync();
-        if (!string.IsNullOrWhiteSpace(CardId)) await Toggle(CardId);
+        if (!string.IsNullOrWhiteSpace(CardId))
+        {
+            var linked = _cards?.FirstOrDefault(card => card.Id == CardId);
+            if (linked is not null && Sections.Any(s => s.Id == linked.Section)) _activeSection = linked.Section;
+            await Toggle(CardId);
+        }
+    }
+
+    private void SelectSection(string id)
+    {
+        if (id == _activeSection) return;
+        _activeSection = id;
+        Nav.NavigateTo($"/team-cards?section={id}", replace: true);
     }
 
     private async Task LoadAsync()
@@ -440,6 +470,7 @@
             _error = saved.Error ?? "The team card could not be saved.";
             return;
         }
+        SelectSection(_section);
         foreach (var photo in _newPhotos)
         {
             var result = await CardsData.AddPhotoAsync(saved.Id, photo.Name, photo.ContentType, photo.Bytes);

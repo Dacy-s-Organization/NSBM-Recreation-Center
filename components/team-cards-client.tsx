@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { cn } from "@/lib/format";
 import { PHOTO_ACCEPT, PHOTO_MAX_BYTES, PHOTO_MAX_COUNT, TEAM_CARD_ACCEPT, type TeamCardExtract, type TeamCardRow, type TeamCardSection } from "@/lib/team-cards/model";
 
 export type TeamCardListItem = {
@@ -89,13 +90,25 @@ export function TeamCardsClient({
   cards,
   canEdit,
   initialCardId,
+  initialSection,
 }: {
   cards: TeamCardListItem[];
   canEdit: boolean;
   initialCardId: string | null;
+  initialSection: string | null;
 }) {
   const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(initialCardId);
+  const [activeSection, setActiveSection] = useState<TeamCardSection>(() => {
+    const linked = initialCardId ? cards.find((card) => card.id === initialCardId) : undefined;
+    if (linked) return linked.section;
+    return SECTIONS.find((section) => section.id === initialSection)?.id ?? "sports-fiesta";
+  });
+
+  function selectSection(next: TeamCardSection) {
+    setActiveSection(next);
+    router.replace(`/team-cards?section=${next}`, { scroll: false });
+  }
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<TeamCardListItem | null>(null);
   const [deleting, setDeleting] = useState<TeamCardListItem | null>(null);
@@ -116,13 +129,37 @@ export function TeamCardsClient({
         {canEdit && <Button onClick={() => { setError(null); setAdding(true); }}>Add Data</Button>}
       </div>
 
-      {SECTIONS.map((section) => {
+      <nav
+        aria-label="Team card sections"
+        className="flex w-fit flex-wrap items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1 dark:border-white/10 dark:bg-white/5"
+      >
+        {SECTIONS.map((section) => {
+          const active = section.id === activeSection;
+          return (
+            <button
+              key={section.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => selectSection(section.id)}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-sm font-medium transition",
+                active
+                  ? "bg-emerald-500 text-zinc-950 shadow-sm dark:bg-emerald-400"
+                  : "text-zinc-600 hover:bg-white hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white"
+              )}
+            >
+              {section.title}
+            </button>
+          );
+        })}
+      </nav>
+
+      {SECTIONS.filter((section) => section.id === activeSection).map((section) => {
         const sectionCards = cards.filter((card) => card.section === section.id);
         const query = queries[section.id] ?? "";
         const rows = sectionCards.filter((card) => matchesTeamCard(card, query));
         return (
           <div key={section.id} className="space-y-3">
-            <h3 className="text-lg font-medium text-zinc-900 dark:text-white">{section.title}</h3>
             <div className="min-w-[200px] max-w-md flex-1">
               <Label htmlFor={`team-card-search-${section.id}`}>Search this section</Label>
               <Input
@@ -272,6 +309,7 @@ export function TeamCardsClient({
       return;
     }
     const cardId = saved.id;
+    if (payload.section !== activeSection) selectSection(payload.section);
     for (const photo of payload.photos) {
       const photoError = await uploadPhoto(cardId, photo, false);
       if (photoError) {

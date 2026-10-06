@@ -5,7 +5,7 @@ import { TeamCardsClient, type TeamCardListItem } from "@/components/team-cards-
 export default async function TeamCardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ card?: string }>;
+  searchParams: Promise<{ card?: string; section?: string }>;
 }) {
   const query = await searchParams;
   const supabase = await createClient();
@@ -42,6 +42,7 @@ export default async function TeamCardsPage({
       cards={items}
       canEdit={canEdit}
       initialCardId={query.card ?? null}
+      initialSection={query.section ?? null}
     />
   );
 }
