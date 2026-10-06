@@ -24,7 +24,26 @@ else
 {
     <Router AppAssembly="typeof(Main).Assembly">
         <Found Context="routeData">
-            <RouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)" />
+            <ErrorBoundary @ref="_errors">
+                <ChildContent>
+                    <RouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)" />
+                </ChildContent>
+                <ErrorContent Context="exception">
+                    <div class="mx-auto max-w-[1600px] px-4 py-8 sm:px-6">
+                        @if (ConnectionState.IsConnectionFailure(exception))
+                        {
+                            <OfflineNotice Message="@ConnectionState.SessionMessage" OnRetry="Recover" />
+                        }
+                        else
+                        {
+                            <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-white/10 dark:bg-[var(--app-surface)]">
+                                <p class="text-sm text-zinc-700 dark:text-zinc-300">This page could not be loaded.</p>
+                                <Button Variant="secondary" Class="mt-4" OnClick="Recover">Retry</Button>
+                            </div>
+                        }
+                    </div>
+                </ErrorContent>
+            </ErrorBoundary>
         </Found>
         <NotFound>
             <LayoutView Layout="typeof(MainLayout)">
@@ -36,6 +55,9 @@ else
 
 @code {
     private bool _ready;
+    private ErrorBoundary? _errors;
+
+    private void Recover() => _errors?.Recover();
 
     protected override async Task OnInitializedAsync()
     {

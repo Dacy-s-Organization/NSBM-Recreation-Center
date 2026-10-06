@@ -1,13 +1,22 @@
 @inherits LayoutComponentBase
 @implements IDisposable
+@using System.Net.NetworkInformation
 @inject AuthService Auth
+@inject ConnectionState Connection
+@inject AppState State
 @inject NavigationManager Nav
 
 @if (Auth.IsSignedIn)
 {
     <div class="min-h-full">
         <AppNav />
-        <main class="mx-auto max-w-[1600px] px-4 py-8 sm:px-6">@Body</main>
+        <main class="mx-auto max-w-[1600px] px-4 py-8 sm:px-6">
+            @if (Connection.Offline)
+            {
+                <OfflineNotice Message="@ConnectionState.SessionMessage" OnRetry="Retry" />
+            }
+            @Body
+        </main>
     </div>
 }
 
@@ -15,6 +24,9 @@
     protected override void OnInitialized()
     {
         Auth.SessionChanged += OnSessionChanged;
+        Connection.Changed += OnConnectionChanged;
+        NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailability;
+        if (!NetworkInterface.GetIsNetworkAvailable()) Connection.ReportOffline();
         if (!Auth.IsSignedIn) Nav.NavigateTo("/login", replace: true);
     }
 
@@ -27,5 +39,24 @@
         });
     }
 
-    public void Dispose() => Auth.SessionChanged -= OnSessionChanged;
+    private void OnConnectionChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async void OnNetworkAvailability(object? sender, NetworkAvailabilityEventArgs e)
+    {
+        await InvokeAsync(async () =>
+        {
+            if (!e.IsAvailable) Connection.ReportOffline();
+            else await State.RequestRefreshAsync();
+            StateHasChanged();
+        });
+    }
+
+    private Task Retry() => State.RequestRefreshAsync();
+
+    public void Dispose()
+    {
+        Auth.SessionChanged -= OnSessionChanged;
+        Connection.Changed -= OnConnectionChanged;
+        NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailability;
+    }
 }

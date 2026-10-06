@@ -1,6 +1,9 @@
 @page "/login"
 @layout AuthLayout
+@using System.Net.NetworkInformation
+@implements IDisposable
 @inject AuthService Auth
+@inject ConnectionState Connection
 @inject NavigationManager Nav
 
 @if (_celebrating)
@@ -53,7 +56,11 @@ else
                         <label for="password" class="@Ui.Label">Password</label>
                         <input id="password" type="password" autocomplete="current-password" required class="@Ui.Input" @bind="_password" @bind:event="oninput" />
                     </div>
-                    @if (_error is not null)
+                    @if (ShowOffline)
+                    {
+                        <OfflineNotice Message="@ConnectionState.SignInMessage" OnRetry="HandleSubmit" />
+                    }
+                    else if (_error is not null)
                     {
                         <p class="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">@_error</p>
                     }
@@ -72,10 +79,27 @@ else
     private string? _error;
     private bool _loading;
     private bool _celebrating;
+    private bool ShowOffline => Connection.Offline || _error == ConnectionState.SignInMessage;
 
     protected override void OnInitialized()
     {
+        Connection.Changed += OnConnectionChanged;
+        NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailability;
+        if (!NetworkInterface.GetIsNetworkAvailable()) Connection.ReportOffline();
         if (Auth.IsSignedIn) Nav.NavigateTo("/", replace: true);
+    }
+
+    private void OnConnectionChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void OnNetworkAvailability(object? sender, NetworkAvailabilityEventArgs e)
+    {
+        if (!e.IsAvailable) Connection.ReportOffline();
+    }
+
+    public void Dispose()
+    {
+        Connection.Changed -= OnConnectionChanged;
+        NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailability;
     }
 
     private async Task HandleSubmit()

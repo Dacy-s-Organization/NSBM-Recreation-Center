@@ -11,14 +11,16 @@ public sealed class AuthService
     private readonly HttpClient _http;
     private readonly SupabaseOptions _options;
     private readonly ISessionStore _store;
+    private readonly ConnectionState _connection;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private SupabaseSession? _session;
 
-    public AuthService(HttpClient http, SupabaseOptions options, ISessionStore store)
+    public AuthService(HttpClient http, SupabaseOptions options, ISessionStore store, ConnectionState connection)
     {
         _http = http;
         _options = options;
         _store = store;
+        _connection = connection;
     }
 
     public event Action? SessionChanged;
@@ -53,15 +55,17 @@ public sealed class AuthService
             request.Headers.Add("apikey", _options.PublishableKey);
 
             using var response = await _http.SendAsync(request);
+            _connection.ReportOnline();
             var body = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode) return ReadAuthError(body);
 
             SetSession(ParseSession(body));
             return null;
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            return ex.Message;
+            _connection.ReportOffline();
+            return ConnectionState.SignInMessage;
         }
     }
 
@@ -80,6 +84,10 @@ public sealed class AuthService
             request.Headers.Add("apikey", _options.PublishableKey);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
             using var _ = await _http.SendAsync(request);
+        }
+        catch (Exception ex) when (ConnectionState.IsConnectionFailure(ex))
+        {
+            _connection.ReportOffline();
         }
         catch
         {
@@ -106,6 +114,7 @@ public sealed class AuthService
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             using var response = await _http.SendAsync(request);
+            _connection.ReportOnline();
             var body = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode) return ReadAuthError(body);
 
@@ -114,9 +123,10 @@ public sealed class AuthService
                 return err.GetString();
             return null;
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            return ex.Message;
+            _connection.ReportOffline();
+            return ConnectionState.SessionMessage;
         }
     }
 
@@ -148,6 +158,7 @@ public sealed class AuthService
             request.Headers.Add("apikey", _options.PublishableKey);
 
             using var response = await _http.SendAsync(request);
+            _connection.ReportOnline();
             var body = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
             {
@@ -161,10 +172,12 @@ public sealed class AuthService
             }
 
             SetSession(ParseSession(body));
+            _connection.ReportOnline();
             return true;
         }
-        catch (HttpRequestException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
+            _connection.ReportOffline();
             return _session is not null;
         }
         finally

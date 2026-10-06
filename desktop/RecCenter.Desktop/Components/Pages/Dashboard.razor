@@ -137,7 +137,7 @@ else
         }
         catch (PostgrestException ex)
         {
-            _error = ex.Message;
+            _error = ex.Message == ConnectionState.SessionMessage ? null : ex.Message;
         }
         await InvokeAsync(StateHasChanged);
     }

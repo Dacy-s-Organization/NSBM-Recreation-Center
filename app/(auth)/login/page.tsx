@@ -1,32 +1,56 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { LoginSportsTransition } from "@/components/login-sports-transition";
+import { OfflineNotice } from "@/components/offline-notice";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isNetworkError } from "@/lib/network-error";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [browserOffline, setBrowserOffline] = useState(false);
   const [loading, setLoading] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
+  const offline = browserOffline || isNetworkError(error);
+
+  useEffect(() => {
+    const markOffline = () => setBrowserOffline(true);
+    const markOnline = () => {
+      setBrowserOffline(false);
+      setError((current) => (isNetworkError(current) ? null : current));
+    };
+    setBrowserOffline(navigator.onLine === false);
+    window.addEventListener("offline", markOffline);
+    window.addEventListener("online", markOnline);
+    return () => {
+      window.removeEventListener("offline", markOffline);
+      window.removeEventListener("online", markOnline);
+    };
+  }, []);
 
   const finishLogin = useCallback(() => {
     router.push("/");
     router.refresh();
   }, [router]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function signIn() {
     setLoading(true);
     setError(null);
+
+    if (!navigator.onLine) {
+      setBrowserOffline(true);
+      setLoading(false);
+      return;
+    }
 
     const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -41,6 +65,11 @@ export default function LoginPage() {
     }
 
     setCelebrating(true);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await signIn();
   }
 
   if (celebrating) {
@@ -129,11 +158,13 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            {error && (
+            {offline ? (
+              <OfflineNotice message="Connect to the internet to sign in." onRetry={() => void signIn()} />
+            ) : error ? (
               <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">
                 {error}
               </p>
-            )}
+            ) : null}
             <Button type="submit" className="w-full rounded-full py-2.5" disabled={loading}>
               {loading ? "Signing in…" : "Sign in"}
             </Button>

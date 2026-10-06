@@ -8,7 +8,8 @@ namespace RecCenter.Core.Supabase;
 
 public sealed class PostgrestException : Exception
 {
-    public PostgrestException(string message, string? code) : base(message) => Code = code;
+    public PostgrestException(string message, string? code, Exception? innerException = null)
+        : base(message, innerException) => Code = code;
     public string? Code { get; }
 }
 
@@ -118,12 +119,14 @@ public sealed class PostgrestClient
     private readonly HttpClient _http;
     private readonly SupabaseOptions _options;
     private readonly AuthService _auth;
+    private readonly ConnectionState _connection;
 
-    public PostgrestClient(HttpClient http, SupabaseOptions options, AuthService auth)
+    public PostgrestClient(HttpClient http, SupabaseOptions options, AuthService auth, ConnectionState connection)
     {
         _http = http;
         _options = options;
         _auth = auth;
+        _connection = connection;
     }
 
     public static PgQuery From(string table) => new(table);
@@ -158,15 +161,29 @@ public sealed class PostgrestClient
     {
         var token = await RequireTokenAsync();
         using var request = BuildRequest(HttpMethod.Head, query.Table + query.BuildQueryString(), token, null, "count=exact");
-        using var response = await _http.SendAsync(request);
-        if (!response.IsSuccessStatusCode) return 0;
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.SendAsync(request);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _connection.ReportOffline();
+            throw new PostgrestException(ConnectionState.SessionMessage, null, ex);
+        }
 
-        var range = response.Content.Headers.TryGetValues("Content-Range", out var values)
-            ? values.FirstOrDefault()
-            : response.Headers.TryGetValues("Content-Range", out var hv) ? hv.FirstOrDefault() : null;
-        if (range is null) return 0;
-        var slash = range.LastIndexOf('/');
-        return slash >= 0 && int.TryParse(range[(slash + 1)..], out var n) ? n : 0;
+        using (response)
+        {
+            _connection.ReportOnline();
+            if (!response.IsSuccessStatusCode) return 0;
+
+            var range = response.Content.Headers.TryGetValues("Content-Range", out var values)
+                ? values.FirstOrDefault()
+                : response.Headers.TryGetValues("Content-Range", out var hv) ? hv.FirstOrDefault() : null;
+            if (range is null) return 0;
+            var slash = range.LastIndexOf('/');
+            return slash >= 0 && int.TryParse(range[(slash + 1)..], out var n) ? n : 0;
+        }
     }
 
     public Task<string> RpcAsync(string function, object args) =>
@@ -238,11 +255,13 @@ public sealed class PostgrestClient
             {
                 response = await _http.SendAsync(request);
             }
-            catch (HttpRequestException ex)
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
-                throw new PostgrestException(ex.Message, null);
+                _connection.ReportOffline();
+                throw new PostgrestException(ConnectionState.SessionMessage, null, ex);
             }
 
+            _connection.ReportOnline();
             using (response)
             {
                 var text = await response.Content.ReadAsStringAsync();

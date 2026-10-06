@@ -1,0 +1,14 @@
+<div role="status" aria-live="polite"
+     class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-100 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+    <span class="inline-flex h-4 w-4 animate-pulse rounded-full bg-emerald-500" aria-hidden="true"></span>
+    <p class="min-w-0 flex-1">@Message</p>
+    @if (OnRetry.HasDelegate)
+    {
+        <Button Variant="secondary" Class="px-3 py-1.5" OnClick="OnRetry">Retry</Button>
+    }
+</div>
+
+@code {
+    [Parameter] public string Message { get; set; } = ConnectionState.SessionMessage;
+    [Parameter] public EventCallback OnRetry { get; set; }
+}

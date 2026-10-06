@@ -19,13 +19,26 @@ public partial class App : Application
 
         DispatcherUnhandledException += (_, args) =>
         {
+            if (ConnectionState.IsConnectionFailure(args.Exception))
+            {
+                LogCrash(args.Exception);
+                args.Handled = true;
+                return;
+            }
+
             ReportCrash(args.Exception);
             args.Handled = true;
             Shutdown(1);
         };
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
-            if (args.ExceptionObject is Exception ex) ReportCrash(ex);
+            if (args.ExceptionObject is not Exception ex) return;
+            if (ConnectionState.IsConnectionFailure(ex))
+            {
+                LogCrash(ex);
+                return;
+            }
+            ReportCrash(ex);
         };
 
         var options = ConfigLoader.LoadSupabaseOptions();
@@ -39,6 +52,7 @@ public partial class App : Application
 #endif
         services.AddSingleton(options);
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(60) });
+        services.AddSingleton<ConnectionState>();
         services.AddSingleton<ISessionStore, ProtectedSessionStore>();
         services.AddSingleton<AuthService>();
         services.AddSingleton<PostgrestClient>();
@@ -74,7 +88,7 @@ public partial class App : Application
         }
     }
 
-    private static void ReportCrash(Exception ex)
+    private static void LogCrash(Exception ex)
     {
         var path = Path.Combine(AppPaths.LocalDataDirectory, "crash.log");
         try
@@ -85,6 +99,12 @@ public partial class App : Application
         catch
         {
         }
+    }
+
+    private static void ReportCrash(Exception ex)
+    {
+        LogCrash(ex);
+        var path = Path.Combine(AppPaths.LocalDataDirectory, "crash.log");
         MessageBox.Show($"NSBM Recreation Center hit an unexpected error and needs to close.\n\n{ex.Message}\n\nDetails were saved to:\n{path}",
             "NSBM Recreation Center", MessageBoxButton.OK, MessageBoxImage.Error);
     }
