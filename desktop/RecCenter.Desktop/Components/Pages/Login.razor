@@ -86,6 +86,12 @@ else
                     <Button Type="submit" Class="w-full rounded-full py-2.5" Disabled="_loading">
                         @(_loading ? "Signing in…" : _factorId is null ? "Sign in" : "Confirm code")
                     </Button>
+                    @if (MfaPolicy.DevelopmentLogin && _qr is not null)
+                    {
+                        <button type="button" class="w-full rounded-full border border-zinc-200 bg-zinc-100 py-2.5 text-sm font-medium text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100" @onclick="SkipMfa">
+                            Continue without authenticator
+                        </button>
+                    }
                 </form>
             </div>
         </main>
@@ -120,32 +126,62 @@ else
             return;
         }
         var factorId = await Auth.VerifiedTotpFactorIdAsync();
-        if (factorId is null && Auth.CanEdit)
-        {
-            var enrolled = await Auth.EnrollTotpAsync();
-            if (enrolled is null)
-            {
-                await Auth.SignOutAsync();
-                _error = "The authenticator could not be set up.";
-                return;
-            }
-            factorId = enrolled.Value.FactorId;
-            _qr = enrolled.Value.Qr;
-        }
+        if (!await BeginFactorAsync(factorId, enterApp: () => Nav.NavigateTo("/", replace: true)))
+            return;
+    }
+
+    private async Task<bool> BeginFactorAsync(string? factorId, Action enterApp)
+    {
+        var prepared = await PrepareFactorAsync(factorId);
+        if (prepared.Blocked) return false;
+        factorId = prepared.FactorId;
+        _qr = prepared.Qr;
         if (factorId is null)
         {
-            Nav.NavigateTo("/", replace: true);
-            return;
+            enterApp();
+            return false;
         }
         var challengeId = await Auth.ChallengeTotpAsync(factorId);
         if (challengeId is null)
         {
+            if (MfaPolicy.DevelopmentLogin && _qr is not null)
+            {
+                await Auth.UnenrollTotpAsync(factorId);
+                enterApp();
+                return false;
+            }
             await Auth.SignOutAsync();
             _error = "The authenticator challenge could not be started.";
-            return;
+            return false;
         }
         _factorId = factorId;
         _challengeId = challengeId;
+        return true;
+    }
+
+    private async Task<(string? FactorId, string? Qr, bool Blocked)> PrepareFactorAsync(string? factorId)
+    {
+        if (factorId is not null) return (factorId, null, false);
+        if (!MfaPolicy.ShouldOffer(Auth.IsStaff, Auth.CanEdit)) return (null, null, false);
+        var enrolled = await Auth.EnrollTotpAsync();
+        if (enrolled is null)
+        {
+            if (MfaPolicy.MustFinish(Auth.CanEdit))
+            {
+                await Auth.SignOutAsync();
+                _error = "The authenticator could not be set up.";
+                return (null, null, true);
+            }
+            return (null, null, false);
+        }
+        return (enrolled.Value.FactorId, enrolled.Value.Qr, false);
+    }
+
+    private async Task SkipMfa()
+    {
+        if (!MfaPolicy.DevelopmentLogin || _factorId is null || _qr is null) return;
+        await Auth.UnenrollTotpAsync(_factorId);
+        _celebrating = true;
     }
 
     private void OnConnectionChanged() => _ = InvokeAsync(StateHasChanged);
@@ -188,36 +224,9 @@ else
         }
 
         var factorId = await Auth.VerifiedTotpFactorIdAsync();
-        if (factorId is null && Auth.CanEdit)
-        {
-            var enrolled = await Auth.EnrollTotpAsync();
-            if (enrolled is null)
-            {
-                await Auth.SignOutAsync();
-                _error = "The authenticator could not be set up.";
-                _loading = false;
-                return;
-            }
-            factorId = enrolled.Value.FactorId;
-            _qr = enrolled.Value.Qr;
-        }
-        if (factorId is not null)
-        {
-            var challengeId = await Auth.ChallengeTotpAsync(factorId);
-            if (challengeId is null)
-            {
-                await Auth.SignOutAsync();
-                _error = "The authenticator challenge could not be started.";
-                _loading = false;
-                return;
-            }
-            _factorId = factorId;
-            _challengeId = challengeId;
-            _loading = false;
-            return;
-        }
-
-        _celebrating = true;
+        var staying = await BeginFactorAsync(factorId, enterApp: () => _celebrating = true);
+        _loading = false;
+        if (!staying) return;
     }
 
     private void FinishLogin() => Nav.NavigateTo("/", replace: true);

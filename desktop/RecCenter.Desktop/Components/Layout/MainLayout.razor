@@ -32,11 +32,13 @@
             Nav.NavigateTo("/login", replace: true);
             return;
         }
+#if !DEBUG
         if (Auth.CanEdit && !Auth.HasStrongAssurance)
         {
             Nav.NavigateTo("/login", replace: true);
             return;
         }
+#endif
         if (Auth.HasStrongAssurance || !NetworkInterface.GetIsNetworkAvailable()) return;
         if (await Auth.VerifiedTotpFactorIdAsync() is not null)
             Nav.NavigateTo("/login", replace: true);

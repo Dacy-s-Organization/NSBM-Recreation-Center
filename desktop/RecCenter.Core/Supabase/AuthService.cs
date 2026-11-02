@@ -28,6 +28,7 @@ public sealed class AuthService
     public bool IsSignedIn => _session is not null;
     public string? UserEmail => _session?.UserEmail;
     public bool CanEdit => string.Equals(_session?.Role, "super", StringComparison.Ordinal);
+    public bool IsStaff => _session?.Role is "super" or "mic";
     public bool HasStrongAssurance => string.Equals(_session?.Aal, "aal2", StringComparison.Ordinal);
 
     /// <summary>Restores the saved session, refreshing it when the access token has expired.</summary>
@@ -117,6 +118,12 @@ public sealed class AuthService
         if (!response.IsSuccessStatusCode) return ReadAuthError(body);
         SetSession(ParseSession(body));
         return null;
+    }
+
+    public async Task UnenrollTotpAsync(string factorId)
+    {
+        using var request = Authorized(HttpMethod.Delete, $"/auth/v1/factors/{factorId}");
+        using var response = await _http.SendAsync(request);
     }
 
     private HttpRequestMessage Authorized(HttpMethod method, string path)

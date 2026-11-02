@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { developmentLogin, mustFinishMfa, shouldOfferMfa } from "@/lib/mfa-policy";
 import { isNetworkError } from "@/lib/network-error";
 
 export default function LoginPage() {
@@ -80,30 +81,39 @@ export default function LoginPage() {
     }
 
     const { data: factors } = await supabase.auth.mfa.listFactors();
-    let nextFactor = factors?.totp.find((factor) => factor.status === "verified")?.id ?? null;
+    const verified = factors?.totp.find((factor) => factor.status === "verified")?.id ?? null;
+    const role = (await supabase.auth.getUser()).data.user?.app_metadata?.role;
+    const staffRole = typeof role === "string" ? role : null;
+    let nextFactor = verified;
     let nextQr: string | null = null;
-    if (!nextFactor) {
-      const role = (await supabase.auth.getUser()).data.user?.app_metadata?.role;
-      if (role === "super") {
-        const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({
-          factorType: "totp",
-          friendlyName: "Staff phone",
-        });
-        if (enrollError || !enrolled) {
+    if (!nextFactor && shouldOfferMfa(staffRole)) {
+      const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: "Staff phone",
+      });
+      if (enrollError || !enrolled) {
+        if (mustFinishMfa(staffRole)) {
           await supabase.auth.signOut();
           setError("The authenticator could not be set up.");
           setLoading(false);
           return;
         }
-        nextFactor = enrolled.id;
-        nextQr = enrolled.totp.qr_code;
+        setCelebrating(true);
+        return;
       }
+      nextFactor = enrolled.id;
+      nextQr = enrolled.totp.qr_code;
     }
     if (nextFactor) {
       const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
         factorId: nextFactor,
       });
       if (challengeError || !challenge) {
+        if (developmentLogin && nextQr) {
+          await supabase.auth.mfa.unenroll({ factorId: nextFactor });
+          setCelebrating(true);
+          return;
+        }
         await supabase.auth.signOut();
         setError("The authenticator challenge could not be started.");
         setLoading(false);
@@ -116,6 +126,13 @@ export default function LoginPage() {
       return;
     }
 
+    setCelebrating(true);
+  }
+
+  async function skipMfa() {
+    if (!developmentLogin || !factorId || !qr) return;
+    const supabase = createClient();
+    await supabase.auth.mfa.unenroll({ factorId });
     setCelebrating(true);
   }
 
@@ -271,6 +288,11 @@ export default function LoginPage() {
             <Button type="submit" className="w-full rounded-full py-2.5" disabled={loading}>
               {loading ? "Signing in…" : factorId ? "Confirm code" : "Sign in"}
             </Button>
+            {developmentLogin && qr ? (
+              <Button type="button" variant="secondary" className="w-full rounded-full py-2.5" onClick={() => void skipMfa()}>
+                Continue without authenticator
+              </Button>
+            ) : null}
           </form>
         </div>
       </main>

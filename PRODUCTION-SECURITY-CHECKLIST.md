@@ -41,7 +41,7 @@ Give each admin a separate super account. Assign `super` by user id in the dashb
 
 ## 6. Enrol, then require MFA for writes
 
-Have every super user sign in and complete the authenticator setup. A super account cannot open the app until that setup succeeds. `mic` users are not asked to enrol.
+Have every super user sign in and complete the authenticator setup. On the production site and in a Release desktop build, a super account cannot open the app until that setup succeeds. `mic` users are not asked to enrol. A development server and a Debug desktop build let every staff account continue without an authenticator. A verified factor still asks for the code.
 
 Only after that, apply `20261102140000_require_mfa_for_writes.sql`. From then on, a super session that has not completed the authenticator check cannot change data.
 
