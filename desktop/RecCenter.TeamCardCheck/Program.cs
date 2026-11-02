@@ -2,27 +2,27 @@ using RecCenter.Core.TeamCards;
 using RecCenter.Desktop.Ocr;
 
 var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-var templates = Path.Combine(root, "Team_Card_Templates");
+var fixtures = Path.Combine(root, "scripts", "fixtures", "team-cards");
 
-var marathon = Path.Combine(templates, "Team Cards (Entry Forms) - Marathon_Template New.docx");
-var tennis = Path.Combine(templates, "TT - Girls entry (3) (2).docx");
-var photo = Path.Combine(templates, "photo_1_2026-10-04_19-59-03.jpg");
+var marathon = Path.Combine(fixtures, "marathon-entry.docx");
+var tennis = Path.Combine(fixtures, "table-tennis-entry.docx");
+var photo = Path.Combine(fixtures, "team-card.png");
 
 CheckOffice(marathon, "sports-fiesta", 15, new[]
 {
-    ***REMOVED***
-  ***REMOVED***
+    "11001", "11002", "11003", "11004", "11005", "11006", "11007", "11008",
+    "11009", "11010", "11011", "11012", "11013", "11014", "11015",
 });
-CheckOffice(tennis, "sports-fiesta", 3, new[] { "00000", "00000", "00000",  });
+CheckOffice(tennis, "sports-fiesta", 3, new[] { "12001", "12002", "12003" });
 
 var csv = """
 Event,Name,Student ID,Jersey
-Marathon,Amal Perera,40515,7
-Marathon,Nimal Silva,40571,12
-Marathon,Amal Perera,40515,9
+Marathon,Sample Athlete,13001,7
+Marathon,Test Player,13002,12
+Marathon,Sample Athlete,13001,9
 """;
 var csvExtract = TeamCardParser.ExtractOffice("card.csv", System.Text.Encoding.UTF8.GetBytes(csv));
-Expect(csvExtract, "inter-university", 2, new[] { "40515", "40571" });
+Expect(csvExtract, "inter-university", 2, new[] { "13001", "13002" });
 if (csvExtract.Rows[0].JerseyNo != "7" || csvExtract.Rows[1].JerseyNo != "12")
     throw new Exception("CSV jersey numbers were not read.");
 if (csvExtract.Warnings.Count == 0) throw new Exception("CSV duplicate warning missing.");
@@ -37,12 +37,11 @@ foreach (var warning in photoExtract.Warnings)
     Console.WriteLine("warn: " + warning);
 if (photoExtract.Section != "inter-university")
     throw new Exception("Photo was not classified as Inter University.");
-var expectedPhoto = new[] { "00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000",  };
+var expectedPhoto = new[] { "21001", "21002", "21003", "21004", "21005", "21006", "21007", "21008" };
 if (!expectedPhoto.SequenceEqual(photoExtract.Rows.Select(row => row.StudentId)))
     throw new Exception("Photo rows did not match the printed team.");
-if (!photoExtract.Warnings.Any(warning => warning.Contains("Sample", StringComparison.Ordinal))
-    || !photoExtract.Warnings.Any(warning => warning.Contains("Sample", StringComparison.Ordinal)))
-    throw new Exception("The two unreadable student IDs were not reported.");
+if (!photoExtract.Warnings.Any(warning => warning.Contains("Kavindi", StringComparison.Ordinal)))
+    throw new Exception("The unreadable student ID was not reported.");
 if (photoExtract.Rows.Any(row => row.JerseyNo is not null))
     throw new Exception("Photo jersey numbers should be empty.");
 

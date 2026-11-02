@@ -1,9 +1,6 @@
 -- Only app_metadata.role = super may insert, update, or delete.
--- The existing super user keeps the same email and password.
-
-UPDATE auth.users
-SET raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('role', 'super')
-WHERE email = 'redacted@example.com';
+-- Assign staff roles by user id outside versioned migrations.
+-- Do not put an email address in this file.
 
 DROP POLICY IF EXISTS "Authenticated insert students" ON students;
 DROP POLICY IF EXISTS "Authenticated update students" ON students;

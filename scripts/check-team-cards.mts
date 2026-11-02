@@ -6,7 +6,7 @@ import { recognizeWindowsImage } from "../lib/team-cards/windows-ocr.ts";
 import type { TeamCardExtract } from "../lib/team-cards/model.ts";
 
 const root = path.resolve(import.meta.dirname, "..");
-const templates = path.join(root, "Team_Card_Templates");
+const fixtures = path.join(root, "scripts", "fixtures", "team-cards");
 
 function expect(extract: TeamCardExtract, section: string | null, ids: string[]) {
   if (extract.section !== section) {
@@ -18,40 +18,40 @@ function expect(extract: TeamCardExtract, section: string | null, ids: string[])
 }
 
 const marathon = extractOffice(
-  "Team Cards (Entry Forms) - Marathon_Template New.docx",
-  readFileSync(path.join(templates, "Team Cards (Entry Forms) - Marathon_Template New.docx"))
+  "marathon-entry.docx",
+  readFileSync(path.join(fixtures, "marathon-entry.docx"))
 );
 expect(marathon, "sports-fiesta", [
-  ***REMOVED***
-***REMOVED***
+  "11001", "11002", "11003", "11004", "11005", "11006", "11007", "11008",
+  "11009", "11010", "11011", "11012", "11013", "11014", "11015",
 ]);
 if (marathon.rows.some((row) => row.jerseyNo)) throw new Error("Marathon jersey should be empty.");
 
 const tennis = extractOffice(
-  "TT - Girls entry (3) (2).docx",
-  readFileSync(path.join(templates, "TT - Girls entry (3) (2).docx"))
+  "table-tennis-entry.docx",
+  readFileSync(path.join(fixtures, "table-tennis-entry.docx"))
 );
-expect(tennis, "sports-fiesta", ["00000", "00000", "00000", ]);
+expect(tennis, "sports-fiesta", ["12001", "12002", "12003"]);
 if (tennis.rows.some((row) => row.jerseyNo)) throw new Error("Table tennis jersey should be empty.");
 
 const csv = extractOffice(
   "card.csv",
-  new TextEncoder().encode("Event,Name,Student ID,Jersey\nMarathon,Amal Perera,40515,7\nMarathon,Nimal Silva,40571,12\nMarathon,Amal Perera,40515,9\n")
+  new TextEncoder().encode("Event,Name,Student ID,Jersey\nMarathon,Sample Athlete,13001,7\nMarathon,Test Player,13002,12\nMarathon,Sample Athlete,13001,9\n")
 );
-expect(csv, "inter-university", ["40515", "40571"]);
+expect(csv, "inter-university", ["13001", "13002"]);
 if (csv.rows[0]?.jerseyNo !== "7" || csv.rows[1]?.jerseyNo !== "12") throw new Error("CSV jersey mismatch.");
 if (csv.warnings.length === 0) throw new Error("CSV duplicate warning missing.");
 
-const photoName = "photo_1_2026-10-04_19-59-03.jpg";
-const words = await recognizeWindowsImage(photoName, readFileSync(path.join(templates, photoName)));
+const photoName = "team-card.png";
+const words = await recognizeWindowsImage(photoName, readFileSync(path.join(fixtures, photoName)));
 const photo = extractOcrPasses(words);
 console.log(`photo section=${photo.section} rows=${photo.rows.length}`);
 for (const row of photo.rows) console.log(`${row.studentId} | ${row.fullName} | ${row.jerseyNo ?? ""}`);
 for (const warning of photo.warnings) console.log("warn: " + warning);
-expect(photo, "inter-university", ["00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000", ]);
+expect(photo, "inter-university", ["21001", "21002", "21003", "21004", "21005", "21006", "21007", "21008"]);
 if (photo.rows.some((row) => row.jerseyNo)) throw new Error("Photo jersey should be empty.");
-if (!photo.warnings.some((warning) => warning.includes("Sample")) || !photo.warnings.some((warning) => warning.includes("Sample"))) {
-  throw new Error("The two unreadable student IDs were not reported.");
+if (!photo.warnings.some((warning) => warning.includes("Kavindi"))) {
+  throw new Error("The unreadable student ID was not reported.");
 }
 
 console.log("typescript team card fixtures passed");

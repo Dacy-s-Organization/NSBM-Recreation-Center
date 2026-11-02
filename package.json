@@ -10,6 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:pii": "node scripts/check-pii.mjs",
+    "check:team-cards": "node --import ./scripts/register-ts.mjs scripts/check-team-cards.mts",
     "electron:dev": "cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
     "electron:pack": "electron-builder --dir",
     "electron:dist": "electron-builder"

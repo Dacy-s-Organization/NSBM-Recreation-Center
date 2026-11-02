@@ -39,7 +39,7 @@ public static class ImportConfig
     {
         [ImportType.Students] = new(
             "students_nsbm_template.csv",
-            "Serial No,Intake,Faculty,Student No,Degree Programme,University,Title,Name with Initials,Gender,NIC/Passport,Mobile No,E-Mail\n574,2026.1,FOB,39706,Foundation Programme for Bachelor`s Degree - FOB,NSBM,Ms.,Sansala S H  R,Female,R-E008588,0700000000,student@example.com",
+            "Serial No,Intake,Faculty,Student No,Degree Programme,University,Title,Name with Initials,Gender,NIC/Passport,Mobile No,E-Mail\n574,2026.1,FOB,39706,Foundation Programme for Bachelor`s Degree - FOB,NSBM,Ms.,Sample Student,Female,000000000V,0700000000,student@example.com",
             StudentColumns.All.Select(c => c.Key).Append("house_name").ToArray(),
             StudentColumns.All.Select(c => c.Label).Append("House").ToArray()),
         [ImportType.Records] = new(

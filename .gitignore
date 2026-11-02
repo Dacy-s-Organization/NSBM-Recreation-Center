@@ -51,5 +51,21 @@ next-env.d.ts
 /desktop/**/bin/
 /desktop/**/obj/
 /desktop/publish/
+/desktop/installer/redist/
+/desktop/installer/output/
 /desktop/RecCenter.Desktop/appsettings.json
 /desktop/RecCenter.Desktop/node_modules/
+
+#Documentations & Datasets
+/DOCS/
+/Team Card Datasets/
+/Team_Card_Templates/
+/Test_File/
+/Datasets/
+
+# Local secrets and certificates
+env.download
+*.pfx
+*.p12
+supabase/.temp/
+
