@@ -48,6 +48,8 @@ else
                 </div>
 
                 <form @onsubmit="HandleSubmit" class="mt-6 space-y-4">
+                    @if (_factorId is null)
+                    {
                     <div>
                         <label for="email" class="@Ui.Label">Email</label>
                         <input id="email" type="email" autocomplete="email" required class="@Ui.Input" @bind="_email" @bind:event="oninput" />
@@ -56,6 +58,23 @@ else
                         <label for="password" class="@Ui.Label">Password</label>
                         <input id="password" type="password" autocomplete="current-password" required class="@Ui.Input" @bind="_password" @bind:event="oninput" />
                     </div>
+                    }
+                    else
+                    {
+                        @if (_qr is not null)
+                        {
+                            <img src="@_qr" alt="Authenticator setup code" class="mx-auto h-40 w-40" />
+                            <p class="text-center text-sm text-zinc-600 dark:text-zinc-400">Scan this code in an authenticator app, then enter the 6-digit code.</p>
+                        }
+                        else
+                        {
+                            <p class="text-center text-sm text-zinc-600 dark:text-zinc-400">Enter the 6-digit code from your authenticator app.</p>
+                        }
+                        <div>
+                            <label for="code" class="@Ui.Label">Authenticator code</label>
+                            <input id="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="6" class="@Ui.Input" @bind="_code" @bind:event="oninput" />
+                        </div>
+                    }
                     @if (ShowOffline)
                     {
                         <OfflineNotice Message="@ConnectionState.SignInMessage" OnRetry="HandleSubmit" />
@@ -65,7 +84,7 @@ else
                         <p class="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300">@_error</p>
                     }
                     <Button Type="submit" Class="w-full rounded-full py-2.5" Disabled="_loading">
-                        @(_loading ? "Signing in…" : "Sign in")
+                        @(_loading ? "Signing in…" : _factorId is null ? "Sign in" : "Confirm code")
                     </Button>
                 </form>
             </div>
@@ -76,17 +95,57 @@ else
 @code {
     private string _email = "";
     private string _password = "";
+    private string _code = "";
+    private string? _factorId;
+    private string? _challengeId;
+    private string? _qr;
     private string? _error;
     private bool _loading;
     private bool _celebrating;
     private bool ShowOffline => Connection.Offline || _error == ConnectionState.SignInMessage;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Connection.Changed += OnConnectionChanged;
         NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailability;
         if (!NetworkInterface.GetIsNetworkAvailable()) Connection.ReportOffline();
-        if (Auth.IsSignedIn) Nav.NavigateTo("/", replace: true);
+        if (Auth.IsSignedIn) await ResumeOrChallenge();
+    }
+
+    private async Task ResumeOrChallenge()
+    {
+        if (Auth.HasStrongAssurance)
+        {
+            Nav.NavigateTo("/", replace: true);
+            return;
+        }
+        var factorId = await Auth.VerifiedTotpFactorIdAsync();
+        if (factorId is null && Auth.CanEdit)
+        {
+            var enrolled = await Auth.EnrollTotpAsync();
+            if (enrolled is null)
+            {
+                await Auth.SignOutAsync();
+                _error = "The authenticator could not be set up.";
+                return;
+            }
+            factorId = enrolled.Value.FactorId;
+            _qr = enrolled.Value.Qr;
+        }
+        if (factorId is null)
+        {
+            Nav.NavigateTo("/", replace: true);
+            return;
+        }
+        var challengeId = await Auth.ChallengeTotpAsync(factorId);
+        if (challengeId is null)
+        {
+            await Auth.SignOutAsync();
+            _error = "The authenticator challenge could not be started.";
+            return;
+        }
+        _factorId = factorId;
+        _challengeId = challengeId;
     }
 
     private void OnConnectionChanged() => _ = InvokeAsync(StateHasChanged);
@@ -107,10 +166,53 @@ else
         _loading = true;
         _error = null;
 
+        if (_factorId is not null)
+        {
+            var verifyError = await Auth.VerifyTotpAsync(_factorId, _challengeId ?? "", _code.Trim());
+            _loading = false;
+            if (verifyError is not null)
+            {
+                _error = verifyError;
+                return;
+            }
+            _celebrating = true;
+            return;
+        }
+
         var error = await Auth.SignInWithPasswordAsync(_email, _password);
         if (error is not null)
         {
             _error = error;
+            _loading = false;
+            return;
+        }
+
+        var factorId = await Auth.VerifiedTotpFactorIdAsync();
+        if (factorId is null && Auth.CanEdit)
+        {
+            var enrolled = await Auth.EnrollTotpAsync();
+            if (enrolled is null)
+            {
+                await Auth.SignOutAsync();
+                _error = "The authenticator could not be set up.";
+                _loading = false;
+                return;
+            }
+            factorId = enrolled.Value.FactorId;
+            _qr = enrolled.Value.Qr;
+        }
+        if (factorId is not null)
+        {
+            var challengeId = await Auth.ChallengeTotpAsync(factorId);
+            if (challengeId is null)
+            {
+                await Auth.SignOutAsync();
+                _error = "The authenticator challenge could not be started.";
+                _loading = false;
+                return;
+            }
+            _factorId = factorId;
+            _challengeId = challengeId;
             _loading = false;
             return;
         }

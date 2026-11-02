@@ -1,4 +1,5 @@
-import { strFromU8, unzipSync } from "fflate";
+import { strFromU8 } from "fflate";
+import { unzipLimited } from "./zip-limit";
 
 export type GridRow = { line: number; cells: string[] };
 export type WorkbookSheet = { name: string; rows: GridRow[] };
@@ -106,7 +107,7 @@ function sheetRows(xml: string, shared: string[]): GridRow[] {
 export function readXlsxWorkbook(bytes: Uint8Array): WorkbookSheet[] {
   let files: Record<string, Uint8Array>;
   try {
-    files = unzipSync(bytes);
+    files = unzipLimited(bytes, (name) => name.startsWith("xl/"));
   } catch {
     throw new Error("This Excel file could not be read.");
   }

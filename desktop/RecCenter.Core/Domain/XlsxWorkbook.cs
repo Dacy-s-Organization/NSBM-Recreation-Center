@@ -71,11 +71,23 @@ public static partial class XlsxWorkbook
     private static Dictionary<string, string> ReadZip(byte[] bytes)
     {
         using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
+        const int maxBytes = 8 * 1024 * 1024;
+        long declared = 0;
+        foreach (var entry in zip.Entries)
+        {
+            if (entry.Length > maxBytes) throw new InvalidDataException("This file is too large to read.");
+            declared += entry.Length;
+            if (declared > maxBytes) throw new InvalidDataException("This file is too large to read.");
+        }
         var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        long total = 0;
         foreach (var entry in zip.Entries)
         {
             using var reader = new StreamReader(entry.Open(), Encoding.UTF8);
-            files[entry.FullName.Replace('\\', '/')] = reader.ReadToEnd();
+            var text = reader.ReadToEnd();
+            total += text.Length;
+            if (text.Length > maxBytes || total > maxBytes) throw new InvalidDataException("This file is too large to read.");
+            files[entry.FullName.Replace('\\', '/')] = text;
         }
         return files;
     }

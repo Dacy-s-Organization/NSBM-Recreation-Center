@@ -294,8 +294,11 @@ public static class TeamCardParser
         using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
         var entry = zip.GetEntry(name) ?? zip.GetEntry(name.Replace('/', '\\'));
         if (entry is null) return null;
+        if (entry.Length > 8 * 1024 * 1024) throw new InvalidDataException("This file is too large to read.");
         using var reader = new StreamReader(entry.Open(), Encoding.UTF8);
-        return reader.ReadToEnd();
+        var text = reader.ReadToEnd();
+        if (text.Length > 8 * 1024 * 1024) throw new InvalidDataException("This file is too large to read.");
+        return text;
     }
 
     private static (List<string[]> Rows, HeadingFlags Flags) RowsFromTables(List<string[][]> tables)

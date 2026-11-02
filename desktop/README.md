@@ -45,7 +45,7 @@ All commands run from the `desktop` folder.
    notepad RecCenter.Desktop/appsettings.json
    ```
 
-   `appsettings.json` is gitignored and embedded into the exe at build time. An `appsettings.json` placed next to the exe overrides the embedded one.
+   `appsettings.json` is gitignored and embedded into the exe at build time. Release builds ignore a file next to the exe. A Debug build uses that file when it is present.
 
 2. **Run in development.**
 
@@ -69,6 +69,10 @@ All commands run from the `desktop` folder.
    ```
 
    This produces `publish/NSBM Recreation Center.exe` (about 70 MB). Copy that one file to any Windows PC and run it. Close any running copy of the app before publishing, or the exe can't be overwritten.
+
+## Runtime updates
+
+The published exe contains its own .NET runtime. Publish with SDK 10.0.403 or later so the exe embeds runtime 10.0.14 or later. After each .NET 10 servicing release, install that SDK and publish again from this folder. There is no in-app updater. `global.json` keeps the build on that SDK.
 
 ## Project layout
 

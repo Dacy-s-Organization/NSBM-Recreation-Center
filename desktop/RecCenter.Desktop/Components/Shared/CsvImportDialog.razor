@@ -100,7 +100,7 @@ else if (Auth.CanEdit)
     [Parameter] public AchievementSection Section { get; set; } = AchievementSection.SportsFiesta;
     [Parameter] public string Label { get; set; } = "Import CSV";
 
-    private const long MaxCsvBytes = 50L * 1024 * 1024;
+    private const long MaxCsvBytes = 8L * 1024 * 1024;
 
     private bool _open;
     private bool _pending;

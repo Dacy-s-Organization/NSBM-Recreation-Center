@@ -42,7 +42,7 @@ else
         }
         @if (_image is not null)
         {
-            <a class="mt-3 inline-block text-sm text-sky-700 underline dark:text-sky-300" href="@DataUrl" download="@_image.FileName">Download</a>
+            <a class="mt-3 inline-block text-sm text-sky-700 underline dark:text-sky-300" href="@DataUrl" download="@SafeName(_image.FileName)">Download</a>
         }
     </Modal>
 }
@@ -67,6 +67,14 @@ else
         _image = result.Image;
         _error = result.Error;
         _loading = false;
+    }
+
+    private static string SafeName(string name)
+    {
+        var file = Path.GetFileName(name);
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+            file = file.Replace(invalid, '_');
+        return string.IsNullOrWhiteSpace(file) ? "certificate" : file;
     }
 
     private void Close()

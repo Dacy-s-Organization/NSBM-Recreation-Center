@@ -1,5 +1,7 @@
 "use server";
 
+import { dbError } from "@/lib/errors";
+
 import { revalidatePath } from "next/cache";
 import {
   ACHIEVEMENT_TYPES,
@@ -202,6 +204,9 @@ export async function importStudents(
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
   }
+  if (rows.length > 5000) {
+    return { ...emptyImportResult(), errors: ["Import at most 5000 rows at a time."] };
+  }
   const supabase = auth.supabase;
   const result: ImportResult = {
     ...emptyImportResult(),
@@ -341,7 +346,7 @@ export async function importStudents(
     const { error } = await supabase.from("students").insert(payload);
     if (error) {
       result.errors.push(
-        `Student ${payload.student_id ?? payload.full_name}: ${error.message}`
+        `Student ${payload.student_id ?? payload.full_name}: ${dbError(error)}`
       );
       return;
     }
@@ -373,7 +378,7 @@ export async function importStudents(
           ? `Student ${existing.student_id}`
           : existing.full_name ?? existing.id;
         if (error) {
-          result.errors.push(`${label}: ${error.message}`);
+          result.errors.push(`${label}: ${dbError(error)}`);
           return false;
         }
         if (!data?.length) {
@@ -405,6 +410,9 @@ export async function importRecords(
   const auth = await requireSuper();
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
+  }
+  if (rows.length > 5000) {
+    return { ...emptyImportResult(), errors: ["Import at most 5000 rows at a time."] };
   }
   const supabase = auth.supabase;
   const result = emptyImportResult();
@@ -527,7 +535,7 @@ export async function importRecords(
   for (const batch of chunkArray(toInsert, IMPORT_BATCH_SIZE)) {
     const { error } = await supabase.from(recordsTable).insert(batch);
     if (error) {
-      result.errors.push(`Batch insert: ${error.message}`);
+      result.errors.push(`Batch insert: ${dbError(error)}`);
     } else {
       result.success += batch.length;
       result.inserted += batch.length;
@@ -542,7 +550,7 @@ export async function importRecords(
     );
     for (const { error } of results) {
       if (error) {
-        result.errors.push(`Update: ${error.message}`);
+        result.errors.push(`Update: ${dbError(error)}`);
       } else {
         result.success++;
         result.updated++;
@@ -582,6 +590,9 @@ export async function importAchievements(
   const auth = await requireSuper();
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
+  }
+  if (rows.length > 5000) {
+    return { ...emptyImportResult(), errors: ["Import at most 5000 rows at a time."] };
   }
   const supabase = auth.supabase;
   const result = emptyImportResult();
@@ -685,7 +696,7 @@ export async function importAchievements(
       .select("id");
 
     if (error) {
-      result.errors.push(`Batch insert: ${error.message}`);
+      result.errors.push(`Batch insert: ${dbError(error)}`);
       continue;
     }
 
@@ -722,6 +733,9 @@ export async function importInventory(
   const auth = await requireSuper();
   if (auth.error || !auth.supabase) {
     return { ...emptyImportResult(), errors: [auth.error ?? "Not signed in."] };
+  }
+  if (rows.length > 5000) {
+    return { ...emptyImportResult(), errors: ["Import at most 5000 rows at a time."] };
   }
   const supabase = auth.supabase;
   const result = emptyImportResult();
@@ -794,7 +808,7 @@ export async function importInventory(
       .insert(batch)
       .select("id, name, phase, category");
     if (error) {
-      result.errors.push(`Batch insert: ${error.message}`);
+      result.errors.push(`Batch insert: ${dbError(error)}`);
     } else {
       data?.forEach((item) =>
         existingMap.set(inventoryKey(item.phase, item.category, item.name), item.id)
@@ -816,7 +830,7 @@ export async function importInventory(
     );
     for (const { error } of results) {
       if (error) {
-        result.errors.push(`Update: ${error.message}`);
+        result.errors.push(`Update: ${dbError(error)}`);
       } else {
         result.success++;
         result.updated++;

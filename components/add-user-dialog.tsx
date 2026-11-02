@@ -110,15 +110,15 @@ export function AddUserDialog() {
                 <Label htmlFor="staff-password">Password</Label>
                 <Input
                   id="staff-password"
-                  type="text"
+                  type="password"
                   autoComplete="new-password"
                   required
-                  minLength={8}
+                  minLength={12}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  At least 8 characters. Shown so you can give it to the new user.
+                  At least 12 characters, with an uppercase letter, a lowercase letter, and a number.
                 </p>
               </div>
               {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}

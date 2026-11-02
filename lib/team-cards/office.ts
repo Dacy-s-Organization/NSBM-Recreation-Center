@@ -1,7 +1,8 @@
-import { strFromU8, unzipSync } from "fflate";
+import { strFromU8 } from "fflate";
 import Papa from "papaparse";
 import type { TeamCardExtract, TeamCardSourceKind } from "./model";
 import { buildExtract, rowsFromTables } from "./rows";
+import { unzipLimited } from "../zip-limit";
 
 function decodeXml(value: string): string {
   return value
@@ -18,17 +19,38 @@ function texts(xml: string): string[] {
   return [...xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map((match) => decodeXml(match[1]));
 }
 
+function blocks(xml: string, name: string): string[] {
+  const open = `<${name}`;
+  const close = `</${name}>`;
+  const found: string[] = [];
+  let from = 0;
+  while (from < xml.length) {
+    const start = xml.indexOf(open, from);
+    if (start < 0) break;
+    const boundary = xml[start + open.length];
+    if (boundary !== ">" && boundary !== " " && boundary !== "/" && boundary !== "\n" && boundary !== "\r" && boundary !== "\t") {
+      from = start + open.length;
+      continue;
+    }
+    const end = xml.indexOf(close, start + open.length);
+    if (end < 0) break;
+    found.push(xml.slice(start, end + close.length));
+    from = end + close.length;
+  }
+  return found;
+}
+
 export function readDocx(bytes: Uint8Array): { tables: string[][][]; text: string } {
   const xml = xmlEntry(bytes, ["word/document.xml"]);
   const text = texts(xml).join(" ");
   const tables: string[][][] = [];
-  for (const table of xml.matchAll(/<w:tbl\b[^>]*>[\s\S]*?<\/w:tbl>/g)) {
+  for (const table of blocks(xml, "w:tbl")) {
     const rows: string[][] = [];
-    for (const row of table[0].matchAll(/<w:tr\b[^>]*>[\s\S]*?<\/w:tr>/g)) {
+    for (const row of blocks(table, "w:tr")) {
       const cells: string[] = [];
-      for (const cell of row[0].matchAll(/<w:tc\b[^>]*>[\s\S]*?<\/w:tc>/g)) {
+      for (const cell of blocks(row, "w:tc")) {
         cells.push(
-          texts(cell[0])
+          texts(cell)
             .join("")
             .replace(/\s+/g, " ")
             .trim()
@@ -42,9 +64,9 @@ export function readDocx(bytes: Uint8Array): { tables: string[][][]; text: strin
 }
 
 function xmlEntry(bytes: Uint8Array, names: string[]): string {
-  const files = unzipSync(bytes);
+  const files = unzipLimited(bytes, (name) => names.includes(name));
   for (const name of names) {
-    const file = files[name] ?? files[name.replaceAll("/", "\\")];
+    const file = files[name];
     if (file) return strFromU8(file);
   }
   throw new Error("This file does not contain a readable table.");
@@ -60,40 +82,42 @@ function columnIndex(ref: string): number {
 }
 
 function sharedStrings(xml: string): string[] {
-  const values: string[] = [];
-  for (const item of xml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)) {
-    values.push(
-      [...item[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)]
-        .map((match) => decodeXml(match[1]))
-        .join("")
-    );
-  }
-  return values;
+  return blocks(xml, "si").map((item) =>
+    [...item.matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map((match) => decodeXml(match[1])).join("")
+  );
 }
 
 export function readXlsx(bytes: Uint8Array): { tables: string[][][]; text: string } {
-  const files = unzipSync(bytes);
+  const files = unzipLimited(
+    bytes,
+    (name) => name === "xl/sharedStrings.xml" || /^xl\/worksheets\/sheet\d+\.xml$/i.test(name)
+  );
   const sheetName = Object.keys(files)
-    .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(name.replaceAll("\\", "/")))
+    .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(name))
     .sort()[0];
-  const sheetFile = sheetName ? files[sheetName] : files["xl/worksheets/sheet1.xml"];
+  const sheetFile = sheetName ? files[sheetName] : undefined;
   if (!sheetFile) throw new Error("This workbook does not contain a readable sheet.");
   const sheet = strFromU8(sheetFile);
   const sharedFile = files["xl/sharedStrings.xml"];
   const shared = sharedFile ? sharedStrings(strFromU8(sharedFile)) : [];
   const rows: string[][] = [];
 
-  for (const row of sheet.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+  for (const row of blocks(sheet, "row")) {
+    const inner = row.slice(row.indexOf(">") + 1);
     const cells: string[] = [];
-    for (const cell of row[1].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
-      const ref = /r="([A-Z]+)\d+"/i.exec(cell[1]);
+    for (const cell of blocks(inner, "c")) {
+      const tagEnd = cell.indexOf(">");
+      const tag = cell.slice(0, tagEnd);
+      const body = cell.slice(tagEnd + 1);
+      const ref = /r="([A-Z]+)\d+"/i.exec(tag);
       const index = ref ? columnIndex(ref[1]) : cells.length;
-      const kind = /t="([^"]+)"/.exec(cell[1])?.[1] ?? "";
+      const kind = /t="([^"]+)"/.exec(tag)?.[1] ?? "";
       let value = "";
       if (kind === "inlineStr") {
-        value = [...cell[2].matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map((match) => decodeXml(match[1])).join("");
+        value = [...body.matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map((match) => decodeXml(match[1])).join("");
       } else {
-        const raw = /<v[^>]*>([^<]*)<\/v>/.exec(cell[2])?.[1] ?? "";
+        const rawStart = body.indexOf("<v");
+        const raw = rawStart < 0 ? "" : body.slice(body.indexOf(">", rawStart) + 1, body.indexOf("</v>"));
         value = kind === "s" ? (shared[Number(raw)] ?? "") : decodeXml(raw);
       }
       while (cells.length < index) cells.push("");

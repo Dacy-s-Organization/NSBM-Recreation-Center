@@ -1,24 +1,36 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.106.2";
 
-const headers = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Content-Type": "application/json",
-};
+const allowedOrigins = new Set([
+  "https://nsbm-recreation-center.netlify.app",
+  "http://localhost:3000",
+]);
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") ?? "";
+  return {
+    "Access-Control-Allow-Origin": allowedOrigins.has(origin)
+      ? origin
+      : "https://nsbm-recreation-center.netlify.app",
+    Vary: "Origin",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Content-Type": "application/json",
+  };
+}
 
 Deno.serve(async (req) => {
+  const headers = corsHeaders(req);
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers });
   }
 
   if (req.method !== "POST") {
-    return json({ error: "Method not allowed." }, 405);
+    return json({ error: "Method not allowed." }, 405, headers);
   }
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
-    return json({ error: "Not signed in." }, 401);
+    return json({ error: "Not signed in." }, 401, headers);
   }
 
   const url = Deno.env.get("SUPABASE_URL") ?? "";
@@ -31,23 +43,23 @@ Deno.serve(async (req) => {
   const { data: userData, error: userError } = await userClient.auth.getUser();
   const role = userData.user?.app_metadata?.role;
   if (userError || !userData.user || role !== "super") {
-    return json({ error: "Only the super user can add accounts." }, 403);
+    return json({ error: "Only the super user can add accounts." }, 403, headers);
   }
 
   let body: { email?: string; password?: string };
   try {
     body = await req.json();
   } catch {
-    return json({ error: "A valid email and password are required." }, 400);
+    return json({ error: "A valid email and password are required." }, 400, headers);
   }
 
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({ error: "A valid email is required." }, 400);
+    return json({ error: "A valid email is required." }, 400, headers);
   }
-  if (password.length < 8) {
-    return json({ error: "Password must be at least 8 characters." }, 400);
+  if (password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+    return json({ error: "Password must be at least 12 characters and include an uppercase letter, a lowercase letter, and a number." }, 400, headers);
   }
 
   const admin = createClient(url, serviceKey);
@@ -59,16 +71,18 @@ Deno.serve(async (req) => {
   });
 
   if (error) {
+    console.error(error.message);
     const already = /already|registered|exists/i.test(error.message);
     return json(
-      { error: already ? "An account with this email already exists." : error.message },
+      { error: already ? "An account with this email already exists." : "The account could not be created." },
       400,
+      headers,
     );
   }
 
-  return json({ success: true }, 200);
+  return json({ success: true }, 200, headers);
 });
 
-function json(body: unknown, status: number) {
+function json(body: unknown, status: number, headers: Record<string, string>) {
   return new Response(JSON.stringify(body), { status, headers });
 }

@@ -42,9 +42,9 @@ export function ConnectionWatch() {
       setOffline(false);
       router.refresh();
     };
-    setOffline(typeof navigator !== "undefined" && navigator.onLine === false);
     window.addEventListener("offline", markOffline);
     window.addEventListener("online", markOnline);
+    queueMicrotask(() => setOffline(typeof navigator !== "undefined" && navigator.onLine === false));
     return () => {
       window.removeEventListener("offline", markOffline);
       window.removeEventListener("online", markOnline);

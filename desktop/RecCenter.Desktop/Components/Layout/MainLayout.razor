@@ -21,13 +21,25 @@
 }
 
 @code {
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Auth.SessionChanged += OnSessionChanged;
         Connection.Changed += OnConnectionChanged;
         NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailability;
         if (!NetworkInterface.GetIsNetworkAvailable()) Connection.ReportOffline();
-        if (!Auth.IsSignedIn) Nav.NavigateTo("/login", replace: true);
+        if (!Auth.IsSignedIn)
+        {
+            Nav.NavigateTo("/login", replace: true);
+            return;
+        }
+        if (Auth.CanEdit && !Auth.HasStrongAssurance)
+        {
+            Nav.NavigateTo("/login", replace: true);
+            return;
+        }
+        if (Auth.HasStrongAssurance || !NetworkInterface.GetIsNetworkAvailable()) return;
+        if (await Auth.VerifiedTotpFactorIdAsync() is not null)
+            Nav.NavigateTo("/login", replace: true);
     }
 
     private void OnSessionChanged()

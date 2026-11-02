@@ -45,9 +45,12 @@ export function StudentDetailDialog({
   useEffect(() => {
     if (!studentId) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setStudent(null);
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setLoading(true);
+      setError(null);
+      setStudent(null);
+    });
     getStudentDetail(studentId).then((result) => {
       if (cancelled) return;
       if ("error" in result) setError(result.error);

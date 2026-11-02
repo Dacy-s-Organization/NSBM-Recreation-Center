@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { inflateRawSync } from "node:zlib";
 
 const allow = new Set(["000000000V", "000000000v", "0700000000"]);
@@ -57,8 +57,10 @@ for (const file of files) {
   const ext = lower.includes(".") ? lower.slice(lower.lastIndexOf(".")) : "";
   let text = "";
   if (textExt.has(ext) || lower.endsWith(".env.example")) {
+    if (!existsSync(file)) continue;
     text = readFileSync(file, "utf8");
   } else if (ext === ".docx" || ext === ".xlsx") {
+    if (!existsSync(file)) continue;
     text = zipXml(readFileSync(file));
   } else {
     continue;

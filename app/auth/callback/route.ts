@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 function safeNextPath(next: string | null): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+  if (!next || !/^\/[A-Za-z0-9/_?=&-]*$/.test(next)) return "/";
   return next;
 }
 

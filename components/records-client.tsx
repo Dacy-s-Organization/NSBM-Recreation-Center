@@ -56,6 +56,11 @@ export function RecordsClient({
 }) {
   const router = useRouter();
   const [year, setYear] = useState(selectedYear);
+  const [yearSource, setYearSource] = useState(selectedYear);
+  if (selectedYear !== yearSource) {
+    setYearSource(selectedYear);
+    setYear(selectedYear);
+  }
   const [trackId, setTrackId] = useState("");
   const [formTrackId, setFormTrackId] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -74,14 +79,7 @@ export function RecordsClient({
   const lookupActive = showForm || editingId !== null;
 
   useEffect(() => {
-    setYear(selectedYear);
-  }, [selectedYear]);
-
-  useEffect(() => {
-    if (!lookupActive || !studentIdInput.trim()) {
-      setLookup(null);
-      return;
-    }
+    if (!lookupActive || !studentIdInput.trim()) return;
     let cancelled = false;
     const timer = setTimeout(async () => {
       setLookupLoading(true);
@@ -242,6 +240,7 @@ export function RecordsClient({
     years.length > 0 ? years : [defaultYear, defaultYear - 1, defaultYear - 2];
 
   function StudentLookupHint() {
+    if (!lookupActive || !studentIdInput.trim()) return null;
     if (lookupLoading) {
       return <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Looking up…</p>;
     }

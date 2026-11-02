@@ -30,6 +30,7 @@ public static class CsvText
     private static string Escape(string? value)
     {
         var text = value ?? "";
+        if (text.Length > 0 && "=+-@\t\r".Contains(text[0])) text = "'" + text;
         if (text.Contains('"') || text.Contains(',') || text.Contains('\n') || text.Contains('\r'))
             return "\"" + text.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
         return text;

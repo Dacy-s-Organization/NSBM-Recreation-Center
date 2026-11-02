@@ -5,8 +5,8 @@ using RecCenter.Core.Config;
 namespace RecCenter.Desktop.Services;
 
 /// <summary>
-/// Reads Supabase settings from appsettings.json next to the exe (optional override),
-/// falling back to the copy embedded at build time.
+/// Reads the Supabase settings embedded at build time.
+/// A file next to the exe is used only in Debug builds.
 /// </summary>
 public static class ConfigLoader
 {
@@ -14,12 +14,14 @@ public static class ConfigLoader
 
     public static SupabaseOptions LoadSupabaseOptions()
     {
+#if DEBUG
         var external = Path.Combine(AppContext.BaseDirectory, FileName);
         if (File.Exists(external))
         {
             var fromFile = Parse(File.ReadAllText(external));
             if (fromFile.IsConfigured) return fromFile;
         }
+#endif
 
         using var stream = typeof(ConfigLoader).Assembly.GetManifestResourceStream(FileName);
         if (stream is null) return new SupabaseOptions();

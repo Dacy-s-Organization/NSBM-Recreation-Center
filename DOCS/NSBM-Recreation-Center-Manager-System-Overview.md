@@ -1,9 +1,9 @@
 # NSBM Recreation Center Manager — Full System Overview
 
 > **Audience:** Third-party reviewers, collaborators, and technical stakeholders.  
-> **Scope:** Architecture of the web app, Supabase backend, native Windows desktop, and Electron shell.
+> **Scope:** Architecture of the web app, Supabase backend, and native Windows desktop.
 
-This document describes a **rewamp** of recreation-center operations: one **Supabase** backend, **three clients** (browser, native Windows, Electron shell), and shared domain logic for students, achievements, records, inventory, certificates, and team cards.
+This document describes a **rewamp** of recreation-center operations: one **Supabase** backend, **two clients** (browser and native Windows), and shared domain logic for students, achievements, records, inventory, certificates, and team cards.
 
 Architecture notes below align with the project knowledge graph (`graphify-out/`, commit `8ab9f9ba`): ~223 files, 1,855 nodes, 3,525 edges, 109 communities, no import cycles.
 
@@ -16,7 +16,6 @@ flowchart TB
   subgraph clients [Clients]
     Web[Next.js Web App]
     Desktop[WPF + Blazor Desktop]
-    Electron[Electron Shell]
   end
 
   subgraph edge [Hosting]
@@ -38,8 +37,6 @@ flowchart TB
 
   Desktop --> Auth
   Desktop --> API
-
-  Electron -->|loads production URL| Netlify
 ```
 
 **Design principle:** All authoritative data lives in **Postgres**. Clients never hold a separate database; they differ only in **UI host**, **session storage**, and **local OS integration** (OCR, window chrome, DPAPI).
@@ -153,20 +150,7 @@ Razor counterparts to web features: `Students.razor`, `Achievements.razor`, `Inv
 
 ---
 
-## 5. Electron client (thin wrapper)
-
-Not a fourth codebase — **`electron/main.cjs`** opens a **BrowserWindow** to:
-
-`https://nsbm-recreation-center.netlify.app` (or `ELECTRON_START_URL` in dev).
-
-- **electron-builder** — NSIS (Windows), DMG (macOS), branded icon.
-- **Online-only** — same web app as production; no local Supabase.
-
-Use case: staff who want a desktop icon without installing the full WPF build.
-
----
-
-## 6. Cross-cutting systems
+## 5. Cross-cutting systems
 
 ### Bulk import
 
@@ -203,11 +187,11 @@ Single routing concept, **two physical table families** — configured in `ACHIE
 
 ---
 
-## 7. Deployment & configuration
+## 6. Deployment & configuration
 
 | Target | Stack |
 |--------|--------|
-| **Production web** | **Netlify** + `@netlify/plugin-nextjs`, `npm run build` |
+| **Production web** | **Netlify** + `@netlify/plugin-nextjs`, `npm ci && npm run build` |
 | **Env** | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
 | **Auth URLs** | Site URL + `/auth/callback` on Netlify domain |
 | **Desktop config** | `appsettings.json` (embedded/overridden) — URL + publishable key only |
@@ -215,18 +199,18 @@ Single routing concept, **two physical table families** — configured in `ACHIE
 
 ---
 
-## 8. How the rewamp reads as a story
+## 7. How the rewamp reads as a story
 
 1. **Before:** Spreadsheet-led ops, disconnected formats.
 2. **Core platform:** Supabase Postgres + staff auth + RLS as the system of record.
 3. **Web rewamp:** Next.js staff portal with imports, dual achievement programs, certificates, team cards, role-gated edits.
 4. **Desktop rewamp:** Native Windows app for the same API — better windowing, offline messaging, OCR, encrypted session, single exe distribution.
-5. **Distribution:** Netlify for always-current web; Electron optional; WPF for full native experience.
+5. **Distribution:** Netlify for the website; the WPF app for the Windows install.
 6. **Maintainability:** Shared domain rules (houses, faculties, sections, sports catalog); dependency graph shows **no import cycles** and clear hubs (`requireSuper`, PostgREST clients, parsers).
 
 ---
 
-## 9. Tech stack cheat sheet
+## 8. Tech stack cheat sheet
 
 **Web:** Next.js 16 · React 19 · TypeScript · Tailwind 4 · Server Actions · Supabase JS/SSR · Papa Parse · fflate (archives) · Netlify
 
@@ -234,7 +218,7 @@ Single routing concept, **two physical table families** — configured in `ACHIE
 
 **Desktop:** .NET 10 · WPF · Blazor WebView2 · HttpClient + custom PostgREST · Windows OCR · DPAPI session · Tailwind-built CSS
 
-**Packaging:** electron-builder · NSIS/DMG · Inno Setup script in repo for Windows installer variant
+**Packaging:** Inno Setup script in `desktop/installer` for the Windows app
 
 ---
 

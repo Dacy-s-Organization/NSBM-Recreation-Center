@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { zipSync } from "fflate";
 import { extractOffice } from "../lib/team-cards/office.ts";
 import { extractOcrPasses } from "../lib/team-cards/rows.ts";
 import { recognizeWindowsImage } from "../lib/team-cards/windows-ocr.ts";
@@ -53,5 +54,12 @@ if (photo.rows.some((row) => row.jerseyNo)) throw new Error("Photo jersey should
 if (!photo.warnings.some((warning) => warning.includes("Kavindi"))) {
   throw new Error("The unreadable student ID was not reported.");
 }
+
+const bomb = zipSync({
+  "word/document.xml": new TextEncoder().encode("<w:document>" + "<w:tbl>".repeat(20000)),
+});
+const started = Date.now();
+extractOffice("bomb.docx", bomb);
+if (Date.now() - started > 1000) throw new Error("A document of unclosed tables took too long.");
 
 console.log("typescript team card fixtures passed");

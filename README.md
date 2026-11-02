@@ -9,18 +9,15 @@ flowchart LR
   staff[Staff]
   web[Website<br/>Next.js]
   win[Windows app<br/>WPF and Blazor]
-  shell[Electron shell]
   supabase[(Supabase<br/>Postgres and Auth)]
 
   staff --> web
   staff --> win
-  staff --> shell
-  shell --> web
   web --> supabase
   win --> supabase
 ```
 
-The Electron shell only opens the website. The Windows app is a separate program and calls Supabase itself.
+The Windows app is a separate program and calls Supabase itself.
 
 ## Sections
 
@@ -100,20 +97,9 @@ dotnet run --project RecCenter.Desktop
 dotnet publish RecCenter.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
 ```
 
-`appsettings.json` is gitignored. It is embedded at build time. A file with the same name next to the exe overrides it. Use the publishable key only.
+`appsettings.json` is gitignored. It is embedded at build time. Release builds ignore a file next to the exe. Use the publishable key only.
 
 `desktop/installer/NSBM-Recreation-Center.iss` builds `NSBM Recreation Center Setup.exe`. The setup includes the published exe and installs the Visual C++ runtime and the WebView2 runtime when they are missing. Those two installers must be placed in `desktop/installer/redist/` before compiling the script. More window and path detail is in [desktop/README.md](desktop/README.md).
-
-## Electron shell
-
-`electron/main.cjs` is an optional window around the website. It loads `ELECTRON_START_URL` or, if that is unset, https://nsbm-recreation-center.netlify.app.
-
-```bash
-npm run electron:dev
-npm run electron:dist
-```
-
-Installers from `electron-builder` are written to `dist-electron/`. This shell is not the WPF app.
 
 ## Layout
 
@@ -123,7 +109,6 @@ components/           Website UI
 lib/                  Shared website logic, including Supabase clients
 supabase/migrations/  Postgres schema
 supabase/functions/   create-staff-user
-electron/             Website shell
 desktop/              RecCenter.Core and the WPF app
 public/samples/       Example CSV files
 ```

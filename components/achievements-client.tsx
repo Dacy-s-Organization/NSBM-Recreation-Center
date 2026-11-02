@@ -70,10 +70,7 @@ function PlaceStudentRow({
   const [hint, setHint] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!studentId.trim()) {
-      setHint(null);
-      return;
-    }
+    if (!studentId.trim()) return;
     let cancelled = false;
     const timer = setTimeout(async () => {
       const result = await lookupStudentByStudentId(studentId);
@@ -107,7 +104,7 @@ function PlaceStudentRow({
           placeholder="Student ID"
           aria-label={`Student ID for place ${index + 1}`}
         />
-        {hint && (
+        {studentId.trim() && hint && (
           <p className={`mt-1 text-xs ${hint === "Student not found" ? "text-red-600" : "text-emerald-700 dark:text-emerald-400"}`}>
             {hint}
           </p>
@@ -450,6 +447,11 @@ export function AchievementsClient({
 }) {
   const router = useRouter();
   const [yearFilter, setYearFilter] = useState(selectedYear);
+  const [yearSource, setYearSource] = useState(selectedYear);
+  if (selectedYear !== yearSource) {
+    setYearSource(selectedYear);
+    setYearFilter(selectedYear);
+  }
   const [categoryFilter, setCategoryFilter] = useState<AchievementCategory | "">("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -460,10 +462,6 @@ export function AchievementsClient({
   const [openStudentId, setOpenStudentId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [navPending, startNav] = useTransition();
-
-  useEffect(() => {
-    setYearFilter(selectedYear);
-  }, [selectedYear]);
 
   const activeCategory: AchievementCategory | "" = hasCategories ? categoryFilter : "other";
   const athletics = activeCategory === "athletics";

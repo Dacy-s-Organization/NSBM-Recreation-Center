@@ -15,7 +15,7 @@ public sealed class DesktopBridge
         {
             var dialog = new SaveFileDialog
             {
-                FileName = suggestedName,
+                FileName = SafeFileName(suggestedName),
                 DefaultExt = ".csv",
                 Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
             };
@@ -30,10 +30,10 @@ public sealed class DesktopBridge
     {
         return Application.Current.Dispatcher.Invoke(() =>
         {
-            var extension = Path.GetExtension(suggestedName);
+            var extension = Path.GetExtension(SafeFileName(suggestedName));
             var dialog = new SaveFileDialog
             {
-                FileName = suggestedName,
+                FileName = SafeFileName(suggestedName),
                 DefaultExt = extension,
                 Filter = string.IsNullOrEmpty(extension)
                     ? "All files (*.*)|*.*"
@@ -43,6 +43,14 @@ public sealed class DesktopBridge
             File.WriteAllBytes(dialog.FileName, content);
             return true;
         });
+    }
+
+    private static string SafeFileName(string suggestedName)
+    {
+        var name = Path.GetFileName(suggestedName);
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+            name = name.Replace(invalid, '_');
+        return string.IsNullOrWhiteSpace(name) ? "download" : name;
     }
 
     public bool CopyText(string text)

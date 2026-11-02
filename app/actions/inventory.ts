@@ -1,5 +1,7 @@
 "use server";
 
+import { dbError } from "@/lib/errors";
+
 import { revalidatePath } from "next/cache";
 import { isInventoryCategory, isInventoryPhase } from "@/lib/inventory";
 import { requireSuper } from "@/lib/supabase/auth";
@@ -41,7 +43,7 @@ export async function addInventoryItem(formData: FormData) {
     if (error.code === "23505") {
       return { error: "An item with this name already exists in this inventory. Edit it instead." };
     }
-    return { error: error.message };
+    return { error: dbError(error) };
   }
 
   revalidatePath("/inventory", "page");
@@ -73,7 +75,7 @@ export async function updateInventoryItem(formData: FormData) {
     if (error.code === "23505") {
       return { error: "An item with this name already exists in this inventory." };
     }
-    return { error: error.message };
+    return { error: dbError(error) };
   }
 
   revalidatePath("/inventory", "page");
@@ -90,7 +92,7 @@ export async function deleteInventoryItem(id: string) {
   const supabase = gate.supabase;
   const { error } = await supabase.from("inventory_items").delete().eq("id", id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
 
   revalidatePath("/inventory", "page");
   return { success: true };

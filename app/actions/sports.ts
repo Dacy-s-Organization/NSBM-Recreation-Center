@@ -1,5 +1,7 @@
 "use server";
 
+import { dbError } from "@/lib/errors";
+
 import { revalidatePath } from "next/cache";
 import { requireSuper } from "@/lib/supabase/auth";
 import { addNewSport } from "@/lib/sports";
@@ -24,7 +26,7 @@ export async function deleteSport(id: string) {
   if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
 
   const { data, error } = await gate.supabase.from("sports").delete().eq("id", id).select("id");
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   if (!data?.length) return { error: "The sport could not be deleted. Check that you have permission." };
 
   revalidatePath("/achievements", "layout");

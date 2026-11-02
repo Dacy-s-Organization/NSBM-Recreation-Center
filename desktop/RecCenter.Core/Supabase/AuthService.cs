@@ -28,6 +28,7 @@ public sealed class AuthService
     public bool IsSignedIn => _session is not null;
     public string? UserEmail => _session?.UserEmail;
     public bool CanEdit => string.Equals(_session?.Role, "super", StringComparison.Ordinal);
+    public bool HasStrongAssurance => string.Equals(_session?.Aal, "aal2", StringComparison.Ordinal);
 
     /// <summary>Restores the saved session, refreshing it when the access token has expired.</summary>
     public async Task<bool> TryRestoreAsync()
@@ -67,6 +68,63 @@ public sealed class AuthService
             _connection.ReportOffline();
             return ConnectionState.SignInMessage;
         }
+    }
+
+    public async Task<string?> VerifiedTotpFactorIdAsync()
+    {
+        using var request = Authorized(HttpMethod.Get, "/auth/v1/factors");
+        using var response = await _http.SendAsync(request);
+        if (!response.IsSuccessStatusCode) return null;
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        if (!doc.RootElement.TryGetProperty("totp", out var totp)) return null;
+        foreach (var factor in totp.EnumerateArray())
+        {
+            var status = factor.TryGetProperty("status", out var s) ? s.GetString() : "";
+            if (status == "verified" && factor.TryGetProperty("id", out var id))
+                return id.GetString();
+        }
+        return null;
+    }
+
+    public async Task<(string FactorId, string Qr)?> EnrollTotpAsync()
+    {
+        using var request = Authorized(HttpMethod.Post, "/auth/v1/factors");
+        request.Content = JsonContent.Create(new { factor_type = "totp", friendly_name = "Staff phone" });
+        using var response = await _http.SendAsync(request);
+        if (!response.IsSuccessStatusCode) return null;
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var id = doc.RootElement.GetProperty("id").GetString() ?? "";
+        var qr = doc.RootElement.GetProperty("totp").GetProperty("qr_code").GetString() ?? "";
+        return (id, qr);
+    }
+
+    public async Task<string?> ChallengeTotpAsync(string factorId)
+    {
+        using var request = Authorized(HttpMethod.Post, $"/auth/v1/factors/{factorId}/challenge");
+        request.Content = JsonContent.Create(new { });
+        using var response = await _http.SendAsync(request);
+        if (!response.IsSuccessStatusCode) return null;
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.GetProperty("id").GetString();
+    }
+
+    public async Task<string?> VerifyTotpAsync(string factorId, string challengeId, string code)
+    {
+        using var request = Authorized(HttpMethod.Post, $"/auth/v1/factors/{factorId}/verify");
+        request.Content = JsonContent.Create(new { challenge_id = challengeId, code });
+        using var response = await _http.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+        if (!response.IsSuccessStatusCode) return ReadAuthError(body);
+        SetSession(ParseSession(body));
+        return null;
+    }
+
+    private HttpRequestMessage Authorized(HttpMethod method, string path)
+    {
+        var request = new HttpRequestMessage(method, $"{_options.Url.TrimEnd('/')}{path}");
+        request.Headers.Add("apikey", _options.PublishableKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _session?.AccessToken ?? "");
+        return request;
     }
 
     public async Task SignOutAsync()

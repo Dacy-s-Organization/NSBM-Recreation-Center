@@ -1,5 +1,7 @@
 "use server";
 
+import { dbError } from "@/lib/errors";
+
 import { revalidatePath } from "next/cache";
 import { requireSuper } from "@/lib/supabase/auth";
 
@@ -28,7 +30,7 @@ export async function addSportTrack(formData: FormData) {
     if (error.code === "23505") {
       return { error: "A track with this name already exists." };
     }
-    return { error: error.message };
+    return { error: dbError(error) };
   }
 
   revalidatePath("/achievements", "layout");
@@ -51,7 +53,7 @@ export async function deleteSportTrack(id: string) {
         error: "Cannot delete: this track has athletic records. Remove those records first.",
       };
     }
-    return { error: error.message };
+    return { error: dbError(error) };
   }
 
   revalidatePath("/achievements", "layout");

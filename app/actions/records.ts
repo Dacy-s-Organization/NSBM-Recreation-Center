@@ -1,10 +1,12 @@
 "use server";
 
+import { dbError } from "@/lib/errors";
+
 import { revalidatePath } from "next/cache";
 import { requireSuper } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ACHIEVEMENT_SECTIONS, parseSection } from "@/lib/achievement-sections";
-import { removeCertificateFiles, settleReference, storeCertificateFiles } from "@/app/actions/certificates";
+import { removeCertificateFiles, settleReference, storeCertificateFiles } from "@/lib/certificate-mutations";
 
 const INVALID_SECTION = "Unknown achievement section.";
 
@@ -130,7 +132,7 @@ export async function updateSportRecord(formData: FormData) {
     .eq("id", id);
 
   if (error) {
-    return { error: error.message };
+    return { error: dbError(error) };
   }
 
   const removeError = await removeCertificateFiles(supabase, formData);
@@ -156,7 +158,7 @@ export async function deleteSportRecord(id: string, rawSection: string) {
     .delete()
     .eq("id", id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
 
   revalidatePath("/achievements", "layout");
   return { success: true };

@@ -28,6 +28,8 @@ public partial class MainWindow : Window
 
         BlazorView.Services = services;
         BlazorView.BlazorWebViewInitializing += OnInitializing;
+        BlazorView.BlazorWebViewInitialized += OnInitialized;
+        BlazorView.UrlLoading += OnUrlLoading;
 
         ApplyTheme();
         _theme.ThemeChanged += OnThemeChanged;
@@ -48,6 +50,35 @@ public partial class MainWindow : Window
         if (!string.IsNullOrWhiteSpace(extraArgs))
             e.EnvironmentOptions = new Microsoft.Web.WebView2.Core.CoreWebView2EnvironmentOptions(extraArgs);
 #endif
+    }
+
+    private static void OnUrlLoading(object? sender, UrlLoadingEventArgs e)
+    {
+        if (e.Url.Scheme is "data" or "blob" or "about") return;
+        if (e.Url.Host is not ("0.0.0.0" or "0.0.0.1"))
+            e.UrlLoadingStrategy = UrlLoadingStrategy.CancelLoad;
+    }
+
+    private static void OnInitialized(object? sender, BlazorWebViewInitializedEventArgs e)
+    {
+        var core = e.WebView.CoreWebView2;
+#if !DEBUG
+        core.Settings.AreDevToolsEnabled = false;
+        core.Settings.AreDefaultContextMenusEnabled = false;
+        core.Settings.AreBrowserAcceleratorKeysEnabled = false;
+#endif
+        core.Settings.AreHostObjectsAllowed = false;
+        core.NewWindowRequested += (_, args) => args.Handled = true;
+        core.NavigationStarting += (_, args) =>
+        {
+            if (!Uri.TryCreate(args.Uri, UriKind.Absolute, out var uri))
+            {
+                args.Cancel = true;
+                return;
+            }
+            var local = uri.Host is "0.0.0.0" or "0.0.0.1" || uri.Scheme is "about" or "data" or "blob";
+            if (!local) args.Cancel = true;
+        };
     }
 
     // ---- Theme ----

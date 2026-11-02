@@ -16,6 +16,10 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [factorId, setFactorId] = useState<string | null>(null);
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [qr, setQr] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [browserOffline, setBrowserOffline] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,9 +32,20 @@ export default function LoginPage() {
       setBrowserOffline(false);
       setError((current) => (isNetworkError(current) ? null : current));
     };
-    setBrowserOffline(navigator.onLine === false);
     window.addEventListener("offline", markOffline);
     window.addEventListener("online", markOnline);
+    queueMicrotask(() => setBrowserOffline(navigator.onLine === false));
+    const supabase = createClient();
+    void supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(async ({ data: assurance }) => {
+      if (assurance?.nextLevel !== "aal2" || assurance.currentLevel === "aal2") return;
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const existing = factors?.totp.find((factor) => factor.status === "verified")?.id;
+      if (!existing) return;
+      const { data: challenge } = await supabase.auth.mfa.challenge({ factorId: existing });
+      if (!challenge) return;
+      setFactorId(existing);
+      setChallengeId(challenge.id);
+    });
     return () => {
       window.removeEventListener("offline", markOffline);
       window.removeEventListener("online", markOnline);
@@ -64,12 +79,68 @@ export default function LoginPage() {
       return;
     }
 
+    const { data: factors } = await supabase.auth.mfa.listFactors();
+    let nextFactor = factors?.totp.find((factor) => factor.status === "verified")?.id ?? null;
+    let nextQr: string | null = null;
+    if (!nextFactor) {
+      const role = (await supabase.auth.getUser()).data.user?.app_metadata?.role;
+      if (role === "super") {
+        const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({
+          factorType: "totp",
+          friendlyName: "Staff phone",
+        });
+        if (enrollError || !enrolled) {
+          await supabase.auth.signOut();
+          setError("The authenticator could not be set up.");
+          setLoading(false);
+          return;
+        }
+        nextFactor = enrolled.id;
+        nextQr = enrolled.totp.qr_code;
+      }
+    }
+    if (nextFactor) {
+      const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
+        factorId: nextFactor,
+      });
+      if (challengeError || !challenge) {
+        await supabase.auth.signOut();
+        setError("The authenticator challenge could not be started.");
+        setLoading(false);
+        return;
+      }
+      setFactorId(nextFactor);
+      setChallengeId(challenge.id);
+      setQr(nextQr);
+      setLoading(false);
+      return;
+    }
+
+    setCelebrating(true);
+  }
+
+  async function confirmCode() {
+    if (!factorId || !challengeId) return;
+    setLoading(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: verifyError } = await supabase.auth.mfa.verify({
+      factorId,
+      challengeId,
+      code: code.trim(),
+    });
+    if (verifyError) {
+      setError("That code was not accepted.");
+      setLoading(false);
+      return;
+    }
     setCelebrating(true);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await signIn();
+    if (factorId) await confirmCode();
+    else await signIn();
   }
 
   if (celebrating) {
@@ -136,6 +207,36 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            {factorId ? (
+              <>
+                {qr ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={qr} alt="Authenticator setup code" className="mx-auto h-40 w-40" />
+                    <p className="text-center text-sm text-zinc-600 dark:text-zinc-400">
+                      Scan this code in an authenticator app, then enter the 6-digit code.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-center text-sm text-zinc-600 dark:text-zinc-400">
+                    Enter the 6-digit code from your authenticator app.
+                  </p>
+                )}
+                <div>
+                  <Label htmlFor="code">Authenticator code</Label>
+                  <Input
+                    id="code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    required
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
@@ -158,6 +259,8 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
+              </>
+            )}
             {offline ? (
               <OfflineNotice message="Connect to the internet to sign in." onRetry={() => void signIn()} />
             ) : error ? (
@@ -166,7 +269,7 @@ export default function LoginPage() {
               </p>
             ) : null}
             <Button type="submit" className="w-full rounded-full py-2.5" disabled={loading}>
-              {loading ? "Signing in…" : "Sign in"}
+              {loading ? "Signing in…" : factorId ? "Confirm code" : "Sign in"}
             </Button>
           </form>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type SportScene = {
   id: string;
@@ -26,9 +26,8 @@ export function LoginSportsTransition({
   onFinished,
   durationMs = 2600,
 }: LoginSportsTransitionProps) {
-  const scene = useMemo(
-    () => SPORT_SCENES[Math.floor(Math.random() * SPORT_SCENES.length)]!,
-    []
+  const [scene] = useState(
+    () => SPORT_SCENES[Math.floor(Math.random() * SPORT_SCENES.length)]!
   );
 
   const waitMs = useMemo(() => {

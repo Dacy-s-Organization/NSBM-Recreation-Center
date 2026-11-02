@@ -1,5 +1,7 @@
 "use server";
 
+import { dbError } from "@/lib/errors";
+
 import { revalidatePath } from "next/cache";
 import { requireSuper } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -17,7 +19,7 @@ import {
   parseSection,
   type AchievementSectionConfig,
 } from "@/lib/achievement-sections";
-import { removeCertificateFiles, settleReference, storeCertificateFiles } from "@/app/actions/certificates";
+import { removeCertificateFiles, settleReference, storeCertificateFiles } from "@/lib/certificate-mutations";
 
 const PLACES = ["1st", "2nd", "3rd"] as const;
 const INVALID_SECTION = "Unknown achievement section.";
@@ -285,7 +287,7 @@ export async function updateAchievement(formData: FormData) {
     })
     .eq("id", id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
 
   await supabase.from(config.winnersTable).delete().eq("achievement_id", id);
 
@@ -323,7 +325,7 @@ export async function deleteAchievement(id: string, rawSection: string) {
     .delete()
     .eq("id", id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
 
   revalidatePath("/achievements", "layout");
   return { success: true };

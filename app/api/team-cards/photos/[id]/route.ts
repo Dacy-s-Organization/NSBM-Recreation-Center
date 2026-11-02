@@ -13,10 +13,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (error || !row?.image_base64) return new NextResponse("Photo was not found.", { status: 404 });
 
   const bytes = Buffer.from(row.image_base64, "base64");
+  const fileName = String(row.file_name ?? "photo").replace(/[^\w. -]+/g, "").replace(/^\.+/, "") || "photo";
   return new NextResponse(bytes, {
     headers: {
       "Content-Type": row.content_type || "application/octet-stream",
-      "Content-Disposition": `inline; filename="${String(row.file_name ?? "photo").replace(/"/g, "")}"`,
+      "Content-Disposition": `inline; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=300",
     },
   });

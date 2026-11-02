@@ -1,5 +1,7 @@
 "use server";
 
+import { dbError } from "@/lib/errors";
+
 import { revalidatePath } from "next/cache";
 import { PHOTO_MAX_BYTES, photoContentType, type TeamCardSection } from "@/lib/team-cards/model";
 import { requireSuper } from "@/lib/supabase/auth";
@@ -95,7 +97,7 @@ export async function updateTeamCard(formData: FormData) {
     p_event_name: eventName,
     p_members: parsed.members,
   });
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   revalidatePath("/team-cards");
   return { success: true as const };
 }
@@ -105,7 +107,7 @@ export async function deleteTeamCard(id: string) {
   const gate = await requireSuper();
   if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
   const { error } = await gate.supabase.from("team_cards").delete().eq("id", id);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   revalidatePath("/team-cards");
   revalidatePath("/achievements", "layout");
   return { success: true as const };
@@ -130,7 +132,7 @@ export async function addTeamCardPhoto(formData: FormData) {
     p_image_base64: bytes.toString("base64"),
   });
   if (error) {
-    return { error: error.message.includes("at most 10") ? "A team card can have at most 10 photos." : error.message };
+    return { error: dbError(error) };
   }
   revalidatePath("/team-cards");
   return { success: true as const };
@@ -141,7 +143,7 @@ export async function deleteTeamCardPhoto(id: string) {
   const gate = await requireSuper();
   if (gate.error || !gate.supabase) return { error: gate.error ?? "You can view data but cannot change it." };
   const { error } = await gate.supabase.from("team_card_photos").delete().eq("id", id);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   revalidatePath("/team-cards");
   return { success: true as const };
 }

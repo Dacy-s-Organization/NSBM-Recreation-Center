@@ -1,5 +1,7 @@
 "use server";
 
+import { dbError } from "@/lib/errors";
+
 import { revalidatePath } from "next/cache";
 import { requireSuper } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -39,7 +41,7 @@ export async function searchStudents(
     .order("id")
     .limit(STUDENT_SEARCH_LIMIT);
 
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
   return { students: (data ?? []) as unknown as StudentSearchResult[] };
 }
 
@@ -83,7 +85,7 @@ export async function addStudent(formData: FormData) {
     if (error.code === "23505") {
       return { error: "A student with this ID already exists." };
     }
-    return { error: error.message };
+    return { error: dbError(error) };
   }
 
   revalidatePath("/students", "page");
@@ -107,7 +109,7 @@ export async function updateStudent(formData: FormData) {
     if (error.code === "23505") {
       return { error: "A student with this ID already exists." };
     }
-    return { error: error.message };
+    return { error: dbError(error) };
   }
 
   revalidatePath("/students", "page");
@@ -145,7 +147,7 @@ export async function renameBatch(
   if (clash) return { error: `A batch named "${clash.intake}" already exists.` };
 
   const { error } = await supabase.from("students").update({ intake: next.name }).eq("intake", current.intake);
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
 
   const [{ count: oldLeft }, { count: nowNew }] = await Promise.all([
     supabase.from("students").select("id", { count: "exact", head: true }).eq("intake", current.intake),
@@ -171,7 +173,7 @@ export async function deleteStudent(id: string) {
   const supabase = gate.supabase;
   const { error } = await supabase.from("students").delete().eq("id", id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: dbError(error) };
 
   revalidatePath("/students", "page");
   return { success: true };
