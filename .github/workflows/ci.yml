@@ -19,7 +19,7 @@ jobs:
       - run: npm run typecheck
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run check:pii
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.403
       - run: dotnet build desktop/RecCenter.Desktop/RecCenter.Desktop.csproj -c Release
