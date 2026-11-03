@@ -14,7 +14,7 @@
     "check:team-cards": "node --import ./scripts/register-ts.mjs scripts/check-team-cards.mts"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.10.3",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.106.2",
     "fflate": "^0.8.3",
     "next": "16.4.4",
