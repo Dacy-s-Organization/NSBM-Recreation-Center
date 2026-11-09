@@ -160,10 +160,11 @@ public sealed class AuthService
         }
     }
 
-    /// <summary>Creates a read-only MIC account. Only the super user may call this.</summary>
-    public async Task<string?> CreateStaffUserAsync(string email, string password)
+    /// <summary>Creates a mic or super account. Only the super user may call this. No verification email is sent.</summary>
+    public async Task<string?> CreateStaffUserAsync(string email, string password, string role = "mic")
     {
         if (!CanEdit) return "Only the super user can add accounts.";
+        var staffRole = role == "super" ? "super" : "mic";
         var token = await GetAccessTokenAsync();
         if (token is null) return "Not signed in.";
 
@@ -173,7 +174,7 @@ public sealed class AuthService
                 HttpMethod.Post,
                 $"{_options.Url.TrimEnd('/')}/functions/v1/create-staff-user")
             {
-                Content = JsonContent.Create(new { email, password }),
+                Content = JsonContent.Create(new { email, password, role = staffRole }),
             };
             request.Headers.Add("apikey", _options.PublishableKey);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);

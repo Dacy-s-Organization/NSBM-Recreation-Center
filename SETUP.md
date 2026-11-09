@@ -11,35 +11,16 @@ Dashboard: https://supabase.com/dashboard/project/gykusyazjmfjbdwwinab
 - [x] `.env.local` created with project URL and publishable key
 - [x] Generated types in `lib/types/supabase.ts`
 
-## Netlify (team: NSBM Recreation Center)
+### Supabase auth URLs
 
-| Item | Value |
-|------|--------|
-| Site name | `nsbm-recreation-center` |
-| URL (after first deploy) | https://nsbm-recreation-center.netlify.app |
-| Dashboard | https://app.netlify.com/projects/nsbm-recreation-center |
-| Env vars on Netlify | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (already set) |
-
-### Finish deploy (one step — builds on Netlify, not your PC)
-
-Local `netlify deploy` may fail with “Error uploading blobs” (network/VPN). Use **Git deploy** instead:
-
-1. Open **https://app.netlify.com/projects/nsbm-recreation-center/link**
-2. Choose **GitHub** → authorize → select **`dacy472/NSBM-Recreation-Center`**
-3. Branch: **`main`** → Deploy site
-
-Netlify will run `npm run build` in the cloud. First live URL: **https://nsbm-recreation-center.netlify.app**
-
-### Supabase auth for production
-
-After the site is live, in [Supabase Auth URL configuration](https://supabase.com/dashboard/project/gykusyazjmfjbdwwinab/auth/url-configuration):
+In [Supabase Auth URL configuration](https://supabase.com/dashboard/project/gykusyazjmfjbdwwinab/auth/url-configuration):
 
 | Setting | Value |
 |---------|--------|
-| Site URL | `https://nsbm-recreation-center.netlify.app` |
-| Redirect URLs | `https://nsbm-recreation-center.netlify.app/auth/callback` |
+| Site URL | `http://localhost:3000` |
+| Redirect URLs | `http://localhost:3000/auth/callback` |
 
-Keep localhost URLs if you still develop locally.
+Remove any retired Netlify address from that screen. The website is no longer hosted there.
 
 ## Your remaining steps
 
@@ -69,4 +50,4 @@ Use **Import** in the app with files from `public/samples/` (students → record
 
 ## Free plan
 
-Supabase and Netlify both use **Free** tiers for this project. Do not upgrade unless you hit limits.
+Supabase uses the **Free** tier for this project. Do not upgrade unless you hit limits.

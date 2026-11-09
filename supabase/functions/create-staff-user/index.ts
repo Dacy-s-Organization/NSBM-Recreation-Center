@@ -1,21 +1,19 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.106.2";
 
-const allowedOrigins = new Set([
-  "https://nsbm-recreation-center.netlify.app",
-  "http://localhost:3000",
-]);
+const allowedOrigins = new Set(["http://localhost:3000"]);
 
 function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("Origin") ?? "";
-  return {
-    "Access-Control-Allow-Origin": allowedOrigins.has(origin)
-      ? origin
-      : "https://nsbm-recreation-center.netlify.app",
+  const headers: Record<string, string> = {
     Vary: "Origin",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Content-Type": "application/json",
   };
+  if (allowedOrigins.has(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  return headers;
 }
 
 Deno.serve(async (req) => {
@@ -46,7 +44,7 @@ Deno.serve(async (req) => {
     return json({ error: "Only the super user can add accounts." }, 403, headers);
   }
 
-  let body: { email?: string; password?: string };
+  let body: { email?: string; password?: string; role?: string };
   try {
     body = await req.json();
   } catch {
@@ -55,6 +53,10 @@ Deno.serve(async (req) => {
 
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
+  const requestedRole = body.role === undefined || body.role === "" ? "mic" : body.role;
+  if (requestedRole !== "mic" && requestedRole !== "super") {
+    return json({ error: "Role must be mic or super." }, 400, headers);
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ error: "A valid email is required." }, 400, headers);
   }
@@ -63,11 +65,13 @@ Deno.serve(async (req) => {
   }
 
   const admin = createClient(url, serviceKey);
+  // Verification mail stays off until the operator asks for it again.
+  // The new account is confirmed immediately and signs in with this password.
   const { error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    app_metadata: { role: "mic" },
+    app_metadata: { role: requestedRole },
   });
 
   if (error) {

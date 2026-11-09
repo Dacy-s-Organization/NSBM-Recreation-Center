@@ -1,4 +1,4 @@
-/** True for `next dev`. Production builds, including `next start` and Netlify, are false. */
+/** True for `next dev`. Production builds, including `next start` and the Release desktop app, are false. */
 export const developmentLogin = process.env.NODE_ENV === "development";
 
 export function isStaffRole(role: string | null | undefined): boolean {

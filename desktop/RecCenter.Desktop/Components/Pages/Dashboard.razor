@@ -40,7 +40,7 @@ else
                 <div>
                     <h3 class="font-medium text-zinc-900 dark:text-white">Staff accounts</h3>
                     <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                        New accounts can view every list. Only this super user account can change data.
+                        Add a read-only account or another super account. No verification email is sent.
                     </p>
                 </div>
                 <Button OnClick="OpenAddUser">Add user</Button>
@@ -69,12 +69,19 @@ else
         <Modal TrapKeyboard="true" CloseOnBackdrop="true" OnClose="CloseAddUser" PanelClass="w-full max-w-md p-6">
             <h3 class="font-medium text-zinc-900 dark:text-white">Add user</h3>
             <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                Set the email and password this person will use on the same sign-in page.
+                Set the email, password, and role. The person can sign in immediately. No verification email is sent.
             </p>
             <form @onsubmit="CreateUser" class="mt-4 space-y-4">
                 <div>
                     <label for="staff-email" class="@Ui.Label">Email</label>
                     <input id="staff-email" class="@Ui.Input" type="email" required autocomplete="off" @bind="_staffEmail" />
+                </div>
+                <div>
+                    <label for="staff-role" class="@Ui.Label">Role</label>
+                    <select id="staff-role" class="@Ui.Input" @bind="_staffRole">
+                        <option value="mic">Read-only</option>
+                        <option value="super">Super</option>
+                    </select>
                 </div>
                 <div>
                     <label for="staff-password" class="@Ui.Label">Password</label>
@@ -101,6 +108,7 @@ else
     private bool _creatingUser;
     private string _staffEmail = "";
     private string _staffPassword = "";
+    private string _staffRole = "mic";
     private string? _userError;
     private string? _userMessage;
 
@@ -160,16 +168,17 @@ else
         _creatingUser = true;
         _userError = null;
         _userMessage = null;
-        var error = await Auth.CreateStaffUserAsync(_staffEmail, _staffPassword);
+        var error = await Auth.CreateStaffUserAsync(_staffEmail, _staffPassword, _staffRole);
         _creatingUser = false;
         if (error is not null)
         {
             _userError = error;
             return;
         }
-        _userMessage = $"{_staffEmail.Trim()} can sign in with the password you set.";
+        _userMessage = $"{_staffEmail.Trim()} can sign in with the password you set. No verification email was sent.";
         _staffEmail = "";
         _staffPassword = "";
+        _staffRole = "mic";
         _addUserOpen = false;
     }
 

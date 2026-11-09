@@ -84,7 +84,7 @@ npm run dev
 
 Open http://localhost:3000. Copy `.env.example` to `.env.local` and fill in the two Supabase values. The example file points at project `gykusyazjmfjbdwwinab`.
 
-The deployed site in this repo's config is https://nsbm-recreation-center.netlify.app. Netlify build settings are in `netlify.toml`. Deployment notes are in [DEPLOY-NETLIFY.md](DEPLOY-NETLIFY.md). Supabase setup notes are in [SETUP.md](SETUP.md).
+The website runs on this computer. Netlify hosting has been discontinued and is not part of the project. Supabase setup notes are in [SETUP.md](SETUP.md).
 
 ## Windows app
 

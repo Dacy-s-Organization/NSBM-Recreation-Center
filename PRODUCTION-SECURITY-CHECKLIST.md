@@ -2,7 +2,7 @@
 
 Apply these steps in order. The website and the Windows app keep working with the current database until the staff-only read migration. Do not start at the MFA migration.
 
-Nothing in the repository deploy has been applied to the live Supabase project or to Netlify from this work. Docker was not running, so the new SQL was not executed on a local stack. Read each migration before applying it.
+Netlify hosting is discontinued. Do not add it back. The staff-access, grants, certificate-counter, and audit-log SQL are already applied on the live Supabase project. Do not apply the MFA file until that step is requested.
 
 ## 1. Accounts
 
@@ -49,7 +49,7 @@ Only after that, apply `20261102140000_require_mfa_for_writes.sql`. From then on
 
 - Turn on secret scanning and push protection.
 - Turn on branch protection for `main`.
-- Deploy the website only after steps 1 to 4. Confirm the live responses send `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy`, and `Permissions-Policy`, and that the login page still loads.
+- Netlify hosting is discontinued. Do not deploy this project there. The website runs locally, and the Windows app is the staff client. Security headers stay in `middleware.ts`, and `next.config.ts` turns off `X-Powered-By`.
 
 ## 8. Windows app
 
@@ -57,6 +57,5 @@ The Release publish in `desktop/publish` was built with SDK 10.0.403 and embeds 
 
 ## Issues that stay open until you confirm
 
-- Staff-only reads, after step 2.
-- MFA enforcement, after step 6.
-- The desktop runtime rebuild, after you install the published app.
+- Production super login still requires the authenticator. The database file that would block every authenticator-less super save stays unapplied so local development can continue.
+- The desktop install on a staff PC can be confirmed later. The published exe already contains runtime 10.0.14.

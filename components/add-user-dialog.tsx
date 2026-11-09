@@ -11,6 +11,7 @@ export function AddUserDialog() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"mic" | "super">("mic");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -29,7 +30,7 @@ export function AddUserDialog() {
 
     const supabase = createClient();
     const { data, error: invokeError } = await supabase.functions.invoke("create-staff-user", {
-      body: { email: email.trim(), password },
+      body: { email: email.trim(), password, role },
     });
 
     setPending(false);
@@ -53,9 +54,10 @@ export function AddUserDialog() {
       return;
     }
 
-    setSuccess(`${email.trim()} can sign in with the password you set.`);
+    setSuccess(`${email.trim()} can sign in with the password you set. No verification email was sent.`);
     setEmail("");
     setPassword("");
+    setRole("mic");
     setOpen(false);
   }
 
@@ -65,7 +67,7 @@ export function AddUserDialog() {
         <div>
           <h3 className="font-medium text-zinc-900 dark:text-white">Staff accounts</h3>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            New accounts can view every list. Only this super user account can change data.
+            Add a read-only account or another super account. No verification email is sent.
           </p>
         </div>
         <Button type="button" onClick={() => setOpen(true)}>
@@ -92,7 +94,7 @@ export function AddUserDialog() {
               Add user
             </h3>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              Set the email and password this person will use on the same sign-in page.
+              Set the email, password, and role. The person can sign in immediately. No verification email is sent.
             </p>
             <form onSubmit={handleSubmit} className="mt-4 space-y-4">
               <div>
@@ -105,6 +107,18 @@ export function AddUserDialog() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
+              </div>
+              <div>
+                <Label htmlFor="staff-role">Role</Label>
+                <select
+                  id="staff-role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value === "super" ? "super" : "mic")}
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 dark:border-white/10 dark:bg-[var(--app-surface-2)] dark:text-zinc-50 dark:focus:border-emerald-400 dark:focus:ring-emerald-400/20"
+                >
+                  <option value="mic">Read-only</option>
+                  <option value="super">Super</option>
+                </select>
               </div>
               <div>
                 <Label htmlFor="staff-password">Password</Label>
